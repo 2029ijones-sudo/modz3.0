@@ -6,11 +6,7 @@
     <title>Modz3.0 | Immersive 3D JavaScript Sandbox</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.0/min/vs/loader.js"></script>
     <style>
         * {
@@ -329,6 +325,31 @@
             background: linear-gradient(135deg, var(--primary-light), var(--primary));
         }
 
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px);
+            border-color: var(--primary);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success), #00a085);
+            color: white;
+            box-shadow: 0 0 20px rgba(0, 184, 148, 0.3);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, var(--danger), #ff3742);
+            color: white;
+            box-shadow: 0 0 20px rgba(255, 71, 87, 0.3);
+        }
+
         /* 3D Avatar Container */
         .avatar-container {
             width: 60px;
@@ -521,6 +542,36 @@
             filter: drop-shadow(0 0 20px var(--secondary));
         }
 
+        .upload-text {
+            font-size: 18px;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .upload-subtext {
+            font-size: 14px;
+            color: var(--gray-light);
+            opacity: 0.8;
+        }
+
+        .upload-progress {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            margin-top: 20px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .upload-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            width: 0%;
+            transition: width 0.3s;
+            border-radius: 3px;
+        }
+
         /* Enhanced Mod Items */
         .mod-list {
             display: flex;
@@ -571,6 +622,11 @@
                 0 0 30px rgba(108, 92, 231, 0.2);
         }
 
+        .mod-item.dragging {
+            opacity: 0.5;
+            transform: scale(0.95) rotateX(10deg);
+        }
+
         .mod-icon {
             width: 60px;
             height: 60px;
@@ -585,9 +641,78 @@
             animation: iconFloat 4s ease-in-out infinite;
         }
 
+        .mod-icon.script {
+            background: linear-gradient(135deg, var(--primary), #8a7cff);
+        }
+
+        .mod-icon.asset {
+            background: linear-gradient(135deg, var(--success), #00d2a0);
+        }
+
+        .mod-icon.other {
+            background: linear-gradient(135deg, var(--accent), #ff8ab3);
+        }
+
         @keyframes iconFloat {
             0%, 100% { transform: translateY(0px) rotateX(0deg); }
             50% { transform: translateY(-5px) rotateX(10deg); }
+        }
+
+        .mod-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .mod-info h4 {
+            font-size: 16px;
+            margin-bottom: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .mod-info p {
+            font-size: 14px;
+            color: var(--gray-light);
+            opacity: 0.8;
+        }
+
+        .mod-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .mod-action-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            cursor: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            font-size: 16px;
+        }
+
+        .mod-action-btn:hover {
+            background: var(--primary);
+            transform: scale(1.1) rotateY(10deg);
+            box-shadow: 0 0 15px var(--primary);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            color: var(--gray);
+        }
+
+        .empty-state i {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
         }
 
         /* 3D World Container */
@@ -695,10 +820,61 @@
             }
         }
 
-        #monaco-editor {
-            flex: 1;
-            min-height: 500px;
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 30px;
+            border-bottom: 1px solid rgba(108, 92, 231, 0.3);
+            background: linear-gradient(135deg, 
+                rgba(15, 20, 25, 0.9) 0%,
+                rgba(10, 15, 20, 0.8) 100%);
         }
+
+        .editor-header h3 {
+            font-size: 24px;
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .editor-content {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #monaco-editor {
+            width: 100%;
+            height: 100%;
+        }
+
+        .editor-console {
+            height: 200px;
+            background: rgba(0, 0, 0, 0.9);
+            border-top: 1px solid rgba(108, 92, 231, 0.3);
+            padding: 20px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .console-line {
+            margin-bottom: 8px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            font-family: 'Fira Code', monospace;
+        }
+
+        .console-line.info { color: var(--secondary); }
+        .console-line.success { color: var(--success); }
+        .console-line.warning { color: var(--warning); }
+        .console-line.error { color: var(--danger); }
 
         /* 3D Notifications */
         .notification-container {
@@ -733,6 +909,41 @@
 
         .notification.show {
             transform: translateX(0) rotateY(0deg);
+        }
+
+        .notification-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 12px;
+        }
+
+        .notification-icon {
+            font-size: 24px;
+            color: var(--primary);
+        }
+
+        .notification-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--light);
+        }
+
+        .notification-message {
+            color: var(--gray-light);
+            line-height: 1.6;
+        }
+
+        /* Drop Zone */
+        .drop-zone {
+            position: absolute;
+            border: 4px dashed var(--accent);
+            border-radius: 20px;
+            background: rgba(253, 121, 168, 0.1);
+            pointer-events: none;
+            z-index: 20;
+            display: none;
+            box-shadow: 0 0 40px rgba(253, 121, 168, 0.3);
         }
 
         /* Enhanced Effects */
@@ -858,7 +1069,7 @@
         </div>
         
         <nav class="nav-links">
-            <a href="#" class="nav-link active">
+            <a href="#" class="nav-link active" id="navWorld">
                 <i class="fas fa-globe"></i>
                 <span>3D World</span>
             </a>
@@ -866,9 +1077,9 @@
                 <i class="fas fa-code"></i>
                 <span>AI Editor</span>
             </a>
-            <a href="#" class="nav-link">
+            <a href="#" class="nav-link" id="navCommunity">
                 <i class="fas fa-share-alt"></i>
-                <span>Metaverse</span>
+                <span>Community</span>
             </a>
         </nav>
         
@@ -885,7 +1096,7 @@
             </div>
             <div class="avatar-container">
                 <div class="avatar-glow"></div>
-                <div class="avatar-3d" title="Metahuman Avatar">
+                <div class="avatar-3d" title="Metahuman Avatar" id="userAvatar">
                     <i class="fas fa-robot"></i>
                 </div>
             </div>
@@ -903,25 +1114,25 @@
                 </h3>
                 <div class="upload-area" id="uploadArea">
                     <i class="fas fa-file-upload upload-icon"></i>
-                    <div class="upload-text">Drag & Drop 3D Files Here</div>
-                    <div class="upload-subtext">Upload .js, .glb, .png, .obj files</div>
+                    <div class="upload-text">Drag & Drop Files Here</div>
+                    <div class="upload-subtext">Upload .js, .png, .jpg, .json files</div>
                     <div class="upload-progress" id="uploadProgress">
                         <div class="upload-progress-bar"></div>
                     </div>
                 </div>
-                <input type="file" id="fileInput" multiple accept=".js,.glb,.obj,.png,.jpg,.jpeg,.json" style="display: none;">
+                <input type="file" id="fileInput" multiple accept=".js,.png,.jpg,.jpeg,.json" style="display: none;">
             </div>
 
             <div class="sidebar-section">
                 <h3 class="sidebar-title">
                     <i class="fas fa-box-open"></i>
-                    <span>Your 3D Mods</span>
+                    <span>Your Mods</span>
                     <span id="modCount" style="margin-left: auto; font-size: 14px; color: var(--gray-light);">0 mods</span>
                 </h3>
                 <div class="mod-list" id="modList">
                     <div class="empty-state" id="emptyModList">
                         <i class="fas fa-cloud-upload-alt"></i>
-                        <p>Upload 3D mods to get started</p>
+                        <p>Upload mods to get started</p>
                     </div>
                 </div>
             </div>
@@ -929,19 +1140,19 @@
             <div class="sidebar-section">
                 <h3 class="sidebar-title">
                     <i class="fas fa-database"></i>
-                    <span>Cloud Storage</span>
+                    <span>Storage</span>
                 </h3>
                 <div style="padding: 20px; background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%); border-radius: 20px;">
                     <p style="margin-bottom: 15px; display: flex; justify-content: space-between;">
-                        <span>Storage Used:</span>
-                        <span id="storageUsed">0 GB</span>
+                        <span>Used:</span>
+                        <span id="storageUsed">0 KB</span>
                     </p>
                     <div style="height: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; overflow: hidden; box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);">
-                        <div id="storageBar" style="height: 100%; background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent)); width: 0%; transition: width 1s;"></div>
+                        <div id="storageBar" style="height: 100%; background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent)); width: 0%;"></div>
                     </div>
                     <p style="margin-top: 20px; font-size: 14px; color: var(--gray-light); text-align: center;">
-                        <i class="fas fa-cloud" style="margin-right: 8px;"></i>
-                        Distributed Cloud Storage | 5GB Free
+                        <i class="fas fa-info-circle" style="margin-right: 8px;"></i>
+                        All data stored locally
                     </p>
                 </div>
             </div>
@@ -958,25 +1169,26 @@
                     </button>
                     <button class="btn btn-danger" id="clearWorld">
                         <i class="fas fa-trash"></i>
-                        <span>Reset</span>
+                        <span>Clear</span>
                     </button>
-                    <button class="btn btn-primary" id="newWorld">
+                    <button class="btn btn-success" id="newWorld">
                         <i class="fas fa-plus"></i>
-                        <span>New Metaverse</span>
+                        <span>New World</span>
                     </button>
                 </div>
             </div>
 
             <div class="world-overlay"></div>
             <canvas id="threeCanvas"></canvas>
+            <div class="drop-zone" id="dropZone"></div>
         </div>
 
         <!-- Advanced Code Editor -->
         <div class="editor-panel" id="editorPanel">
             <div class="editor-header">
                 <h3>
-                    <i class="fas fa-robot"></i>
-                    <span>AI-Powered Code Editor</span>
+                    <i class="fas fa-code"></i>
+                    <span>JavaScript Editor</span>
                 </h3>
                 <div>
                     <button class="btn btn-secondary" id="aiSuggest">
@@ -985,7 +1197,7 @@
                     </button>
                     <button class="btn btn-primary" id="runCode">
                         <i class="fas fa-play"></i>
-                        <span>Execute</span>
+                        <span>Run</span>
                     </button>
                     <button class="btn btn-success" id="saveCode">
                         <i class="fas fa-save"></i>
@@ -997,10 +1209,14 @@
                 </div>
             </div>
 
-            <div id="monaco-editor"></div>
+            <div class="editor-content">
+                <div id="monaco-editor"></div>
+            </div>
+
             <div class="editor-console" id="editorConsole">
-                <div class="console-line info">> Welcome to Modz3.0 AI Editor</div>
-                <div class="console-line info">> Type 'help' for AI assistance</div>
+                <div class="console-line info">> Modz3.0 Editor Ready</div>
+                <div class="console-line info">> Write your JavaScript mods here</div>
+                <div class="console-line info">> Click Run to test your code</div>
             </div>
         </div>
     </div>
@@ -1010,10 +1226,12 @@
 
     <script>
         // ========== 3D ENGINE INITIALIZATION ==========
-        let scene, camera, renderer, controls, composer;
+        let scene, camera, renderer, controls;
         let worldObjects = [];
         let raycaster = new THREE.Raycaster();
         let mouse = new THREE.Vector2();
+        let gridVisible = true;
+        let selectedObject = null;
 
         function init3D() {
             // Scene
@@ -1021,12 +1239,13 @@
             scene.fog = new THREE.Fog(0x0a0a1a, 10, 100);
             
             // Camera
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera = new THREE.PerspectiveCamera(75, (window.innerWidth - 380) / (window.innerHeight - 100), 0.1, 1000);
             camera.position.set(0, 10, 20);
             
             // Renderer
-            renderer = new THREE.WebGLRenderer({
-                canvas: document.getElementById('threeCanvas'),
+            const canvas = document.getElementById('threeCanvas');
+            renderer = new THREE.WebGLRenderer({ 
+                canvas,
                 antialias: true,
                 alpha: true
             });
@@ -1061,28 +1280,16 @@
             const gridHelper = new THREE.GridHelper(100, 100, 0x6c5ce7, 0x6c5ce7);
             gridHelper.material.opacity = 0.2;
             gridHelper.material.transparent = true;
+            gridHelper.name = 'grid';
             scene.add(gridHelper);
-            
-            // Post Processing
-            composer = new THREE.EffectComposer(renderer);
-            const renderPass = new THREE.RenderPass(scene, camera);
-            composer.addPass(renderPass);
-            
-            const bloomPass = new THREE.UnrealBloomPass(
-                new THREE.Vector2(window.innerWidth, window.innerHeight),
-                1.5, 0.4, 0.85
-            );
-            composer.addPass(bloomPass);
             
             // Stars
             createStars();
             
-            // Initial objects
-            addDefaultObjects();
-            
             // Event listeners
             window.addEventListener('resize', onWindowResize);
-            renderer.domElement.addEventListener('click', onCanvasClick);
+            canvas.addEventListener('click', onCanvasClick);
+            canvas.addEventListener('mousemove', onCanvasMouseMove);
             
             // Start animation loop
             animate();
@@ -1090,13 +1297,13 @@
 
         function createStars() {
             const starGeometry = new THREE.BufferGeometry();
-            const starCount = 10000;
+            const starCount = 1000;
             const positions = new Float32Array(starCount * 3);
             
             for (let i = 0; i < starCount * 3; i += 3) {
-                positions[i] = (Math.random() - 0.5) * 2000;
-                positions[i + 1] = (Math.random() - 0.5) * 2000;
-                positions[i + 2] = (Math.random() - 0.5) * 2000;
+                positions[i] = (Math.random() - 0.5) * 1000;
+                positions[i + 1] = (Math.random() - 0.5) * 1000;
+                positions[i + 2] = (Math.random() - 0.5) * 1000;
             }
             
             starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -1111,76 +1318,41 @@
             scene.add(stars);
         }
 
-        function addDefaultObjects() {
-            // Add a central platform
-            const platformGeometry = new THREE.CylinderGeometry(15, 15, 1, 32);
-            const platformMaterial = new THREE.MeshPhysicalMaterial({
-                color: 0x2d2d5a,
-                metalness: 0.8,
-                roughness: 0.2,
-                transmission: 0.4,
-                thickness: 2,
-                side: THREE.DoubleSide
-            });
-            const platform = new THREE.Mesh(platformGeometry, platformMaterial);
-            platform.position.y = -0.5;
-            platform.receiveShadow = true;
-            scene.add(platform);
-            
-            // Add rotating cube
-            const cubeGeometry = new THREE.BoxGeometry(3, 3, 3);
-            const cubeMaterial = new THREE.MeshStandardMaterial({
+        function addDefaultObject() {
+            const geometry = new THREE.BoxGeometry(3, 3, 3);
+            const material = new THREE.MeshStandardMaterial({
                 color: 0x6c5ce7,
                 emissive: 0x6c5ce7,
                 emissiveIntensity: 0.5,
                 metalness: 0.9,
                 roughness: 0.1
             });
-            const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+            const cube = new THREE.Mesh(geometry, material);
             cube.position.set(0, 3, 0);
             cube.castShadow = true;
+            cube.name = 'Default Cube';
+            cube.userData = {
+                isInteractive: true,
+                type: 'cube',
+                modId: 'default',
+                update: function() {
+                    this.rotation.x += 0.01;
+                    this.rotation.y += 0.01;
+                    this.position.y = 3 + Math.sin(Date.now() * 0.001) * 1;
+                }
+            };
+            
             scene.add(cube);
-            cube.userData.isInteractive = true;
-            cube.userData.type = 'default_cube';
-            
-            // Animation function
-            cube.userData.update = function() {
-                this.rotation.x += 0.01;
-                this.rotation.y += 0.01;
-                this.position.y = 3 + Math.sin(Date.now() * 0.001) * 1;
-            };
-            
             worldObjects.push(cube);
-            
-            // Add torus knot
-            const knotGeometry = new THREE.TorusKnotGeometry(2, 0.5, 100, 16);
-            const knotMaterial = new THREE.MeshPhysicalMaterial({
-                color: 0x00cec9,
-                metalness: 0.7,
-                roughness: 0.1,
-                transmission: 0.8,
-                thickness: 3
-            });
-            const knot = new THREE.Mesh(knotGeometry, knotMaterial);
-            knot.position.set(8, 3, 0);
-            scene.add(knot);
-            knot.userData.isInteractive = true;
-            knot.userData.type = 'default_knot';
-            
-            knot.userData.update = function() {
-                this.rotation.x += 0.005;
-                this.rotation.y += 0.01;
-                this.position.y = 3 + Math.sin(Date.now() * 0.001 + 1) * 1;
-            };
-            
-            worldObjects.push(knot);
+            return cube;
         }
 
         function onWindowResize() {
-            camera.aspect = (window.innerWidth - 380) / (window.innerHeight - 100);
+            const width = window.innerWidth - 380;
+            const height = window.innerHeight - 100;
+            camera.aspect = width / height;
             camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth - 380, window.innerHeight - 100);
-            composer.setSize(window.innerWidth - 380, window.innerHeight - 100);
+            renderer.setSize(width, height);
         }
 
         function onCanvasClick(event) {
@@ -1189,21 +1361,98 @@
             mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
             
             raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects(scene.children, true);
+            const intersects = raycaster.intersectObjects(worldObjects);
             
             if (intersects.length > 0) {
                 const object = intersects[0].object;
-                if (object.userData.isInteractive) {
-                    console.log('Clicked object:', object.userData.type);
-                    modManager.showNotification(`Selected: ${object.userData.type}`, 'info');
-                    
-                    // Visual feedback
-                    object.material.emissive.setHex(0xffaa00);
-                    setTimeout(() => {
-                        object.material.emissive.setHex(0x000000);
-                    }, 300);
-                }
+                selectObject(object);
+            } else {
+                deselectObject();
             }
+        }
+
+        function onCanvasMouseMove(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(worldObjects);
+            
+            // Hover effect
+            worldObjects.forEach(obj => {
+                obj.material.emissiveIntensity = 0.5;
+            });
+            
+            if (intersects.length > 0) {
+                const object = intersects[0].object;
+                object.material.emissiveIntensity = 1.0;
+            }
+        }
+
+        function selectObject(object) {
+            if (selectedObject) {
+                selectedObject.material.emissive.setHex(0x000000);
+            }
+            
+            selectedObject = object;
+            object.material.emissive.setHex(0xffaa00);
+            modManager.showNotification(`Selected: ${object.name || 'Object'}`, 'info');
+        }
+
+        function deselectObject() {
+            if (selectedObject) {
+                selectedObject.material.emissive.setHex(0x000000);
+                selectedObject = null;
+            }
+        }
+
+        function add3DObjectFromMod(mod, position) {
+            const geometry = new THREE.BoxGeometry(2, 2, 2);
+            const color = Math.random() * 0xffffff;
+            const material = new THREE.MeshPhysicalMaterial({
+                color: color,
+                metalness: 0.8,
+                roughness: 0.2,
+                transmission: 0.4,
+                thickness: 2
+            });
+            
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.copy(position || new THREE.Vector3(
+                (Math.random() - 0.5) * 30,
+                2,
+                (Math.random() - 0.5) * 30
+            ));
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.name = mod.name;
+            
+            mesh.userData = {
+                isInteractive: true,
+                type: mod.type,
+                modId: mod.id,
+                update: function() {
+                    this.rotation.y += 0.01;
+                    this.position.y = 2 + Math.sin(Date.now() * 0.001 + this.position.x) * 0.5;
+                }
+            };
+            
+            scene.add(mesh);
+            worldObjects.push(mesh);
+            
+            // Add to world data
+            modManager.worldData.objects.push({
+                id: mod.id,
+                name: mod.name,
+                type: '3d',
+                position: mesh.position.toArray(),
+                rotation: mesh.rotation.toArray(),
+                scale: mesh.scale.toArray()
+            });
+            modManager.saveWorld();
+            
+            return mesh;
         }
 
         function animate() {
@@ -1211,13 +1460,13 @@
             
             // Update world objects
             worldObjects.forEach(obj => {
-                if (obj.userData.update) {
+                if (obj.userData && obj.userData.update) {
                     obj.userData.update();
                 }
             });
             
             controls.update();
-            composer.render();
+            renderer.render(scene, camera);
         }
 
         // ========== ADVANCED CURSOR SYSTEM ==========
@@ -1272,7 +1521,8 @@
 
         // Create particle effects
         function createParticles() {
-            const particleCount = 100;
+            const particleCount = 50;
+            const particlesContainer = document.getElementById('particles');
             for (let i = 0; i < particleCount; i++) {
                 const particle = document.createElement('div');
                 particle.className = 'particle';
@@ -1280,61 +1530,94 @@
                 particle.style.animationDelay = Math.random() * 20 + 's';
                 particle.style.width = particle.style.height = Math.random() * 6 + 2 + 'px';
                 particle.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 70%)`;
-                document.getElementById('particles').appendChild(particle);
+                particlesContainer.appendChild(particle);
             }
         }
 
         // ========== MONACO EDITOR INITIALIZATION ==========
-        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.0/min/vs' }});
+        require.config({ 
+            paths: { 
+                'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.0/min/vs' 
+            } 
+        });
 
         let monacoEditor;
         require(['vs/editor/editor.main'], function() {
             monacoEditor = monaco.editor.create(document.getElementById('monaco-editor'), {
-                value: `// Welcome to Modz3.0 AI-Powered Editor!
-// Use @ai for suggestions or type 'help'
+                value: `// Welcome to Modz3.0 JavaScript Editor!
+// Write your mods here and save them
 
-class MetaverseObject {
-    constructor() {
-        this.position = { x: 0, y: 0, z: 0 };
-        this.rotation = { x: 0, y: 0, z: 0 };
-        this.scale = { x: 1, y: 1, z: 1 };
-        this.material = {
-            color: 0x6c5ce7,
-            emissive: 0x6c5ce7,
-            emissiveIntensity: 0.5,
-            metalness: 0.9,
-            roughness: 0.1
-        };
-    }
-
-    animate() {
-        // AI Suggestion: Add smooth animation with GSAP or custom easing
-        this.rotation.y += 0.01;
-        this.position.y = Math.sin(Date.now() * 0.001) * 2;
-    }
-
-    interact() {
-        // AI Suggestion: Add particle effects on interaction
-        console.log('Object interacted!');
-        return this;
-    }
+// Example: Create a rotating cube
+function createRotatingCube(scene) {
+    const geometry = new THREE.BoxGeometry(2, 2, 2);
+    const material = new THREE.MeshStandardMaterial({
+        color: 0x6c5ce7,
+        metalness: 0.9,
+        roughness: 0.1
+    });
+    
+    const cube = new THREE.Mesh(geometry, material);
+    cube.position.set(0, 5, 0);
+    cube.castShadow = true;
+    
+    // Add animation function
+    cube.userData = {
+        update: function() {
+            this.rotation.x += 0.01;
+            this.rotation.y += 0.01;
+            this.position.y = 5 + Math.sin(Date.now() * 0.001) * 1;
+        }
+    };
+    
+    scene.add(cube);
+    return cube;
 }
 
-// @ai: Create a 3D particle system
+// Example: Create a particle system
 class ParticleSystem {
-    constructor() {
+    constructor(scene, count = 100) {
         this.particles = [];
-        this.maxParticles = 1000;
+        this.scene = scene;
+        
+        for (let i = 0; i < count; i++) {
+            const geometry = new THREE.SphereGeometry(0.1, 8, 8);
+            const material = new THREE.MeshBasicMaterial({
+                color: Math.random() * 0xffffff
+            });
+            
+            const particle = new THREE.Mesh(geometry, material);
+            particle.position.set(
+                (Math.random() - 0.5) * 20,
+                (Math.random() - 0.5) * 20,
+                (Math.random() - 0.5) * 20
+            );
+            
+            particle.userData = {
+                speed: Math.random() * 0.02 + 0.01,
+                update: function() {
+                    this.position.y += this.speed;
+                    if (this.position.y > 10) {
+                        this.position.y = -10;
+                    }
+                }
+            };
+            
+            scene.add(particle);
+            this.particles.push(particle);
+        }
     }
     
-    emit(position) {
-        // Implementation here
+    update() {
+        this.particles.forEach(p => {
+            if (p.userData.update) {
+                p.userData.update();
+            }
+        });
     }
 }
 
-// Ready for execution!
-const myObject = new MetaverseObject();
-setInterval(() => myObject.animate(), 16);`,
+// Try running: createRotatingCube(scene);
+// or: new ParticleSystem(scene, 50);`,
                 language: 'javascript',
                 theme: 'vs-dark',
                 fontSize: 14,
@@ -1357,7 +1640,7 @@ setInterval(() => myObject.animate(), 16);`,
                 bracketPairColorization: { enabled: true }
             });
 
-            // Add AI suggestions
+            // Add custom suggestions
             monaco.languages.registerCompletionItemProvider('javascript', {
                 provideCompletionItems: function(model, position) {
                     const word = model.getWordUntilPosition(position);
@@ -1371,24 +1654,24 @@ setInterval(() => myObject.animate(), 16);`,
                     return {
                         suggestions: [
                             {
-                                label: '@ai',
-                                kind: monaco.languages.CompletionItemKind.Function,
-                                documentation: 'Get AI-powered code suggestions',
-                                insertText: '@ai: ',
+                                label: 'scene',
+                                kind: monaco.languages.CompletionItemKind.Variable,
+                                documentation: 'Three.js scene object',
+                                insertText: 'scene',
                                 range: range
                             },
                             {
-                                label: 'create3DObject',
-                                kind: monaco.languages.CompletionItemKind.Method,
-                                documentation: 'Create a new 3D object in the scene',
-                                insertText: 'create3DObject(type, options)',
+                                label: 'THREE',
+                                kind: monaco.languages.CompletionItemKind.Class,
+                                documentation: 'Three.js library',
+                                insertText: 'THREE',
                                 range: range
                             },
                             {
-                                label: 'addParticleEffect',
-                                kind: monaco.languages.CompletionItemKind.Method,
-                                documentation: 'Add particle effects to an object',
-                                insertText: 'addParticleEffect(object, config)',
+                                label: 'modManager',
+                                kind: monaco.languages.CompletionItemKind.Variable,
+                                documentation: 'Mod manager instance',
+                                insertText: 'modManager',
                                 range: range
                             }
                         ]
@@ -1397,17 +1680,36 @@ setInterval(() => myObject.animate(), 16);`,
             });
         });
 
-        // ========== MOD MANAGER (Enhanced) ==========
+        // ========== MOD MANAGER ==========
         class ModManager {
             constructor() {
                 this.mods = JSON.parse(localStorage.getItem('modz3.0_mods') || '[]');
-                this.worldData = JSON.parse(localStorage.getItem('modz3.0_world') || '{"name":"Untitled","objects":[],"scripts":{}}');
+                this.worldData = JSON.parse(localStorage.getItem('modz3.0_world') || '{"name":"Untitled","objects":[]}');
+                this.activeScripts = new Map();
                 this.updateUI();
                 this.updateStorageInfo();
                 
                 // Initialize 3D engine
                 init3D();
                 createParticles();
+                
+                // Add default object if world is empty
+                if (this.worldData.objects.length === 0) {
+                    addDefaultObject();
+                } else {
+                    // Load existing objects
+                    this.loadWorldObjects();
+                }
+                
+                // Start update loop
+                setInterval(() => this.updateScripts(), 16);
+            }
+
+            getFileType(filename) {
+                const ext = filename.split('.').pop().toLowerCase();
+                if (['js'].includes(ext)) return 'script';
+                if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return 'asset';
+                return 'other';
             }
 
             addMod(file) {
@@ -1422,7 +1724,7 @@ setInterval(() => myObject.animate(), 16);`,
                             size: file.size,
                             data: e.target.result,
                             uploaded: new Date().toISOString(),
-                            is3D: file.name.includes('.glb') || file.name.includes('.obj')
+                            is3D: false
                         };
                         
                         this.mods.push(mod);
@@ -1431,12 +1733,6 @@ setInterval(() => myObject.animate(), 16);`,
                         this.updateStorageInfo();
                         
                         this.showNotification(`Uploaded: ${file.name}`, 'success');
-                        
-                        // If it's a 3D model, add to scene
-                        if (mod.is3D) {
-                            this.load3DModel(mod);
-                        }
-                        
                         resolve(mod);
                     };
                     
@@ -1444,7 +1740,7 @@ setInterval(() => myObject.animate(), 16);`,
                         reject(new Error('Failed to read file'));
                     };
                     
-                    if (file.type.startsWith('image/') || file.name.includes('.glb') || file.name.includes('.obj')) {
+                    if (file.type.startsWith('image/')) {
                         reader.readAsDataURL(file);
                     } else {
                         reader.readAsText(file);
@@ -1452,41 +1748,414 @@ setInterval(() => myObject.animate(), 16);`,
                 });
             }
 
-            async load3DModel(mod) {
-                if (!mod.data.startsWith('data:model/')) return;
+            saveMods() {
+                localStorage.setItem('modz3.0_mods', JSON.stringify(this.mods));
+            }
+
+            saveWorld() {
+                localStorage.setItem('modz3.0_world', JSON.stringify(this.worldData));
+            }
+
+            updateUI() {
+                const modList = document.getElementById('modList');
+                const modCount = document.getElementById('modCount');
+                const emptyModList = document.getElementById('emptyModList');
                 
-                try {
-                    // This would be implemented with proper GLTFLoader
-                    // For now, create a placeholder
-                    const geometry = new THREE.BoxGeometry(2, 2, 2);
-                    const material = new THREE.MeshPhysicalMaterial({
-                        color: Math.random() * 0xffffff,
-                        metalness: 0.8,
-                        roughness: 0.2
+                modCount.textContent = `${this.mods.length} mod${this.mods.length !== 1 ? 's' : ''}`;
+                
+                if (this.mods.length === 0) {
+                    emptyModList.style.display = 'block';
+                    return;
+                }
+                
+                emptyModList.style.display = 'none';
+                modList.innerHTML = '';
+                
+                this.mods.forEach((mod, index) => {
+                    const modItem = document.createElement('div');
+                    modItem.className = 'mod-item';
+                    modItem.draggable = true;
+                    modItem.dataset.id = mod.id;
+                    modItem.dataset.index = index;
+                    
+                    const iconClass = mod.type === 'script' ? 'fas fa-code' : 
+                                    mod.type === 'asset' ? 'fas fa-image' : 'fas fa-file';
+                    
+                    modItem.innerHTML = `
+                        <div class="mod-icon ${mod.type}">
+                            <i class="${iconClass}"></i>
+                        </div>
+                        <div class="mod-info">
+                            <h4>${mod.name}</h4>
+                            <p>${this.formatFileSize(mod.size)} • ${new Date(mod.uploaded).toLocaleDateString()}</p>
+                        </div>
+                        <div class="mod-actions">
+                            ${mod.type === 'script' ? `<button class="mod-action-btn edit-mod" data-index="${index}">
+                                <i class="fas fa-edit"></i>
+                            </button>` : ''}
+                            <button class="mod-action-btn delete-mod" data-index="${index}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    `;
+                    
+                    modList.appendChild(modItem);
+                });
+                
+                // Add event listeners for action buttons
+                document.querySelectorAll('.edit-mod').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const index = parseInt(btn.dataset.index);
+                        this.editMod(index);
                     });
-                    const mesh = new THREE.Mesh(geometry, material);
-                    mesh.position.set(
-                        (Math.random() - 0.5) * 30,
-                        2,
-                        (Math.random() - 0.5) * 30
-                    );
-                    scene.add(mesh);
-                    
-                    mesh.userData.isInteractive = true;
-                    mesh.userData.modId = mod.id;
-                    mesh.userData.update = function() {
-                        this.rotation.y += 0.01;
-                    };
-                    
-                    worldObjects.push(mesh);
-                } catch (error) {
-                    console.error('Failed to load 3D model:', error);
+                });
+                
+                document.querySelectorAll('.delete-mod').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const index = parseInt(btn.dataset.index);
+                        this.deleteMod(index);
+                    });
+                });
+            }
+
+            loadWorldObjects() {
+                // Clear existing objects except grid
+                scene.children = scene.children.filter(child => child.name === 'grid');
+                worldObjects = [];
+                
+                // Add objects from world data
+                this.worldData.objects.forEach(objData => {
+                    const mod = this.mods.find(m => m.id === objData.id);
+                    if (mod) {
+                        const position = new THREE.Vector3().fromArray(objData.position || [0, 0, 0]);
+                        add3DObjectFromMod(mod, position);
+                    }
+                });
+            }
+
+            addToWorld(modIndex, position) {
+                const mod = this.mods[modIndex];
+                if (!mod) return;
+                
+                const obj = add3DObjectFromMod(mod, position);
+                this.showNotification(`Added ${mod.name} to world!`, 'success');
+                return obj;
+            }
+
+            editMod(index) {
+                const mod = this.mods[index];
+                if (mod.type === 'script') {
+                    this.openEditor(mod.data, mod.name, index);
+                } else {
+                    this.showNotification('Only JavaScript files can be edited', 'warning');
                 }
             }
 
-            // ... (rest of ModManager methods remain similar but enhanced with 3D features)
-            // Due to character limits, I've included the core 3D functionality
-            // The complete ModManager would include all the previous features with 3D enhancements
+            deleteMod(index) {
+                if (confirm('Delete this mod?')) {
+                    const mod = this.mods[index];
+                    
+                    // Remove from world objects
+                    this.worldData.objects = this.worldData.objects.filter(obj => obj.id !== mod.id);
+                    this.saveWorld();
+                    
+                    // Remove from 3D scene
+                    const objectIndex = worldObjects.findIndex(obj => obj.userData.modId === mod.id);
+                    if (objectIndex > -1) {
+                        scene.remove(worldObjects[objectIndex]);
+                        worldObjects.splice(objectIndex, 1);
+                    }
+                    
+                    // Remove from mods list
+                    this.mods.splice(index, 1);
+                    this.saveMods();
+                    
+                    this.updateUI();
+                    this.updateStorageInfo();
+                    this.showNotification('Mod deleted', 'success');
+                }
+            }
+
+            openEditor(content, filename, index = null) {
+                const editorPanel = document.getElementById('editorPanel');
+                monacoEditor.setValue(content);
+                document.getElementById('editorPanel').classList.add('active');
+                
+                // Store current editing index
+                editorPanel.dataset.editingIndex = index !== null ? index : 'new';
+            }
+
+            updateStorageInfo() {
+                const used = JSON.stringify(this.mods).length + JSON.stringify(this.worldData).length;
+                const usedKB = Math.round(used / 1024);
+                document.getElementById('storageUsed').textContent = `${usedKB} KB`;
+                
+                const maxStorage = 5 * 1024 * 1024; // 5MB
+                const percentage = Math.min((used / maxStorage) * 100, 100);
+                document.getElementById('storageBar').style.width = percentage + '%';
+            }
+
+            formatFileSize(bytes) {
+                if (bytes < 1024) return bytes + ' B';
+                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+                return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            }
+
+            showNotification(message, type = 'info') {
+                const container = document.getElementById('notificationContainer');
+                const notification = document.createElement('div');
+                notification.className = `notification`;
+                
+                const icons = {
+                    'info': 'fas fa-info-circle',
+                    'success': 'fas fa-check-circle',
+                    'warning': 'fas fa-exclamation-triangle',
+                    'error': 'fas fa-times-circle'
+                };
+                
+                notification.innerHTML = `
+                    <div class="notification-header">
+                        <i class="${icons[type] || icons.info} notification-icon"></i>
+                        <div class="notification-title">${type.charAt(0).toUpperCase() + type.slice(1)}</div>
+                    </div>
+                    <div class="notification-message">${message}</div>
+                `;
+                
+                container.appendChild(notification);
+                
+                setTimeout(() => notification.classList.add('show'), 10);
+                
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                    setTimeout(() => notification.remove(), 500);
+                }, 3000);
+            }
+
+            addConsoleMessage(message, type = 'info') {
+                const consoleElement = document.getElementById('editorConsole');
+                const line = document.createElement('div');
+                line.className = `console-line ${type}`;
+                line.textContent = `> ${message}`;
+                consoleElement.appendChild(line);
+                consoleElement.scrollTop = consoleElement.scrollHeight;
+            }
+
+            exportWorld() {
+                const worldData = {
+                    ...this.worldData,
+                    mods: this.mods,
+                    exported: new Date().toISOString(),
+                    version: '3.0'
+                };
+                
+                const dataStr = JSON.stringify(worldData, null, 2);
+                const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                const url = URL.createObjectURL(dataBlob);
+                
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `${this.worldData.name.replace(/\s+/g, '_')}_modz3.world`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
+                this.showNotification(`Exported: ${link.download}`, 'success');
+            }
+
+            importWorld(file) {
+                const reader = new FileReader();
+                
+                reader.onload = (e) => {
+                    try {
+                        const importedData = JSON.parse(e.target.result);
+                        
+                        if (importedData.version === '3.0') {
+                            this.worldData = importedData;
+                            this.mods = importedData.mods || [];
+                            
+                            this.saveMods();
+                            this.saveWorld();
+                            this.updateUI();
+                            this.loadWorldObjects();
+                            
+                            document.getElementById('worldTitle').textContent = `Metaverse: ${this.worldData.name}`;
+                            this.showNotification(`Imported: ${this.worldData.name}`, 'success');
+                        } else {
+                            this.showNotification('Invalid world file version', 'error');
+                        }
+                    } catch (error) {
+                        this.showNotification('Error importing world: ' + error.message, 'error');
+                    }
+                };
+                
+                reader.readAsText(file);
+            }
+
+            clearWorld() {
+                if (confirm('Clear the entire world?')) {
+                    this.worldData.objects = [];
+                    this.saveWorld();
+                    
+                    // Remove all objects from scene except grid
+                    scene.children = scene.children.filter(child => child.name === 'grid');
+                    worldObjects = [];
+                    
+                    // Add default object
+                    addDefaultObject();
+                    
+                    this.showNotification('World cleared', 'success');
+                }
+            }
+
+            newWorld() {
+                const worldName = prompt('World name:', 'My Awesome World');
+                if (worldName) {
+                    this.worldData = {
+                        name: worldName,
+                        objects: []
+                    };
+                    this.saveWorld();
+                    document.getElementById('worldTitle').textContent = `Metaverse: ${worldName}`;
+                    
+                    // Clear scene and add default
+                    scene.children = scene.children.filter(child => child.name === 'grid');
+                    worldObjects = [];
+                    addDefaultObject();
+                    
+                    this.showNotification(`Created: ${worldName}`, 'success');
+                }
+            }
+
+            updateScripts() {
+                // Update all objects with userData.update functions
+                worldObjects.forEach(obj => {
+                    if (obj.userData && obj.userData.update) {
+                        try {
+                            obj.userData.update.call(obj);
+                        } catch (error) {
+                            console.error('Script update error:', error);
+                        }
+                    }
+                });
+            }
+        }
+
+        // ========== DRAG & DROP ==========
+        const dropZone = document.getElementById('dropZone');
+        const worldCanvas = document.getElementById('threeCanvas');
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        // Upload area handlers
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('active');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('active');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('active');
+            handleFiles(Array.from(e.dataTransfer.files));
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(Array.from(e.target.files));
+        });
+
+        // World canvas drag & drop
+        worldCanvas.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const rect = worldCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            dropZone.style.display = 'block';
+            dropZone.style.left = (x - 75) + 'px';
+            dropZone.style.top = (y - 75) + 'px';
+        });
+
+        worldCanvas.addEventListener('dragleave', () => {
+            dropZone.style.display = 'none';
+        });
+
+        worldCanvas.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.display = 'none';
+            
+            const modIndex = e.dataTransfer.getData('text/plain');
+            if (modIndex === '') return;
+            
+            const rect = worldCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // Convert screen coordinates to 3D world coordinates
+            mouse.x = (x / rect.width) * 2 - 1;
+            mouse.y = -(y / rect.height) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+            const intersection = new THREE.Vector3();
+            raycaster.ray.intersectPlane(plane, intersection);
+            
+            modManager.addToWorld(parseInt(modIndex), intersection);
+        });
+
+        // Make mod items draggable
+        document.addEventListener('dragstart', (e) => {
+            if (e.target.closest('.mod-item')) {
+                const modItem = e.target.closest('.mod-item');
+                modItem.classList.add('dragging');
+                e.dataTransfer.setData('text/plain', modItem.dataset.index);
+                e.dataTransfer.effectAllowed = 'copy';
+            }
+        });
+
+        document.addEventListener('dragend', () => {
+            document.querySelectorAll('.mod-item.dragging').forEach(item => {
+                item.classList.remove('dragging');
+            });
+        });
+
+        // Handle file uploads
+        async function handleFiles(files) {
+            const uploadProgress = document.getElementById('uploadProgress');
+            const progressBar = uploadProgress.querySelector('.upload-progress-bar');
+            
+            uploadProgress.style.display = 'block';
+            progressBar.style.width = '0%';
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const validTypes = ['js', 'json', 'png', 'jpg', 'jpeg'];
+                const fileExt = file.name.split('.').pop().toLowerCase();
+                
+                if (!validTypes.includes(fileExt)) {
+                    modManager.showNotification(`Skipped: ${file.name} (invalid type)`, 'warning');
+                    continue;
+                }
+                
+                try {
+                    await modManager.addMod(file);
+                    progressBar.style.width = ((i + 1) / files.length * 100) + '%';
+                } catch (error) {
+                    modManager.showNotification(`Error: ${file.name}`, 'error');
+                }
+            }
+            
+            setTimeout(() => {
+                progressBar.style.width = '0%';
+                uploadProgress.style.display = 'none';
+            }, 1000);
         }
 
         // ========== EVENT LISTENERS ==========
@@ -1500,22 +2169,81 @@ setInterval(() => myObject.animate(), 16);`,
 
         document.getElementById('runCode').addEventListener('click', () => {
             const code = monacoEditor.getValue();
+            modManager.addConsoleMessage('Running code...', 'info');
+            
             try {
-                eval(code);
-                modManager.showNotification('Code executed in 3D environment!', 'success');
+                // Create a safe execution environment
+                const safeGlobals = {
+                    THREE: THREE,
+                    scene: scene,
+                    camera: camera,
+                    renderer: renderer,
+                    modManager: modManager,
+                    console: {
+                        log: (...args) => modManager.addConsoleMessage(args.join(' '), 'info'),
+                        error: (...args) => modManager.addConsoleMessage(args.join(' '), 'error'),
+                        warn: (...args) => modManager.addConsoleMessage(args.join(' '), 'warning')
+                    },
+                    Math: Math,
+                    Date: Date,
+                    setTimeout: setTimeout,
+                    setInterval: setInterval,
+                    clearTimeout: clearTimeout,
+                    clearInterval: clearInterval
+                };
+                
+                // Wrap code in try-catch
+                const wrappedCode = `
+                    try {
+                        ${code}
+                        modManager.addConsoleMessage('Code executed successfully', 'success');
+                    } catch(error) {
+                        modManager.addConsoleMessage('Error: ' + error.message, 'error');
+                        console.error(error);
+                    }
+                `;
+                
+                // Execute with safe globals
+                const func = new Function(...Object.keys(safeGlobals), wrappedCode);
+                func(...Object.values(safeGlobals));
+                
             } catch (error) {
-                modManager.showNotification(`Error: ${error.message}`, 'error');
+                modManager.addConsoleMessage('Execution error: ' + error.message, 'error');
+            }
+        });
+
+        document.getElementById('saveCode').addEventListener('click', () => {
+            const code = monacoEditor.getValue();
+            const editorPanel = document.getElementById('editorPanel');
+            const index = editorPanel.dataset.editingIndex;
+            
+            if (index === 'new' || index === undefined) {
+                const filename = prompt('File name:', 'my_mod.js');
+                if (filename) {
+                    const blob = new Blob([code], {type: 'application/javascript'});
+                    const file = new File([blob], filename, {type: 'application/javascript'});
+                    
+                    modManager.addMod(file).then(() => {
+                        modManager.showNotification(`Saved: ${filename}`, 'success');
+                    });
+                }
+            } else {
+                const modIndex = parseInt(index);
+                const mod = modManager.mods[modIndex];
+                mod.data = code;
+                modManager.saveMods();
+                modManager.updateUI();
+                modManager.showNotification(`Updated: ${mod.name}`, 'success');
             }
         });
 
         document.getElementById('aiSuggest').addEventListener('click', () => {
             const suggestions = [
-                "// AI Suggestion: Add physics to your objects",
-                "// Try: object.userData.physics = { velocity: { x: 0, y: 0, z: 0 }, mass: 1 }",
-                "// AI Suggestion: Create a particle emitter",
-                "// Try: new ParticleEmitter(scene, camera)",
-                "// AI Suggestion: Add sound effects",
-                "// Try: playSound('spawn', { volume: 0.5, position: object.position })"
+                "// AI Suggestion: Add smooth camera animations\n// camera.position.lerp(targetPosition, 0.1);",
+                "// AI Suggestion: Create interactive objects\n// object.userData.onClick = () => console.log('Clicked!');",
+                "// AI Suggestion: Add particle effects\n// new ParticleSystem(scene, 100);",
+                "// AI Suggestion: Implement physics\n// object.userData.velocity = new THREE.Vector3(0, 0, 0);",
+                "// AI Suggestion: Create lighting effects\n// const light = new THREE.PointLight(0xffffff, 1, 50);"
             ];
             
             const suggestion = suggestions[Math.floor(Math.random() * suggestions.length)];
@@ -1523,12 +2251,62 @@ setInterval(() => myObject.animate(), 16);`,
             modManager.showNotification('AI suggestion added!', 'info');
         });
 
-        // Initialize
+        // World controls
+        document.getElementById('exportWorld').addEventListener('click', () => {
+            modManager.exportWorld();
+        });
+
+        document.getElementById('importWorld').addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.world,.json';
+            input.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) modManager.importWorld(file);
+            });
+            input.click();
+        });
+
+        document.getElementById('clearWorld').addEventListener('click', () => {
+            modManager.clearWorld();
+        });
+
+        document.getElementById('newWorld').addEventListener('click', () => {
+            modManager.newWorld();
+        });
+
+        document.getElementById('toggleGrid').addEventListener('click', () => {
+            const grid = scene.getObjectByName('grid');
+            if (grid) {
+                grid.visible = !grid.visible;
+                modManager.showNotification(`Grid ${grid.visible ? 'shown' : 'hidden'}`, 'info');
+            }
+        });
+
+        // Navigation
+        document.getElementById('navWorld').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
+            e.target.closest('.nav-link').classList.add('active');
+        });
+
+        document.getElementById('navCommunity').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
+            e.target.closest('.nav-link').classList.add('active');
+            modManager.showNotification('Community features coming soon!', 'info');
+        });
+
+        document.getElementById('userAvatar').addEventListener('click', () => {
+            modManager.showNotification('User profile features coming soon!', 'info');
+        });
+
+        // ========== INITIALIZE ==========
         const modManager = new ModManager();
 
         // Show welcome message
         setTimeout(() => {
-            modManager.showNotification('Welcome to Modz3.0 Metaverse!', 'info');
+            modManager.showNotification('Welcome to Modz3.0! Drag & drop files to upload mods.', 'info');
         }, 1000);
     </script>
 </body>
