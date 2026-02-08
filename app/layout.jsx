@@ -4,10 +4,10 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'Modz3.0 - Metaverse Builder',
+  title: 'Modz - Metaverse Builder',
   description: 'A 3D metaverse creation platform with mod management and AI code editing',
   keywords: 'metaverse, 3D, webgl, three.js, modding, coding, AI editor',
-  authors: [{ name: 'Modz3.0 Team' }],
+  authors: [{ name: 'Modz Team' }],
   viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
   themeColor: '#0a0a1a',
   manifest: '/manifest.json',
@@ -22,15 +22,15 @@ export const metadata = {
     ],
   },
   openGraph: {
-    title: 'Modz3.0 - Metaverse Builder',
+    title: 'Modz - Metaverse Builder',
     description: 'Create and customize your own 3D metaverse worlds',
     type: 'website',
-    url: 'https://modz3.0.app',
-    images: ['/og-image.png'],
+    url: 'https://modz.app',
+    images: ['/Modz.png'],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Modz3.0 - Metaverse Builder',
+    title: 'Modz - Metaverse Builder',
     description: 'Create and customize your own 3D metaverse worlds',
     images: ['/Modz.png'],
   },
@@ -79,7 +79,7 @@ export default function RootLayout({ children }) {
             }
           `}</style>
           <div className="no-script-warning">
-            ⚠️ JavaScript is required for Modz3.0 to function properly. Please enable JavaScript to continue.
+            ⚠️ JavaScript is required for Modz to function properly. Please enable JavaScript to continue.
           </div>
         </noscript>
         
@@ -87,11 +87,10 @@ export default function RootLayout({ children }) {
         <link rel="manifest" href="/manifest.json" />
         
         {/* Apple touch icon */}
-        <link rel="apple-touch-icon" href="/apple-icon.png" />
+        <link rel="apple-touch-icon" href="/Modz.png" />
         
         {/* Windows tile color */}
         <meta name="msapplication-TileColor" content="#0a0a1a" />
-        <meta name="msapplication-TileImage" content="/ms-icon-144x144.png" />
       </head>
       <body className={`${inter.className} antialiased`}>
         {/* Loading splash screen */}
@@ -105,7 +104,7 @@ export default function RootLayout({ children }) {
               <div className="spinner-center"></div>
             </div>
             <div className="loading-text">
-              <h2>Initializing Modz3.0</h2>
+              <h2>Initializing Modz</h2>
               <p>Loading metaverse environment...</p>
               <div className="loading-progress">
                 <div className="progress-bar"></div>
@@ -119,20 +118,24 @@ export default function RootLayout({ children }) {
           {children}
         </div>
         
-        {/* Service Worker Registration (PWA) */}
+        {/* Service Worker Registration (PWA) - FIXED: Remove process.env reference */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+              // Always register service worker in production (Vercel automatically sets NODE_ENV)
+              if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                  navigator.serviceWorker.register('/sw.js').then(
-                    (registration) => {
-                      console.log('SW registered: ', registration);
-                    },
-                    (error) => {
-                      console.log('SW registration failed: ', error);
-                    }
-                  );
+                  // Check if we're on the production domain
+                  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                    navigator.serviceWorker.register('/sw.js').then(
+                      (registration) => {
+                        console.log('Service Worker registered: ', registration);
+                      },
+                      (error) => {
+                        console.log('Service Worker registration failed: ', error);
+                      }
+                    );
+                  }
                 });
               }
               
