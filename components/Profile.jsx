@@ -6,7 +6,7 @@ import './Profile.css';
 export default function Profile() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true); // ADD THIS
+  const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
@@ -155,15 +155,14 @@ export default function Profile() {
     setFormData({ ...formData, profile_picture_url: publicUrl });
   };
 
-  // ADD DEBUG FUNCTION
+  // FIXED: Proper GitHub login function
   const handleGitHubLogin = async () => {
     console.log('Starting GitHub login...');
     
-    // ADD redirectTo option
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({ 
       provider: 'github',
       options: {
-        redirectTo: `${window.location.origin}/profile`
+        redirectTo: `${window.location.origin}`  // Redirect to main page
       }
     });
     
