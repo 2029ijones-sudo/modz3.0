@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modz - Offline Mode</title>
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --success-color: #48bb78;
+            --warning-color: #ed8936;
+            --danger-color: #f56565;
+            --dark-color: #2d3748;
+            --light-color: #f7fafc;
+            --gray-color: #a0aec0;
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: var(--light-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .logo {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4);
+            }
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+            }
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #fff, #e2e8f0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 10px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 16px;
+            background: rgba(237, 137, 54, 0.2);
+            border-radius: 20px;
+            font-size: 0.9rem;
+            margin-bottom: 30px;
+        }
+
+        .status-badge::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--warning-color);
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: blink 1.5s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 25px;
+            transition: var(--transition);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .feature-icon {
+            font-size: 32px;
+            margin-bottom: 15px;
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .feature-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 10px;
+            color: white;
+        }
+
+        .feature-card p {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.95rem;
+        }
+
+        .actions {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 14px 28px;
+            border-radius: 12px;
+            border: none;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            min-width: 160px;
+        }
+
+        .btn-primary {
+            background: white;
+            color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background: rgba(255, 255, 255, 0.9);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .btn-icon {
+            font-size: 1.2rem;
+        }
+
+        .offline-content {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .offline-content h2 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: white;
+        }
+
+        .content-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .content-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            transition: var(--transition);
+        }
+
+        .content-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .content-icon {
+            margin-right: 15px;
+            font-size: 20px;
+            opacity: 0.8;
+        }
+
+        .content-details {
+            flex: 1;
+        }
+
+        .content-details h4 {
+            color: white;
+            margin-bottom: 5px;
+        }
+
+        .content-details p {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+        }
+
+        .network-status {
+            margin-top: 40px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            text-align: center;
+        }
+
+        .network-status h3 {
+            margin-bottom: 15px;
+            color: white;
+        }
+
+        .connection-indicator {
+            display: inline-flex;
+            align-items: center;
+            padding: 10px 20px;
+            background: rgba(237, 137, 54, 0.2);
+            border-radius: 25px;
+            margin-bottom: 20px;
+        }
+
+        .connection-indicator.online {
+            background: rgba(72, 187, 120, 0.2);
+        }
+
+        .connection-indicator.online::before {
+            background: var(--success-color);
+            animation: pulse 2s infinite;
+        }
+
+        .connection-text {
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+            opacity: 0.9;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .progress {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            width: 0%;
+            transition: width 1s ease;
+            border-radius: 3px;
+        }
+
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+        }
+
+        .footer a {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .footer a:hover {
+            color: white;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 25px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .actions {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+            
+            .logo {
+                width: 100px;
+                height: 100px;
+                font-size: 36px;
+            }
+            
+            h1 {
+                font-size: 1.8rem;
+            }
+        }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: linear-gradient(135deg, #4c51bf 0%, #702459 100%);
+            }
+        }
+
+        /* Animation for reconnection */
+        @keyframes reconnect {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .reconnect-spinner {
+            animation: reconnect 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">
+                <span style="font-family: 'Arial Black', sans-serif;">M</span>
+            </div>
+            <h1>Modz - Offline Mode</h1>
+            <div class="subtitle">You're currently working offline</div>
+            <div class="status-badge">Offline Mode Active</div>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">📱</div>
+                <h3>Offline Browsing</h3>
+                <p>Continue browsing previously loaded mods, profiles, and content without an internet connection.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">✏️</div>
+                <h3>Edit Content</h3>
+                <p>Create, edit, and save mods locally. Changes will sync automatically when you're back online.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔒</div>
+                <h3>Secure Access</h3>
+                <p>Your data is stored securely on your device. No internet required for basic functionality.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔄</div>
+                <h3>Auto-Sync</h3>
+                <p>All your changes are queued and will automatically sync when the connection is restored.</p>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button class="btn btn-primary" id="tryReconnect">
+                <span class="btn-icon">🔁</span>
+                Try to Reconnect
+            </button>
+            <button class="btn btn-secondary" id="continueOffline">
+                <span class="btn-icon">🚀</span>
+                Continue Offline
+            </button>
+            <button class="btn btn-secondary" id="viewLocalData">
+                <span class="btn-icon">📊</span>
+                View Local Data
+            </button>
+        </div>
+
+        <div class="offline-content">
+            <h2>Available Offline Content</h2>
+            <div class="content-list" id="offlineContentList">
+                <!-- Dynamic content will be inserted here -->
+            </div>
+        </div>
+
+        <div class="network-status">
+            <h3>Network Status</h3>
+            <div class="connection-indicator" id="connectionIndicator">
+                <span id="connectionStatus">Disconnected</span>
+            </div>
+            <div class="connection-text" id="connectionText">
+                Attempting to reconnect automatically...
+            </div>
+            <div class="progress-bar">
+                <div class="progress" id="reconnectProgress"></div>
+            </div>
+            <div id="reconnectInfo">
+                Next automatic retry in: <span id="retryCountdown">30</span>s
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Modz Offline Mode v2.0 • Data is stored locally on your device</p>
+            <p>Need help? <a href="#" id="offlineHelp">View offline guide</a></p>
+        </div>
+    </div>
+
+    <script>
+        class OfflinePage {
+            constructor() {
+                this.reconnectAttempts = 0;
+                this.maxAttempts = 10;
+                this.retryInterval = 30000; // 30 seconds
+                this.lastSyncTime = null;
+                this.localData = {};
+                this.init();
+            }
+
+            init() {
+                console.log('🔧 Offline page initializing...');
+                
+                // Set up event listeners
+                document.getElementById('tryReconnect').addEventListener('click', () => this.attemptReconnect());
+                document.getElementById('continueOffline').addEventListener('click', () => this.continueOffline());
+                document.getElementById('viewLocalData').addEventListener('click', () => this.viewLocalData());
+                document.getElementById('offlineHelp').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.showOfflineHelp();
+                });
+
+                // Load local data
+                this.loadLocalData();
+                
+                // Start network monitoring
+                this.startNetworkMonitoring();
+                
+                // Start retry countdown
+                this.startRetryCountdown();
+                
+                // Check if we have any pending syncs
+                this.checkPendingSyncs();
+            }
+
+            async loadLocalData() {
+                try {
+                    // Try to get data from IndexedDB
+                    if ('indexedDB' in window) {
+                        const db = await this.openDatabase();
+                        if (db) {
+                            await this.loadFromIndexedDB(db);
+                        }
+                    }
+                    
+                    // Try to get data from localStorage
+                    this.loadFromLocalStorage();
+                    
+                    // Try to get data from caches
+                    await this.loadFromCaches();
+                    
+                    this.updateContentList();
+                } catch (error) {
+                    console.warn('Failed to load local data:', error);
+                }
+            }
+
+            openDatabase() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open('ModzOfflineDB', 1);
+                    
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = (event) => resolve(event.target.result);
+                    
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        // Create object stores if they don't exist
+                        if (!db.objectStoreNames.contains('mods')) {
+                            db.createObjectStore('mods', { keyPath: 'id' });
+                        }
+                        if (!db.objectStoreNames.contains('users')) {
+                            db.createObjectStore('users', { keyPath: 'id' });
+                        }
+                        if (!db.objectStoreNames.contains('sync_queue')) {
+                            db.createObjectStore('sync_queue', { keyPath: 'id' });
+                        }
+                    };
+                });
+            }
+
+            async loadFromIndexedDB(db) {
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction(['mods', 'users', 'sync_queue'], 'readonly');
+                    
+                    transaction.onerror = () => reject(transaction.error);
+                    
+                    const modsStore = transaction.objectStore('mods');
+                    const usersStore = transaction.objectStore('users');
+                    const syncStore = transaction.objectStore('sync_queue');
+                    
+                    const modsRequest = modsStore.getAll();
+                    const usersRequest = usersStore.getAll();
+                    const syncRequest = syncStore.getAll();
+                    
+                    modsRequest.onsuccess = () => {
+                        this.localData.mods = modsRequest.result || [];
+                    };
+                    
+                    usersRequest.onsuccess = () => {
+                        this.localData.users = usersRequest.result || [];
+                    };
+                    
+                    syncRequest.onsuccess = () => {
+                        this.localData.pendingSyncs = syncRequest.result || [];
+                    };
+                    
+                    transaction.oncomplete = () => resolve();
+                });
+            }
+
+            loadFromLocalStorage() {
+                try {
+                    const keys = Object.keys(localStorage);
+                    keys.forEach(key => {
+                        if (key.startsWith('modz_')) {
+                            try {
+                                this.localData[key] = JSON.parse(localStorage.getItem(key));
+                            } catch {
+                                this.localData[key] = localStorage.getItem(key);
+                            }
+                        }
+                    });
+                } catch (error) {
+                    console.warn('Failed to load from localStorage:', error);
+                }
+            }
+
+            async loadFromCaches() {
+                try {
+                    const cacheNames = await caches.keys();
+                    const modzCaches = cacheNames.filter(name => name.includes('modz'));
+                    
+                    for (const cacheName of modzCaches) {
+                        const cache = await caches.open(cacheName);
+                        const requests = await cache.keys();
+                        this.localData.cachedItems = (this.localData.cachedItems || 0) + requests.length;
+                    }
+                } catch (error) {
+                    console.warn('Failed to load from caches:', error);
+                }
+            }
+
+            updateContentList() {
+                const list = document.getElementById('offlineContentList');
+                list.innerHTML = '';
+                
+                // Add mods count
+                if (this.localData.mods && this.localData.mods.length > 0) {
+                    const item = this.createContentItem('📦 Mods', `${this.localData.mods.length} mods available offline`, 'mods');
+                    list.appendChild(item);
+                }
+                
+                // Add users count
+                if (this.localData.users && this.localData.users.length > 0) {
+                    const item = this.createContentItem('👥 Users', `${this.localData.users.length} user profiles cached`, 'users');
+                    list.appendChild(item);
+                }
+                
+                // Add pending syncs
+                if (this.localData.pendingSyncs && this.localData.pendingSyncs.length > 0) {
+                    const item = this.createContentItem('🔄 Pending Syncs', `${this.localData.pendingSyncs.length} items waiting to sync`, 'sync');
+                    list.appendChild(item);
+                }
+                
+                // Add cached items
+                if (this.localData.cachedItems) {
+                    const item = this.createContentItem('💾 Cache', `${this.localData.cachedItems} files cached`, 'cache');
+                    list.appendChild(item);
+                }
+                
+                // If no content found
+                if (list.children.length === 0) {
+                    const item = this.createContentItem('📭 No Content', 'No offline content available yet', 'empty');
+                    list.appendChild(item);
+                }
+            }
+
+            createContentItem(title, description, type) {
+                const div = document.createElement('div');
+                div.className = 'content-item';
+                div.innerHTML = `
+                    <div class="content-icon">${this.getIconForType(type)}</div>
+                    <div class="content-details">
+                        <h4>${title}</h4>
+                        <p>${description}</p>
+                    </div>
+                `;
+                return div;
+            }
+
+            getIconForType(type) {
+                const icons = {
+                    'mods': '📦',
+                    'users': '👥',
+                    'sync': '🔄',
+                    'cache': '💾',
+                    'empty': '📭'
+                };
+                return icons[type] || '📄';
+            }
+
+            async attemptReconnect() {
+                const btn = document.getElementById('tryReconnect');
+                const originalText = btn.innerHTML;
+                
+                // Show loading state
+                btn.innerHTML = '<span class="reconnect-spinner">⟳</span> Connecting...';
+                btn.disabled = true;
+                
+                // Update status
+                this.updateConnectionStatus('connecting', 'Attempting to reconnect...');
+                
+                // Simulate connection attempt with progress
+                await this.simulateReconnection();
+                
+                // Check actual connection
+                const isOnline = await this.checkConnection();
+                
+                if (isOnline) {
+                    this.updateConnectionStatus('online', 'Connected! Redirecting...');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1500);
+                } else {
+                    this.updateConnectionStatus('offline', 'Reconnection failed. Still offline.');
+                    this.reconnectAttempts++;
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    
+                    if (this.reconnectAttempts >= this.maxAttempts) {
+                        document.getElementById('reconnectInfo').innerHTML = 
+                            'Max reconnection attempts reached. Please check your network.';
+                    }
+                }
+            }
+
+            simulateReconnection() {
+                return new Promise((resolve) => {
+                    const progressBar = document.getElementById('reconnectProgress');
+                    let width = 0;
+                    
+                    const interval = setInterval(() => {
+                        width += 5;
+                        progressBar.style.width = width + '%';
+                        
+                        if (width >= 100) {
+                            clearInterval(interval);
+                            resolve();
+                        }
+                    }, 50);
+                });
+            }
+
+            async checkConnection() {
+                try {
+                    // Try to fetch a small file from our own origin
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 3000);
+                    
+                    const response = await fetch('/?ping=' + Date.now(), {
+                        method: 'HEAD',
+                        signal: controller.signal,
+                        cache: 'no-store'
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    return response.ok;
+                } catch {
+                    return false;
+                }
+            }
+
+            updateConnectionStatus(status, message) {
+                const indicator = document.getElementById('connectionIndicator');
+                const statusText = document.getElementById('connectionStatus');
+                const messageText = document.getElementById('connectionText');
+                
+                indicator.className = 'connection-indicator ' + status;
+                statusText.textContent = status === 'online' ? 'Connected' : 'Disconnected';
+                messageText.textContent = message;
+            }
+
+            startNetworkMonitoring() {
+                // Listen for online/offline events
+                window.addEventListener('online', () => {
+                    this.handleOnline();
+                });
+                
+                window.addEventListener('offline', () => {
+                    this.handleOffline();
+                });
+                
+                // Initial check
+                if (navigator.onLine) {
+                    this.handleOnline();
+                } else {
+                    this.handleOffline();
+                }
+            }
+
+            handleOnline() {
+                this.updateConnectionStatus('online', 'Connection restored! Redirecting...');
+                
+                // Try to sync any pending data
+                this.syncPendingData();
+                
+                // Redirect after short delay
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 2000);
+            }
+
+            handleOffline() {
+                this.updateConnectionStatus('offline', 'You are currently offline');
+                this.reconnectAttempts = 0;
+                this.startRetryCountdown();
+            }
+
+            startRetryCountdown() {
+                let countdown = 30;
+                const countdownElement = document.getElementById('retryCountdown');
+                const reconnectInfo = document.getElementById('reconnectInfo');
+                
+                const interval = setInterval(() => {
+                    countdown--;
+                    countdownElement.textContent = countdown;
+                    
+                    if (countdown <= 0) {
+                        clearInterval(interval);
+                        if (!navigator.onLine) {
+                            this.attemptReconnect();
+                        } else {
+                            reconnectInfo.textContent = 'Checking connection...';
+                        }
+                    }
+                }, 1000);
+            }
+
+            async syncPendingData() {
+                try {
+                    // Communicate with service worker to trigger sync
+                    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+                        navigator.serviceWorker.controller.postMessage({
+                            type: 'FORCE_SYNC'
+                        });
+                    }
+                } catch (error) {
+                    console.warn('Failed to trigger sync:', error);
+                }
+            }
+
+            async checkPendingSyncs() {
+                try {
+                    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                        const response = await new Promise((resolve) => {
+                            const channel = new MessageChannel();
+                            channel.port1.onmessage = (event) => {
+                                resolve(event.data);
+                            };
+                            
+                            navigator.serviceWorker.controller.postMessage({
+                                type: 'GET_CACHE_INFO'
+                            }, [channel.port2]);
+                        });
+                        
+                        if (response && response.syncQueueLength > 0) {
+                            const syncInfo = document.createElement('div');
+                            syncInfo.className = 'content-item';
+                            syncInfo.innerHTML = `
+                                <div class="content-icon">🔄</div>
+                                <div class="content-details">
+                                    <h4>Pending Sync</h4>
+                                    <p>${response.syncQueueLength} items waiting to sync when online</p>
+                                </div>
+                            `;
+                            document.getElementById('offlineContentList').appendChild(syncInfo);
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Failed to check pending syncs:', error);
+                }
+            }
+
+            continueOffline() {
+                // Try to load the main app from cache
+                window.location.href = '/';
+            }
+
+            viewLocalData() {
+                // Show modal with local data statistics
+                const stats = `
+                    <div style="text-align: left; padding: 20px;">
+                        <h3 style="margin-bottom: 15px;">Local Data Statistics</h3>
+                        <p>📦 Mods: ${(this.localData.mods || []).length}</p>
+                        <p>👥 Users: ${(this.localData.users || []).length}</p>
+                        <p>🔄 Pending Syncs: ${(this.localData.pendingSyncs || []).length}</p>
+                        <p>💾 Cached Files: ${this.localData.cachedItems || 0}</p>
+                        <p>📊 Cache Size: ${Math.round((this.localData.cachedItems || 0) * 50 / 1024)}KB (approx)</p>
+                        <hr style="margin: 20px 0; border-color: rgba(255,255,255,0.1)">
+                        <p style="font-size: 0.9rem; opacity: 0.8;">
+                            Data is stored securely on your device. All changes will sync automatically when you're back online.
+                        </p>
+                    </div>
+                `;
+                
+                alert(stats);
+            }
+
+            showOfflineHelp() {
+                const helpContent = `
+                    <div style="text-align: left; padding: 20px; max-width: 500px;">
+                        <h3 style="margin-bottom: 15px;">Offline Mode Guide</h3>
+                        
+                        <h4>📱 What works offline:</h4>
+                        <ul style="margin-left: 20px; margin-bottom: 15px;">
+                            <li>View previously loaded mods</li>
+                            <li>Edit existing mods</li>
+                            <li>Create new mods (saved locally)</li>
+                            <li>View cached user profiles</li>
+                            <li>Access downloaded files</li>
+                        </ul>
+                        
+                        <h4>🔄 Auto-sync when online:</h4>
+                        <ul style="margin-left: 20px; margin-bottom: 15px;">
+                            <li>All edits are queued for sync</li>
+                            <li>New mods will be uploaded</li>
+                            <li>Profile changes will update</li>
+                            <li>Cache will refresh</li>
+                        </ul>
+                        
+                        <h4>💾 Managing local storage:</h4>
+                        <ul style="margin-left: 20px; margin-bottom: 15px;">
+                            <li>Clear cache from Settings</li>
+                            <li>Export local data</li>
+                            <li>View storage usage</li>
+                        </ul>
+                        
+                        <p style="margin-top: 20px; font-size: 0.9rem; opacity: 0.8;">
+                            Tip: Connect to WiFi for best sync experience. Large files may require stable connection.
+                        </p>
+                    </div>
+                `;
+                
+                alert(helpContent);
+            }
+        }
+
+        // Initialize the offline page when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            window.offlinePage = new OfflinePage();
+            
+            // Add some visual effects
+            const progressBar = document.getElementById('reconnectProgress');
+            let width = 0;
+            const interval = setInterval(() => {
+                width += 1;
+                progressBar.style.width = width + '%';
+                
+                if (width >= 100) {
+                    clearInterval(interval);
+                    progressBar.style.width = '0%';
+                }
+            }, 100);
+        });
+
+        // Add a simple particle background effect
+        window.addEventListener('load', () => {
+            const canvas = document.createElement('canvas');
+            canvas.style.position = 'fixed';
+            canvas.style.top = '0';
+            canvas.style.left = '0';
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+            canvas.style.pointerEvents = 'none';
+            canvas.style.zIndex = '-1';
+            document.body.appendChild(canvas);
+            
+            const ctx = canvas.getContext('2d');
+            const particles = [];
+            
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            
+            function createParticles() {
+                for (let i = 0; i < 50; i++) {
+                    particles.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        size: Math.random() * 2 + 0.5,
+                        speedX: Math.random() * 0.5 - 0.25,
+                        speedY: Math.random() * 0.5 - 0.25,
+                        opacity: Math.random() * 0.3 + 0.1
+                    });
+                }
+            }
+            
+            function animateParticles() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                particles.forEach(particle => {
+                    particle.x += particle.speedX;
+                    particle.y += particle.speedY;
+                    
+                    // Wrap around edges
+                    if (particle.x < 0) particle.x = canvas.width;
+                    if (particle.x > canvas.width) particle.x = 0;
+                    if (particle.y < 0) particle.y = canvas.height;
+                    if (particle.y > canvas.height) particle.y = 0;
+                    
+                    ctx.beginPath();
+                    ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255, 255, 255, ${particle.opacity})`;
+                    ctx.fill();
+                });
+                
+                requestAnimationFrame(animateParticles);
+            }
+            
+            resizeCanvas();
+            createParticles();
+            animateParticles();
+            
+            window.addEventListener('resize', resizeCanvas);
+        });
+    </script>
+</body>
+</html>
