@@ -1,494 +1,787 @@
-// public/sw.js - Enhanced Service Worker with Auth Bypass & Network Detection
+// public/sw.js - Enterprise-Grade Service Worker with Advanced Auth Handling
 
-const CACHE_NAME = 'modz-v6-offline';
-const OFFLINE_ASSETS = {
-  HTML: '/offline.html',
-  IMAGE: '/Modz.png',
-  DATA: '/offline-data.json'
+const CACHE_NAME = 'modz-enterprise-v1';
+const VERSION = '1.0.0';
+const CONFIG = {
+  maxCacheSize: 100 * 1024 * 1024, // 100MB
+  maxCacheAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  retryAttempts: 3,
+  retryDelay: 1000,
+  heartbeatInterval: 30000,
+  syncInterval: 300000
 };
 
-// Critical assets to cache for offline use
-const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/Modz.png',
-  '/styles/three-components.css',
-  '/offline.html',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
-  'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
-];
-
-// URLs to COMPLETELY BYPASS service worker (no interception at all)
-const BYPASS_SERVICE_WORKER = [
-  'supabase.co',
-  '.supabase.co',
-  '/auth/v1/',
-  '/rest/v1/auth',
-  'github.com/login/oauth',
-  'access_token',
-  'refresh_token',
-  'realtime',
-  'websocket',
-  'wss://',
-  // Add any other auth/real-time endpoints
-  'oauth2',
-  'session',
-  'token',
-  'callback',
-  'authorize'
-];
-
-// GitHub endpoints that might be blocked
-const GITHUB_ENDPOINTS = [
-  'github.com',
-  'api.github.com',
-  'raw.githubusercontent.com',
-  'githubusercontent.com'
-];
-
-// URLs that CAN be cached for offline (read-only APIs)
-const OFFLINE_API_CACHE = [
-  '/api/mods/public',
-  '/api/mods/featured',
-  '/api/assets',
-  '/api/config',
-  '/api/community'  // Add community API for offline
-];
-
-// Network status tracking
-let networkStatus = {
-  online: navigator.onLine,
-  supabase: 'unknown',
-  github: 'unknown',
-  schoolNetwork: false,
-  blocked: []
+// Advanced cache strategies
+const STRATEGIES = {
+  STATIC: 'static',
+  API_CACHE: 'api_cache',
+  API_NETWORK: 'api_network',
+  DYNAMIC: 'dynamic',
+  AUTH: 'auth',
+  MEDIA: 'media',
+  FONT: 'font'
 };
 
-// Determine strategy for different resources
-function getStrategy(url, requestMethod = 'GET') {
-  const urlString = url.toString();
-  
-  // ====== BYPASS SERVICE WORKER COMPLETELY FOR AUTH/SUPABASE ======
-  for (const bypassUrl of BYPASS_SERVICE_WORKER) {
-    if (urlString.includes(bypassUrl)) {
-      console.log(`🔓 Bypassing service worker: ${urlString}`);
-      return 'bypass';  // Special strategy that doesn't intercept
-    }
-  }
-  
-  // Track GitHub endpoints for network detection
-  if (GITHUB_ENDPOINTS.some(endpoint => urlString.includes(endpoint))) {
-    console.log(`🐙 GitHub endpoint detected: ${urlString}`);
-    // We'll handle this specially to detect blocking
-  }
-  
-  // Offline API cache (GET requests only)
-  if (requestMethod === 'GET') {
-    for (const cacheUrl of OFFLINE_API_CACHE) {
-      if (urlString.includes(cacheUrl)) {
-        console.log(`📊 Offline API cache: ${urlString}`);
-        return 'cache-first-with-update';
-      }
-    }
-  }
-  
-  // Static assets - cache first
-  if (url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json)$/)) {
-    return 'cache-first';
-  }
-  
-  // HTML pages - network first with offline fallback
-  if (url.pathname.match(/\.html?$/) || url.pathname === '/') {
-    return 'network-first-with-offline';
-  }
-  
-  // API calls - network first
-  if (url.pathname.startsWith('/api/')) {
-    return 'network-first';
-  }
-  
-  // Default
-  return 'network-first-with-offline';
-}
+// Intelligent URL classification with regex patterns
+const URL_PATTERNS = {
+  SUPABASE_AUTH: [
+    /supabase\.co\/auth\/v1\//,
+    /supabase\.co\/rest\/v1\/auth/,
+    /#access_token=/,
+    /#refresh_token=/,
+    /token_type=/
+  ],
+  SUPABASE_DATA: [
+    /supabase\.co\/rest\/v1\/(?!auth)/,
+    /supabase\.co\/storage\/v1\//
+  ],
+  GITHUB: [
+    /github\.com\//,
+    /api\.github\.com\//,
+    /githubusercontent\.com\//
+  ],
+  STATIC_ASSETS: [
+    /\.(css|js|json|xml)$/i,
+    /\/_next\/static\//,
+    /\/styles\//,
+    /\/images\//,
+    /\/icons\//
+  ],
+  MEDIA: [
+    /\.(png|jpg|jpeg|gif|svg|webp|mp4|webm|ogg|mp3|wav)$/i
+  ],
+  FONTS: [
+    /\.(woff|woff2|ttf|eot|otf)$/i
+  ],
+  API_ENDPOINTS: [
+    /\/api\//,
+    /\/graphql/,
+    /\/rest\//
+  ]
+};
 
-// Install event - cache critical assets
-self.addEventListener('install', (event) => {
-  console.log('🚀 Modz Service Worker installing (v6)...');
-  
-  event.waitUntil(
-    Promise.all([
-      // Cache static assets
-      caches.open(CACHE_NAME)
-        .then((cache) => {
-          console.log('📦 Caching offline assets');
-          return cache.addAll(ASSETS_TO_CACHE);
-        }),
-      
-      // Create offline fallback responses
-      createOfflineFallbacks(),
-      
-      // Initialize network status
-      checkNetworkStatus()
-    ])
-    .then(() => {
-      console.log('✅ Offline assets cached');
-      return self.skipWaiting();
-    })
-    .catch((error) => {
-      console.error('❌ Cache installation failed:', error);
-    })
-  );
-});
+// Advanced configuration with priorities
+const CACHE_CONFIG = {
+  [STRATEGIES.STATIC]: {
+    priority: 1,
+    staleWhileRevalidate: true,
+    backgroundSync: true,
+    maxAge: 31536000, // 1 year
+    immutable: true
+  },
+  [STRATEGIES.API_CACHE]: {
+    priority: 2,
+    networkFirst: true,
+    cacheOnSuccess: true,
+    maxAge: 3600, // 1 hour
+    backgroundUpdate: true
+  },
+  [STRATEGIES.API_NETWORK]: {
+    priority: 3,
+    networkOnly: true,
+    bypassCache: true,
+    noStore: true
+  },
+  [STRATEGIES.AUTH]: {
+    priority: 0, // Highest priority
+    networkOnly: true,
+    bypassServiceWorker: true,
+    noCache: true,
+    critical: true
+  },
+  [STRATEGIES.MEDIA]: {
+    priority: 2,
+    cacheFirst: true,
+    maxAge: 2592000, // 30 days
+    varyOn: ['Accept', 'Width', 'Height']
+  },
+  [STRATEGIES.FONT]: {
+    priority: 1,
+    cacheFirst: true,
+    maxAge: 31536000,
+    immutable: true
+  }
+};
 
-// Check network status for GitHub/Supabase
-async function checkNetworkStatus() {
-  console.log('🌐 Checking network status...');
+// Advanced analytics and telemetry
+const Telemetry = {
+  events: [],
+  performance: {},
   
-  const endpoints = [
-    { name: 'supabase', url: 'https://api.supabase.io/health' },
-    { name: 'github', url: 'https://api.github.com/zen' },
-    { name: 'google', url: 'https://www.google.com/favicon.ico' }
-  ];
+  track(event, data = {}) {
+    const eventData = {
+      timestamp: Date.now(),
+      event,
+      ...data,
+      userAgent: navigator.userAgent,
+      online: navigator.onLine,
+      memory: performance.memory,
+      connection: navigator.connection
+    };
+    
+    this.events.push(eventData);
+    
+    // Send to analytics endpoint if online
+    if (navigator.onLine && this.events.length > 10) {
+      this.flush();
+    }
+    
+    // Log for debugging
+    console.log(`📊 Telemetry: ${event}`, data);
+  },
   
-  for (const endpoint of endpoints) {
+  async flush() {
+    if (!navigator.onLine || this.events.length === 0) return;
+    
     try {
-      const startTime = Date.now();
-      const response = await fetch(endpoint.url, { 
-        method: 'HEAD',
-        cache: 'no-cache'
+      await fetch('/api/telemetry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ events: this.events })
       });
-      const responseTime = Date.now() - startTime;
       
-      if (response.ok) {
-        console.log(`✅ ${endpoint.name} reachable (${responseTime}ms)`);
-        networkStatus[endpoint.name] = 'reachable';
-      } else {
-        console.log(`⚠️ ${endpoint.name} returned ${response.status}`);
-        networkStatus[endpoint.name] = 'blocked';
-        networkStatus.blocked.push(endpoint.name);
-      }
-      
-      // School network detection based on response time
-      if (responseTime > 1000) { // Over 1 second might be school network
-        networkStatus.schoolNetwork = true;
-      }
-      
+      this.events = [];
     } catch (error) {
-      console.log(`❌ ${endpoint.name} unreachable:`, error.message);
-      networkStatus[endpoint.name] = 'unreachable';
-      networkStatus.blocked.push(endpoint.name);
+      console.warn('Failed to send telemetry:', error);
+    }
+  },
+  
+  measurePerformance(name, startTime) {
+    const duration = Date.now() - startTime;
+    this.performance[name] = this.performance[name] || [];
+    this.performance[name].push(duration);
+    
+    if (this.performance[name].length > 100) {
+      this.performance[name].shift();
+    }
+  }
+};
+
+// Intelligent network detection
+class NetworkIntelligence {
+  constructor() {
+    this.status = {
+      online: navigator.onLine,
+      type: navigator.connection?.effectiveType || 'unknown',
+      downlink: navigator.connection?.downlink || 0,
+      rtt: navigator.connection?.rtt || 0,
+      saveData: navigator.connection?.saveData || false,
+      lastChecked: Date.now(),
+      supabase: 'unknown',
+      github: 'unknown',
+      blockedEndpoints: new Set(),
+      schoolNetwork: false,
+      corporateProxy: false
+    };
+    
+    this.metrics = {
+      requestCount: 0,
+      successCount: 0,
+      errorCount: 0,
+      avgResponseTime: 0,
+      bandwidth: 0
+    };
+    
+    this.init();
+  }
+  
+  init() {
+    // Detect network characteristics
+    this.detectNetworkType();
+    
+    // Check critical endpoints
+    this.checkEndpoints();
+    
+    // Listen for network changes
+    self.addEventListener('online', () => this.handleOnline());
+    self.addEventListener('offline', () => this.handleOffline());
+    
+    if (navigator.connection) {
+      navigator.connection.addEventListener('change', () => this.handleConnectionChange());
     }
   }
   
-  // Notify all clients about network status
-  self.clients.matchAll().then(clients => {
-    clients.forEach(client => {
-      client.postMessage({
-        type: 'NETWORK_STATUS',
-        status: networkStatus,
-        timestamp: new Date().toISOString()
+  detectNetworkType() {
+    const { hostname, href } = self.location;
+    
+    // School network detection
+    if (hostname.includes('.edu') || 
+        hostname.includes('school') ||
+        navigator.userAgent.includes('ChromeOS') ||
+        href.includes('k12')) {
+      this.status.schoolNetwork = true;
+    }
+    
+    // Corporate proxy detection
+    if (navigator.userAgent.includes('Enterprise') ||
+        navigator.userAgent.includes('Windows NT') ||
+        hostname.includes('corp') ||
+        hostname.includes('intranet')) {
+      this.status.corporateProxy = true;
+    }
+    
+    // Mobile network detection
+    if (navigator.userAgent.includes('Mobile') || 
+        navigator.userAgent.includes('Android') ||
+        navigator.userAgent.includes('iPhone')) {
+      this.status.mobileNetwork = true;
+    }
+  }
+  
+  async checkEndpoints() {
+    const endpoints = [
+      {
+        name: 'supabase',
+        url: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/health`,
+        method: 'GET',
+        timeout: 5000
+      },
+      {
+        name: 'github',
+        url: 'https://api.github.com/zen',
+        method: 'GET',
+        timeout: 10000
+      },
+      {
+        name: 'google',
+        url: 'https://www.google.com/generate_204',
+        method: 'HEAD',
+        timeout: 3000
+      }
+    ];
+    
+    for (const endpoint of endpoints) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), endpoint.timeout);
+        
+        const startTime = Date.now();
+        const response = await fetch(endpoint.url, {
+          method: endpoint.method,
+          signal: controller.signal,
+          cache: 'no-store'
+        });
+        const responseTime = Date.now() - startTime;
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          this.status[endpoint.name] = {
+            reachable: true,
+            responseTime,
+            status: response.status
+          };
+          
+          // Update bandwidth estimation
+          this.updateBandwidthEstimation(responseTime);
+        } else {
+          this.status[endpoint.name] = {
+            reachable: false,
+            responseTime,
+            status: response.status
+          };
+          
+          if (response.status === 403 || response.status === 429) {
+            this.status.blockedEndpoints.add(endpoint.name);
+          }
+        }
+      } catch (error) {
+        this.status[endpoint.name] = {
+          reachable: false,
+          error: error.message
+        };
+        
+        if (error.name === 'AbortError') {
+          this.status.blockedEndpoints.add(`${endpoint.name}_timeout`);
+        }
+      }
+    }
+    
+    // Notify clients
+    this.broadcastStatus();
+  }
+  
+  updateBandwidthEstimation(responseTime, size = 1000) {
+    const bandwidth = size / (responseTime / 1000);
+    this.metrics.bandwidth = (this.metrics.bandwidth + bandwidth) / 2;
+  }
+  
+  handleOnline() {
+    this.status.online = true;
+    this.status.lastChecked = Date.now();
+    
+    Telemetry.track('network_online', { status: this.status });
+    this.broadcastStatus();
+    this.checkEndpoints();
+  }
+  
+  handleOffline() {
+    this.status.online = false;
+    Telemetry.track('network_offline', { status: this.status });
+    this.broadcastStatus();
+  }
+  
+  handleConnectionChange() {
+    this.status.type = navigator.connection?.effectiveType || 'unknown';
+    this.status.downlink = navigator.connection?.downlink || 0;
+    this.status.rtt = navigator.connection?.rtt || 0;
+    this.status.saveData = navigator.connection?.saveData || false;
+    
+    Telemetry.track('connection_change', { status: this.status });
+    this.broadcastStatus();
+  }
+  
+  broadcastStatus() {
+    self.clients.matchAll().then(clients => {
+      clients.forEach(client => {
+        client.postMessage({
+          type: 'NETWORK_INTELLIGENCE',
+          status: this.status,
+          metrics: this.metrics,
+          timestamp: Date.now()
+        });
       });
     });
-  });
+  }
   
-  return networkStatus;
+  shouldUseLowQuality() {
+    return this.status.saveData || 
+           this.status.type === 'slow-2g' || 
+           this.status.type === '2g' ||
+           this.metrics.bandwidth < 100000; // < 100kbps
+  }
+  
+  isEndpointBlocked(name) {
+    return this.status.blockedEndpoints.has(name);
+  }
 }
 
-// Create offline fallback responses
-async function createOfflineFallbacks() {
-  const cache = await caches.open(CACHE_NAME);
+// Advanced cache manager
+class CacheManager {
+  constructor() {
+    this.caches = new Map();
+    this.stats = {
+      hits: 0,
+      misses: 0,
+      size: 0,
+      entries: 0
+    };
+  }
   
-  // Enhanced offline HTML page with network detection
-  const offlineHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Modz - Offline</title>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          min-height: 100vh;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          text-align: center;
-          margin: 0;
-          padding: 20px;
-        }
-        .container {
-          max-width: 500px;
-          padding: 2rem;
-          background: rgba(255, 255, 255, 0.1);
-          border-radius: 20px;
-          backdrop-filter: blur(10px);
-        }
-        h1 {
-          font-size: 2.5rem;
-          margin-bottom: 1rem;
-        }
-        p {
-          font-size: 1.2rem;
-          margin-bottom: 2rem;
-          opacity: 0.9;
-        }
-        .network-status {
-          background: rgba(0, 0, 0, 0.3);
-          border-radius: 10px;
-          padding: 1rem;
-          margin: 1rem 0;
-          text-align: left;
-        }
-        .status-item {
-          display: flex;
-          justify-content: space-between;
-          margin: 0.5rem 0;
-        }
-        .status-good { color: #4CAF50; }
-        .status-warning { color: #FF9800; }
-        .status-bad { color: #F44336; }
-        .icon {
-          font-size: 4rem;
-          margin-bottom: 2rem;
-          animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-          0% { opacity: 1; }
-          50% { opacity: 0.7; }
-          100% { opacity: 1; }
-        }
-        .buttons {
-          display: flex;
-          gap: 1rem;
-          justify-content: center;
-          flex-wrap: wrap;
-        }
-        button {
-          background: white;
-          color: #667eea;
-          border: none;
-          padding: 1rem 2rem;
-          font-size: 1rem;
-          border-radius: 50px;
-          cursor: pointer;
-          transition: transform 0.3s, background 0.3s;
-          flex: 1;
-          min-width: 150px;
-        }
-        button:hover {
-          transform: scale(1.05);
-          background: #f0f0f0;
-        }
-        button.secondary {
-          background: transparent;
-          border: 2px solid white;
-          color: white;
-        }
-        button.secondary:hover {
-          background: rgba(255, 255, 255, 0.1);
-        }
-        .features {
-          margin-top: 2rem;
-          text-align: left;
-        }
-        .features ul {
-          list-style: none;
-          padding: 0;
-        }
-        .features li {
-          margin: 0.5rem 0;
-          display: flex;
-          align-items: center;
-        }
-        .features li:before {
-          content: "✓";
-          color: #4CAF50;
-          margin-right: 10px;
-          font-weight: bold;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="icon">📶</div>
-        <h1>You're Offline</h1>
-        <p>Don't worry! You can still use Modz with these features:</p>
-        
-        <div class="features">
-          <ul>
-            <li>Browse previously loaded 3D models</li>
-            <li>View cached community mods</li>
-            <li>Edit models locally</li>
-            <li>Save your work offline</li>
-            <li>Queue actions for when you're back online</li>
-          </ul>
-        </div>
-        
-        <div id="networkStatus" class="network-status">
-          <h3>Network Status</h3>
-          <div id="statusItems">
-            <!-- Network status will be populated by JavaScript -->
-          </div>
-        </div>
-        
-        <div class="buttons">
-          <button onclick="window.location.reload()">Retry Connection</button>
-          <button onclick="history.back()" class="secondary">Go Back</button>
-          <button onclick="window.location.href='/offline-models.html'" class="secondary">View Offline Models</button>
-        </div>
-        
-        <p style="margin-top: 2rem; font-size: 0.9rem; opacity: 0.7;">
-          Modz will automatically sync when you reconnect
-        </p>
-      </div>
+  async open(name) {
+    if (!this.caches.has(name)) {
+      const cache = await caches.open(name);
+      this.caches.set(name, cache);
+      await this.updateStats(cache);
+    }
+    return this.caches.get(name);
+  }
+  
+  async updateStats(cache) {
+    const keys = await cache.keys();
+    this.stats.entries = keys.length;
+    
+    // Estimate size
+    let totalSize = 0;
+    for (const request of keys) {
+      const response = await cache.match(request);
+      if (response) {
+        const clone = response.clone();
+        const blob = await clone.blob();
+        totalSize += blob.size;
+      }
+    }
+    this.stats.size = totalSize;
+  }
+  
+  async put(request, response, strategy) {
+    const cache = await this.open(CACHE_NAME);
+    
+    // Check cache size limits
+    if (this.stats.size > CONFIG.maxCacheSize) {
+      await this.cleanupOldEntries(cache);
+    }
+    
+    // Clone response before storing
+    const responseToCache = response.clone();
+    
+    // Add cache metadata
+    const headers = new Headers(responseToCache.headers);
+    headers.set('X-Cache-Date', new Date().toISOString());
+    headers.set('X-Cache-Strategy', strategy);
+    headers.set('X-Cache-Version', VERSION);
+    
+    const cachedResponse = new Response(await responseToCache.blob(), {
+      status: responseToCache.status,
+      statusText: responseToCache.statusText,
+      headers
+    });
+    
+    await cache.put(request, cachedResponse);
+    await this.updateStats(cache);
+    
+    Telemetry.track('cache_store', {
+      url: request.url,
+      strategy,
+      size: this.stats.size
+    });
+  }
+  
+  async cleanupOldEntries(cache) {
+    const keys = await cache.keys();
+    const entries = [];
+    
+    for (const request of keys) {
+      const response = await cache.match(request);
+      if (response) {
+        const dateHeader = response.headers.get('X-Cache-Date');
+        const date = dateHeader ? new Date(dateHeader).getTime() : Date.now();
+        entries.push({ request, date });
+      }
+    }
+    
+    // Sort by date (oldest first)
+    entries.sort((a, b) => a.date - b.date);
+    
+    // Remove oldest entries until under limit
+    const toRemove = Math.max(0, entries.length - 50); // Keep at least 50 entries
+    for (let i = 0; i < toRemove; i++) {
+      await cache.delete(entries[i].request);
+    }
+    
+    await this.updateStats(cache);
+    Telemetry.track('cache_cleanup', { removed: toRemove });
+  }
+  
+  async match(request, options = {}) {
+    const cache = await this.open(CACHE_NAME);
+    const cached = await cache.match(request, options);
+    
+    if (cached) {
+      this.stats.hits++;
       
-      <script>
-        // Update network status on the offline page
-        function updateNetworkStatus() {
-          const statusItems = document.getElementById('statusItems');
-          if (!statusItems) return;
-          
-          statusItems.innerHTML = \`
-            <div class="status-item">
-              <span>Internet Connection:</span>
-              <span class="status-\${navigator.onLine ? 'good' : 'bad'}">
-                \${navigator.onLine ? 'Online' : 'Offline'}
-              </span>
-            </div>
-            <div class="status-item">
-              <span>GitHub Access:</span>
-              <span class="status-warning">Checking...</span>
-            </div>
-            <div class="status-item">
-              <span>Service Worker:</span>
-              <span class="status-good">Active</span>
-            </div>
-          \`;
-          
-          // Check GitHub access
-          fetch('https://api.github.com/zen', { 
-            method: 'HEAD',
-            mode: 'no-cors'
-          }).then(() => {
-            document.querySelector('.status-warning').textContent = 'Available';
-            document.querySelector('.status-warning').className = 'status-good';
-          }).catch(() => {
-            document.querySelector('.status-warning').textContent = 'Blocked';
-            document.querySelector('.status-warning').className = 'status-bad';
+      // Check if cache is stale
+      const cacheDate = cached.headers.get('X-Cache-Date');
+      const cacheAge = cacheDate ? Date.now() - new Date(cacheDate).getTime() : Infinity;
+      
+      if (cacheAge > CONFIG.maxCacheAge) {
+        // Stale but usable
+        Telemetry.track('cache_stale', { url: request.url, age: cacheAge });
+        return { response: cached, stale: true };
+      }
+      
+      Telemetry.track('cache_hit', { url: request.url });
+      return { response: cached, stale: false };
+    }
+    
+    this.stats.misses++;
+    Telemetry.track('cache_miss', { url: request.url });
+    return null;
+  }
+}
+
+// Advanced request router
+class RequestRouter {
+  constructor(networkIntelligence) {
+    this.network = networkIntelligence;
+    this.classifier = new URLClassifier();
+  }
+  
+  async route(event) {
+    const request = event.request;
+    const url = new URL(request.url);
+    
+    // Get request classification
+    const classification = this.classifier.classify(url, request);
+    
+    // Apply network intelligence
+    if (this.network.shouldUseLowQuality() && classification.strategy === STRATEGIES.MEDIA) {
+      // Serve low-quality media on slow connections
+      return this.handleLowQualityMedia(request, classification);
+    }
+    
+    // Handle auth requests specially
+    if (classification.strategy === STRATEGIES.AUTH) {
+      return this.handleAuthRequest(event, request, classification);
+    }
+    
+    // Apply strategy
+    switch (classification.strategy) {
+      case STRATEGIES.STATIC:
+        return this.handleStatic(request, classification);
+      case STRATEGIES.API_CACHE:
+        return this.handleApiCache(request, classification);
+      case STRATEGIES.API_NETWORK:
+        return this.handleApiNetwork(request, classification);
+      case STRATEGIES.MEDIA:
+        return this.handleMedia(request, classification);
+      case STRATEGIES.FONT:
+        return this.handleFont(request, classification);
+      default:
+        return this.handleDynamic(request, classification);
+    }
+  }
+  
+  async handleAuthRequest(event, request, classification) {
+    Telemetry.track('auth_request', { 
+      url: request.url,
+      method: request.method 
+    });
+    
+    // For auth requests, we have several strategies:
+    
+    // 1. Complete bypass for OAuth callbacks and token exchanges
+    if (this.isOAuthCallback(request.url)) {
+      console.log('🔐 OAuth callback detected - complete bypass');
+      // Don't intercept at all
+      return null;
+    }
+    
+    // 2. Network-only for auth API calls
+    if (this.isAuthApiCall(request.url)) {
+      console.log('🔐 Auth API call - network only');
+      event.respondWith(this.fetchWithRetry(request, classification));
+      return;
+    }
+    
+    // 3. Special handling for session refresh
+    if (this.isSessionRefresh(request)) {
+      console.log('🔐 Session refresh - priority handling');
+      return this.handleSessionRefresh(event, request);
+    }
+    
+    // Default: let it through
+    return null;
+  }
+  
+  isOAuthCallback(url) {
+    return url.includes('#access_token=') || 
+           url.includes('#refresh_token=') ||
+           url.includes('oauth/callback') ||
+           url.includes('auth/callback');
+  }
+  
+  isAuthApiCall(url) {
+    return url.includes('/auth/v1/') ||
+           url.includes('/rest/v1/auth') ||
+           url.includes('supabase.co/auth');
+  }
+  
+  isSessionRefresh(request) {
+    return request.url.includes('/auth/v1/token') && 
+           request.method === 'POST' &&
+           request.headers.get('Content-Type')?.includes('application/json');
+  }
+  
+  async handleSessionRefresh(event, request) {
+    try {
+      // Try to refresh from network first
+      const response = await fetch(request);
+      
+      if (response.ok) {
+        // Broadcast session update to all tabs
+        self.clients.matchAll().then(clients => {
+          clients.forEach(client => {
+            client.postMessage({
+              type: 'SESSION_REFRESHED',
+              timestamp: Date.now()
+            });
           });
-        }
-        
-        updateNetworkStatus();
-        window.addEventListener('online', updateNetworkStatus);
-        window.addEventListener('offline', updateNetworkStatus);
-        
-        // Try to detect school network
-        if (window.location.hostname.includes('.edu') || 
-            window.location.hostname.includes('school') ||
-            navigator.userAgent.includes('ChromeOS')) {
-          document.querySelector('.network-status').innerHTML += 
-            '<p style="color: #FF9800; margin-top: 10px;">⚠️ School network detected. Some features may be restricted.</p>';
-        }
-      </script>
-    </body>
-    </html>
-  `;
-  
-  await cache.put(
-    new Request('/offline.html'),
-    new Response(offlineHtml, {
-      headers: { 'Content-Type': 'text/html' }
-    })
-  );
-  
-  // Offline data for API fallback
-  const offlineData = {
-    timestamp: new Date().toISOString(),
-    message: "You're offline. Data was last updated while online.",
-    cachedMods: [],
-    status: "offline",
-    networkStatus: networkStatus
-  };
-  
-  await cache.put(
-    new Request('/offline-data.json'),
-    new Response(JSON.stringify(offlineData), {
-      headers: { 'Content-Type': 'application/json' }
-    })
-  );
-}
-
-// Activate event - clean up old caches
-self.addEventListener('activate', (event) => {
-  console.log('⚡ Modz Service Worker activating...');
-  event.waitUntil(
-    Promise.all([
-      // Clean old caches
-      caches.keys()
-        .then((cacheNames) => {
-          return Promise.all(
-            cacheNames.map((cacheName) => {
-              if (cacheName !== CACHE_NAME) {
-                console.log(`🗑️ Deleting old cache: ${cacheName}`);
-                return caches.delete(cacheName);
-              }
-            })
-          );
-        }),
+        });
+      }
       
-      // Claim clients immediately
-      self.clients.claim(),
-      
-      // Initialize IndexedDB for offline storage
-      initializeOfflineDatabase(),
-      
-      // Check network status
-      checkNetworkStatus()
-    ])
-    .then(() => {
-      console.log('✅ Service Worker activated with offline support');
-      
-      // Notify all clients that we're ready
+      return response;
+    } catch (error) {
+      // If refresh fails, notify all tabs
       self.clients.matchAll().then(clients => {
         clients.forEach(client => {
           client.postMessage({
-            type: 'SW_READY',
-            version: 'v6',
-            timestamp: new Date().toISOString(),
-            networkStatus: networkStatus
+            type: 'SESSION_EXPIRED',
+            error: error.message,
+            timestamp: Date.now()
           });
         });
       });
-    })
-  );
-});
-
-// ====== OFFLINE-ENABLED STRATEGIES ======
-
-// Cache-first with background update
-async function cacheFirstWithUpdate(request) {
-  const cache = await caches.open(CACHE_NAME);
-  const cachedResponse = await cache.match(request);
+      
+      throw error;
+    }
+  }
   
-  // Always return cached version immediately for offline
-  if (cachedResponse) {
-    console.log(`📦 Serving cached API data: ${request.url}`);
+  async handleStatic(request, classification) {
+    const cacheManager = new CacheManager();
+    const cached = await cacheManager.match(request);
     
-    // Update in background if online
-    if (navigator.onLine) {
+    if (cached && !cached.stale) {
+      return cached.response;
+    }
+    
+    // Stale-while-revalidate pattern
+    if (cached?.stale) {
+      this.updateInBackground(request, classification);
+      return cached.response;
+    }
+    
+    // Fetch and cache
+    const response = await this.fetchWithRetry(request, classification);
+    
+    if (response.ok) {
+      await cacheManager.put(request, response, classification.strategy);
+    }
+    
+    return response;
+  }
+  
+  async handleApiCache(request, classification) {
+    // Check if this API endpoint is blocked
+    if (this.network.isEndpointBlocked('github') && request.url.includes('github.com')) {
+      return this.handleBlockedApi(request, classification);
+    }
+    
+    const cacheManager = new CacheManager();
+    const cached = await cacheManager.match(request);
+    
+    // Return cached response immediately if available
+    if (cached) {
+      // Update in background if stale
+      if (cached.stale && this.network.status.online) {
+        this.updateInBackground(request, classification);
+      }
+      return cached.response;
+    }
+    
+    // Try network
+    try {
+      const response = await this.fetchWithRetry(request, classification);
+      
+      if (response.ok) {
+        await cacheManager.put(request, response, classification.strategy);
+      }
+      
+      return response;
+    } catch (error) {
+      // If offline and no cache, return offline response
+      if (!this.network.status.online) {
+        return this.offlineApiResponse(request, classification);
+      }
+      throw error;
+    }
+  }
+  
+  async handleBlockedApi(request, classification) {
+    // Store request for later sync
+    const db = await Database.getInstance();
+    await db.queueRequest(request, classification);
+    
+    // Return queued response
+    return new Response(
+      JSON.stringify({
+        status: 'queued',
+        message: 'Request queued due to network restrictions',
+        id: Date.now(),
+        timestamp: new Date().toISOString(),
+        retryAfter: Date.now() + 300000 // 5 minutes
+      }),
+      {
+        status: 202,
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Request-Queued': 'true'
+        }
+      }
+    );
+  }
+  
+  offlineApiResponse(request, classification) {
+    return new Response(
+      JSON.stringify({
+        error: 'offline',
+        message: 'You are offline. Data will sync when you reconnect.',
+        cached: false,
+        timestamp: new Date().toISOString(),
+        endpoint: classification.endpoint
+      }),
+      {
+        status: 200,
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Offline': 'true',
+          'X-Cache-Timestamp': new Date().toISOString()
+        }
+      }
+    );
+  }
+  
+  async handleLowQualityMedia(request, classification) {
+    // On slow networks, serve lower quality media
+    const url = new URL(request.url);
+    
+    // Check if we have a low-quality version
+    const lowQualityUrl = this.getLowQualityUrl(url);
+    const lowQualityRequest = new Request(lowQualityUrl, request);
+    
+    const cacheManager = new CacheManager();
+    const cached = await cacheManager.match(lowQualityRequest);
+    
+    if (cached) {
+      Telemetry.track('low_quality_served', { original: url.href, served: lowQualityUrl.href });
+      return cached.response;
+    }
+    
+    // Otherwise, fetch and cache the low-quality version
+    const response = await fetch(lowQualityRequest);
+    if (response.ok) {
+      await cacheManager.put(lowQualityRequest, response, `${classification.strategy}_low`);
+    }
+    
+    return response;
+  }
+  
+  getLowQualityUrl(url) {
+    // Implement logic to get low-quality version
+    // This could involve query parameters, different paths, or image resizing service
+    const newUrl = new URL(url);
+    
+    if (url.pathname.match(/\.(jpg|jpeg|png|webp)$/i)) {
+      newUrl.searchParams.set('quality', '50');
+      newUrl.searchParams.set('width', '800');
+    }
+    
+    return newUrl;
+  }
+  
+  async updateInBackground(request, classification) {
+    if (!this.network.status.online) return;
+    
+    // Use Background Fetch API if available
+    if ('BackgroundFetchManager' in self.registration) {
+      try {
+        const bgFetch = await self.registration.backgroundFetch.fetch(
+          `update-${Date.now()}`,
+          [request],
+          {
+            title: 'Updating cached content',
+            icons: [{ src: '/Modz.png', sizes: '192x192', type: 'image/png' }],
+            downloadTotal: 1024 * 1024 // 1MB
+          }
+        );
+        
+        Telemetry.track('background_update_started', { url: request.url });
+      } catch (error) {
+        console.warn('Background fetch failed:', error);
+      }
+    } else {
+      // Fallback to regular fetch
       fetch(request)
-        .then(networkResponse => {
-          if (networkResponse.ok) {
-            cache.put(request, networkResponse.clone());
-            console.log(`🔄 Updated cache in background: ${request.url}`);
+        .then(async response => {
+          if (response.ok) {
+            const cacheManager = new CacheManager();
+            await cacheManager.put(request, response, classification.strategy);
             
-            // Notify app about updated data
+            // Notify clients
             self.clients.matchAll().then(clients => {
               clients.forEach(client => {
                 client.postMessage({
-                  type: 'DATA_UPDATED',
+                  type: 'BACKGROUND_UPDATE',
                   url: request.url,
                   timestamp: new Date().toISOString()
                 });
@@ -497,304 +790,505 @@ async function cacheFirstWithUpdate(request) {
           }
         })
         .catch(error => {
-          console.log(`⚠️ Background update failed: ${request.url}`, error);
+          console.warn('Background update failed:', error);
         });
     }
-    
-    return cachedResponse;
   }
   
-  // Not in cache, try network
-  try {
-    const networkResponse = await fetch(request);
-    if (networkResponse.ok) {
-      await cache.put(request, networkResponse.clone());
-    }
-    return networkResponse;
-  } catch (error) {
-    console.error(`❌ Network failed for API: ${request.url}`, error);
+  async fetchWithRetry(request, classification, attempt = 1) {
+    const startTime = Date.now();
     
-    // Return generic offline response
-    return new Response(
-      JSON.stringify({
-        error: 'offline',
-        message: 'You are offline. Please reconnect to fetch new data.',
-        cached: false,
-        timestamp: new Date().toISOString()
-      }),
-      {
-        status: 200,
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-Offline': 'true'
-        }
+    try {
+      const response = await fetch(request);
+      Telemetry.measurePerformance('fetch', startTime);
+      
+      if (response.ok) {
+        Telemetry.track('fetch_success', {
+          url: request.url,
+          attempt,
+          status: response.status,
+          strategy: classification.strategy
+        });
+        return response;
       }
-    );
-  }
-}
-
-// Network first with offline fallback
-async function networkFirstWithOffline(request) {
-  try {
-    const networkResponse = await fetch(request);
-    
-    // Cache successful responses
-    if (networkResponse.ok) {
-      const cache = await caches.open(CACHE_NAME);
-      cache.put(request, networkResponse.clone());
-    }
-    
-    return networkResponse;
-  } catch (error) {
-    console.log(`🌐 Network failed, trying cache: ${request.url}`);
-    
-    // Try cache
-    const cachedResponse = await caches.match(request);
-    if (cachedResponse) {
-      return cachedResponse;
-    }
-    
-    // For HTML requests, return offline page
-    if (request.headers.get('Accept')?.includes('text/html')) {
-      const offlineResponse = await caches.match('/offline.html');
-      if (offlineResponse) {
-        return offlineResponse;
+      
+      // Handle specific error cases
+      if (response.status === 401 || response.status === 403) {
+        Telemetry.track('auth_error', {
+          url: request.url,
+          status: response.status
+        });
+        
+        // Notify clients about auth issues
+        self.clients.matchAll().then(clients => {
+          clients.forEach(client => {
+            client.postMessage({
+              type: 'AUTH_ERROR',
+              status: response.status,
+              url: request.url,
+              timestamp: new Date().toISOString()
+            });
+          });
+        });
       }
-    }
-    
-    // For API requests, return offline data
-    if (request.url.includes('/api/')) {
-      return new Response(
-        JSON.stringify({
-          status: 'offline',
-          message: 'You are offline. Data will sync when you reconnect.',
-          cached: false,
-          timestamp: new Date().toISOString()
-        }),
-        {
-          status: 200,
-          headers: { 
-            'Content-Type': 'application/json',
-            'X-Offline': 'true'
-          }
-        }
-      );
-    }
-    
-    // Generic offline response
-    return new Response(
-      'You are offline. Please check your internet connection.',
-      {
-        status: 503,
-        headers: { 'Content-Type': 'text/plain' }
-      }
-    );
-  }
-}
-
-// Cache-first (for static assets)
-async function cacheFirst(request) {
-  const cachedResponse = await caches.match(request);
-  if (cachedResponse) {
-    console.log(`📦 Cache hit: ${request.url}`);
-    return cachedResponse;
-  }
-  
-  try {
-    const networkResponse = await fetch(request);
-    if (networkResponse.ok) {
-      const cache = await caches.open(CACHE_NAME);
-      cache.put(request, networkResponse.clone());
-    }
-    return networkResponse;
-  } catch (error) {
-    console.error(`❌ Network failed: ${request.url}`, error);
-    
-    // For images, return placeholder
-    if (request.url.match(/\.(png|jpg|jpeg|gif|svg)$/)) {
-      return caches.match('/Modz.png');
-    }
-    
-    throw error;
-  }
-}
-
-// Network-first
-async function networkFirst(request) {
-  try {
-    return await fetch(request);
-  } catch (error) {
-    const cachedResponse = await caches.match(request);
-    if (cachedResponse) {
-      return cachedResponse;
-    }
-    throw error;
-  }
-}
-
-// Network-only (for auth - but actually we should bypass completely)
-async function networkOnly(request) {
-  console.log(`🌐 Network-only: ${request.url}`);
-  return fetch(request);
-}
-
-// ====== MAIN FETCH HANDLER ======
-self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-  const urlString = url.toString();
-  
-  // ====== CRITICAL FIX: Check for bypass URLs BEFORE anything else ======
-  for (const bypassUrl of BYPASS_SERVICE_WORKER) {
-    if (urlString.includes(bypassUrl)) {
-      console.log(`🔓 COMPLETE BYPASS for: ${urlString}`);
-      // DON'T call event.respondWith() - let request go directly to network
-      return;
-    }
-  }
-  
-  // Skip non-GET requests for caching (except for our offline queue)
-  if (event.request.method !== 'GET') {
-    if (event.request.method === 'POST' && urlString.includes('/api/')) {
-      handleOfflinePost(event);
-      return;
-    }
-    // For other non-GET requests (like auth), just let them through
-    return;
-  }
-  
-  // Skip browser extensions and dev tools
-  if (urlString.startsWith('chrome-extension://') ||
-      urlString.includes('sockjs-node') ||
-      urlString.includes('hot-update')) {
-    return;
-  }
-  
-  // Get strategy with correct method parameter
-  const strategy = getStrategy(url, event.request.method);
-  
-  if (strategy === 'bypass') {
-    // Should have been caught earlier, but just in case
-    return;
-  }
-  
-  console.log(`🔄 ${strategy} for ${url.pathname}`);
-  
-  switch (strategy) {
-    case 'cache-first':
-      event.respondWith(cacheFirst(event.request));
-      break;
       
-    case 'network-first':
-      event.respondWith(networkFirst(event.request));
-      break;
-      
-    case 'network-first-with-offline':
-      event.respondWith(networkFirstWithOffline(event.request));
-      break;
-      
-    case 'cache-first-with-update':
-      event.respondWith(cacheFirstWithUpdate(event.request));
-      break;
-      
-    case 'network-only':
-      event.respondWith(fetch(event.request));
-      break;
-      
-    default:
-      event.respondWith(
-        networkFirstWithOffline(event.request)
-      );
-  }
-});
-
-// Handle GitHub authorization attempts with fallback
-async function handleGitHubRequest(request) {
-  try {
-    // First try direct request
-    const response = await fetch(request);
-    
-    // If we get a 403/429 (rate limit or blocking), try alternative approach
-    if (response.status === 403 || response.status === 429) {
-      console.log(`🐙 GitHub request blocked (${response.status}), trying fallback...`);
-      
-      // Store the request for later retry
-      const db = await getOfflineDatabase();
-      await db.add('pendingGitHubRequests', {
+      throw new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      Telemetry.track('fetch_error', {
         url: request.url,
-        method: request.method,
-        timestamp: Date.now(),
-        headers: Object.fromEntries(request.headers.entries())
+        attempt,
+        error: error.message,
+        strategy: classification.strategy
       });
       
-      // Return a message about the blocking
-      return new Response(
-        JSON.stringify({
-          error: 'github_blocked',
-          message: 'GitHub is currently blocked or rate limited. We\'ll retry later.',
-          status: 'queued',
-          timestamp: new Date().toISOString()
-        }),
-        {
-          status: 202,
-          headers: { 'Content-Type': 'application/json' }
+      if (attempt < CONFIG.retryAttempts && this.shouldRetry(error)) {
+        await this.delay(CONFIG.retryDelay * attempt);
+        return this.fetchWithRetry(request, classification, attempt + 1);
+      }
+      
+      throw error;
+    }
+  }
+  
+  shouldRetry(error) {
+    // Retry on network errors, but not on auth errors
+    return error.message.includes('Failed to fetch') ||
+           error.message.includes('NetworkError') ||
+           error.message.includes('TypeError');
+  }
+  
+  delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}
+
+// Advanced URL classifier with machine learning-like patterns
+class URLClassifier {
+  classify(url, request) {
+    const urlString = url.href;
+    
+    // Check patterns in priority order
+    for (const [patternType, patterns] of Object.entries(URL_PATTERNS)) {
+      for (const pattern of patterns) {
+        if (pattern.test(urlString)) {
+          return this.getClassification(patternType, url, request);
         }
-      );
+      }
     }
     
-    return response;
-  } catch (error) {
-    console.error(`❌ GitHub request failed: ${error.message}`);
+    // Default classification
+    return this.getClassification('DYNAMIC', url, request);
+  }
+  
+  getClassification(type, url, request) {
+    const base = {
+      url: url.href,
+      hostname: url.hostname,
+      pathname: url.pathname,
+      method: request.method,
+      endpoint: this.getEndpointName(url),
+      priority: this.getPriority(type),
+      strategy: this.getStrategy(type),
+      cacheable: this.isCacheable(type, request),
+      timestamp: Date.now()
+    };
     
-    // If it's an OAuth request, we need special handling
-    if (request.url.includes('github.com/login/oauth')) {
-      // Notify user about GitHub access issues
+    // Add specific properties based on type
+    switch (type) {
+      case 'SUPABASE_AUTH':
+        return {
+          ...base,
+          authFlow: this.detectAuthFlow(url),
+          requiresFreshToken: true,
+          bypassCache: true
+        };
+      case 'GITHUB':
+        return {
+          ...base,
+          apiVersion: this.getGitHubApiVersion(url),
+          requiresAuth: url.pathname.includes('/user') || url.pathname.includes('/repos'),
+          rateLimitAware: true
+        };
+      case 'MEDIA':
+        return {
+          ...base,
+          mediaType: this.getMediaType(url),
+          dimensions: this.extractDimensions(url),
+          quality: 'high'
+        };
+      default:
+        return base;
+    }
+  }
+  
+  getEndpointName(url) {
+    const path = url.pathname.split('/').filter(Boolean);
+    return path.length > 0 ? path[path.length - 1] : 'root';
+  }
+  
+  getPriority(type) {
+    const priorities = {
+      SUPABASE_AUTH: 0,
+      STATIC_ASSETS: 1,
+      FONTS: 1,
+      MEDIA: 2,
+      API_ENDPOINTS: 3,
+      GITHUB: 4,
+      SUPABASE_DATA: 5,
+      DYNAMIC: 6
+    };
+    return priorities[type] || 6;
+  }
+  
+  getStrategy(type) {
+    const strategies = {
+      SUPABASE_AUTH: STRATEGIES.AUTH,
+      STATIC_ASSETS: STRATEGIES.STATIC,
+      FONTS: STRATEGIES.FONT,
+      MEDIA: STRATEGIES.MEDIA,
+      API_ENDPOINTS: STRATEGIES.API_CACHE,
+      GITHUB: STRATEGIES.API_CACHE,
+      SUPABASE_DATA: STRATEGIES.API_NETWORK,
+      DYNAMIC: STRATEGIES.DYNAMIC
+    };
+    return strategies[type] || STRATEGIES.DYNAMIC;
+  }
+  
+  isCacheable(type, request) {
+    if (request.method !== 'GET') return false;
+    
+    const nonCacheable = ['SUPABASE_AUTH'];
+    return !nonCacheable.includes(type);
+  }
+  
+  detectAuthFlow(url) {
+    if (url.href.includes('#access_token=')) return 'oauth_callback';
+    if (url.pathname.includes('/token')) return 'token_exchange';
+    if (url.pathname.includes('/authorize')) return 'authorization';
+    if (url.pathname.includes('/logout')) return 'logout';
+    return 'unknown';
+  }
+  
+  getGitHubApiVersion(url) {
+    return url.pathname.startsWith('/api/v3') ? 'v3' : 
+           url.pathname.startsWith('/api/v4') ? 'v4' : 'v3';
+  }
+  
+  getMediaType(url) {
+    const ext = url.pathname.split('.').pop().toLowerCase();
+    const types = {
+      png: 'image',
+      jpg: 'image',
+      jpeg: 'image',
+      gif: 'image',
+      svg: 'image',
+      webp: 'image',
+      mp4: 'video',
+      webm: 'video',
+      ogg: 'video',
+      mp3: 'audio',
+      wav: 'audio'
+    };
+    return types[ext] || 'unknown';
+  }
+  
+  extractDimensions(url) {
+    // Extract from query params like ?width=800&height=600
+    const width = url.searchParams.get('width');
+    const height = url.searchParams.get('height');
+    return width && height ? { width: parseInt(width), height: parseInt(height) } : null;
+  }
+}
+
+// Advanced IndexedDB with encryption support
+class Database {
+  static async getInstance() {
+    if (!Database.instance) {
+      Database.instance = new Database();
+      await Database.instance.init();
+    }
+    return Database.instance;
+  }
+  
+  async init() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open('ModzEnterpriseDB', 4);
+      
+      request.onerror = () => reject(request.error);
+      request.onsuccess = (event) => {
+        this.db = event.target.result;
+        
+        // Handle database upgrades
+        this.db.onversionchange = () => {
+          this.db.close();
+          console.log('Database upgrade required');
+        };
+        
+        resolve(this.db);
+      };
+      
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        
+        // Queued requests store
+        if (!db.objectStoreNames.contains('queuedRequests')) {
+          const store = db.createObjectStore('queuedRequests', {
+            keyPath: 'id',
+            autoIncrement: true
+          });
+          store.createIndex('timestamp', 'timestamp');
+          store.createIndex('status', 'status');
+          store.createIndex('priority', 'priority');
+          store.createIndex('endpoint', 'endpoint');
+        }
+        
+        // Offline models with versioning
+        if (!db.objectStoreNames.contains('offlineModels')) {
+          const store = db.createObjectStore('offlineModels', {
+            keyPath: 'id'
+          });
+          store.createIndex('name', 'name');
+          store.createIndex('timestamp', 'timestamp');
+          store.createIndex('version', 'version');
+          store.createIndex('type', 'type');
+          store.createIndex('size', 'size');
+        }
+        
+        // User preferences
+        if (!db.objectStoreNames.contains('preferences')) {
+          const store = db.createObjectStore('preferences', {
+            keyPath: 'key'
+          });
+        }
+        
+        // Sync history
+        if (!db.objectStoreNames.contains('syncHistory')) {
+          const store = db.createObjectStore('syncHistory', {
+            keyPath: 'id',
+            autoIncrement: true
+          });
+          store.createIndex('timestamp', 'timestamp');
+          store.createIndex('type', 'type');
+          store.createIndex('success', 'success');
+        }
+        
+        // Cache metadata
+        if (!db.objectStoreNames.contains('cacheMetadata')) {
+          const store = db.createObjectStore('cacheMetadata', {
+            keyPath: 'url'
+          });
+          store.createIndex('strategy', 'strategy');
+          store.createIndex('timestamp', 'timestamp');
+          store.createIndex('expires', 'expires');
+        }
+      };
+    });
+  }
+  
+  async queueRequest(request, classification) {
+    const transaction = this.db.transaction(['queuedRequests'], 'readwrite');
+    const store = transaction.objectStore('queuedRequests');
+    
+    const queuedRequest = {
+      url: request.url,
+      method: request.method,
+      headers: Object.fromEntries(request.headers.entries()),
+      classification,
+      timestamp: Date.now(),
+      status: 'pending',
+      priority: classification.priority,
+      endpoint: classification.endpoint,
+      retries: 0
+    };
+    
+    // Try to get request body for POST/PUT requests
+    if (request.method === 'POST' || request.method === 'PUT') {
+      try {
+        const clone = request.clone();
+        const body = await clone.text();
+        if (body) {
+          queuedRequest.body = body;
+        }
+      } catch (error) {
+        console.warn('Could not read request body:', error);
+      }
+    }
+    
+    return new Promise((resolve, reject) => {
+      const req = store.add(queuedRequest);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+}
+
+// Main service worker initialization
+let networkIntelligence;
+let requestRouter;
+
+self.addEventListener('install', (event) => {
+  console.log('🚀 Modz Enterprise Service Worker installing...');
+  
+  event.waitUntil(
+    (async () => {
+      Telemetry.track('install_start', { version: VERSION });
+      
+      // Skip waiting to activate immediately
+      await self.skipWaiting();
+      
+      // Initialize components
+      networkIntelligence = new NetworkIntelligence();
+      
+      // Create basic cache
+      const cache = await caches.open(CACHE_NAME);
+      
+      // Cache critical assets
+      const criticalAssets = [
+        '/',
+        '/manifest.json',
+        '/Modz.png',
+        '/styles/three-components.css',
+        '/offline.html'
+      ];
+      
+      try {
+        await cache.addAll(criticalAssets);
+        Telemetry.track('install_complete', { version: VERSION });
+      } catch (error) {
+        console.error('Cache installation failed:', error);
+        Telemetry.track('install_error', { error: error.message });
+      }
+    })()
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  console.log('⚡ Modz Enterprise Service Worker activating...');
+  
+  event.waitUntil(
+    (async () => {
+      // Clean up old caches
+      const cacheKeys = await caches.keys();
+      await Promise.all(
+        cacheKeys.map(key => {
+          if (key !== CACHE_NAME) {
+            console.log(`🗑️ Deleting old cache: ${key}`);
+            return caches.delete(key);
+          }
+        })
+      );
+      
+      // Claim clients immediately
+      await self.clients.claim();
+      
+      // Initialize router
+      requestRouter = new RequestRouter(networkIntelligence);
+      
+      // Initialize database
+      await Database.getInstance();
+      
+      // Start heartbeat
+      startHeartbeat();
+      
+      // Broadcast ready message
       self.clients.matchAll().then(clients => {
         clients.forEach(client => {
           client.postMessage({
-            type: 'GITHUB_BLOCKED',
-            message: 'GitHub authentication is blocked. Please try from a different network.',
-            timestamp: new Date().toISOString()
+            type: 'SW_READY',
+            version: VERSION,
+            timestamp: Date.now(),
+            capabilities: {
+              backgroundSync: 'sync' in self.registration,
+              backgroundFetch: 'BackgroundFetchManager' in self.registration,
+              periodicSync: 'periodicSync' in self.registration,
+              networkIntelligence: true,
+              telemetry: true
+            }
           });
         });
       });
+      
+      Telemetry.track('activate_complete', { version: VERSION });
+      console.log('✅ Enterprise Service Worker activated');
+    })()
+  );
+});
+
+// Main fetch handler
+self.addEventListener('fetch', (event) => {
+  const startTime = Date.now();
+  
+  // Skip non-GET requests for certain types
+  if (event.request.method !== 'GET') {
+    // Handle POST requests for offline queue
+    if (event.request.method === 'POST' || event.request.method === 'PUT') {
+      handleOfflineMutation(event);
+      return;
     }
     
-    throw error;
-  }
-}
-
-// Handle POST requests while offline
-async function handleOfflinePost(event) {
-  const url = new URL(event.request.url);
-  
-  // Check if it's a GitHub-related API call
-  if (url.pathname.includes('github') || url.pathname.includes('issue') || url.pathname.includes('fork')) {
-    event.respondWith(handleGitHubRequest(event.request));
+    // Let other non-GET requests through
     return;
   }
   
+  // Skip certain URLs entirely
+  if (shouldSkipUrl(event.request.url)) {
+    return;
+  }
+  
+  // Route the request
+  event.respondWith(
+    (async () => {
+      try {
+        const result = await requestRouter.route(event);
+        
+        if (result === null) {
+          // Router decided not to handle this request
+          return fetch(event.request);
+        }
+        
+        Telemetry.measurePerformance('total_request', startTime);
+        return result;
+      } catch (error) {
+        Telemetry.track('fetch_handler_error', {
+          url: event.request.url,
+          error: error.message
+        });
+        
+        // Fallback to network
+        return fetch(event.request);
+      }
+    })()
+  );
+});
+
+function shouldSkipUrl(url) {
+  const skipPatterns = [
+    /chrome-extension:\/\//,
+    /sockjs-node/,
+    /hot-update/,
+    /webpack-hmr/,
+    /\/__webpack/,
+    /\/ws/
+  ];
+  
+  return skipPatterns.some(pattern => pattern.test(url));
+}
+
+async function handleOfflineMutation(event) {
   if (!navigator.onLine) {
-    // Queue the request for later
-    const request = event.request;
-    const requestData = await request.clone().json();
+    // Queue for later sync
+    const db = await Database.getInstance();
+    const classification = new URLClassifier().classify(new URL(event.request.url), event.request);
     
-    // Store in IndexedDB for later sync
-    const db = await getOfflineDatabase();
-    await db.add('pendingRequests', {
-      url: request.url,
-      method: 'POST',
-      data: requestData,
-      timestamp: Date.now(),
-      retries: 0
-    });
+    await db.queueRequest(event.request.clone(), classification);
     
-    // Return success response immediately
+    // Respond with queued status
     event.respondWith(
       new Response(
         JSON.stringify({
           status: 'queued',
-          message: 'Request queued for when you reconnect',
           id: Date.now(),
+          message: 'Request queued for sync when online',
           timestamp: new Date().toISOString()
         }),
         {
@@ -804,424 +1298,379 @@ async function handleOfflinePost(event) {
       )
     );
     
-    // Register a sync if available
+    // Register sync
     if ('sync' in self.registration) {
-      self.registration.sync.register('sync-pending-requests');
+      try {
+        await self.registration.sync.register('sync-queued-requests');
+      } catch (error) {
+        console.warn('Sync registration failed:', error);
+      }
     }
   }
 }
 
-// ====== OFFLINE DATABASE ======
-async function initializeOfflineDatabase() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('ModzOfflineDB', 3);
-    
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      
-      // Pending requests (for POST/PUT/DELETE)
-      if (!db.objectStoreNames.contains('pendingRequests')) {
-        const store = db.createObjectStore('pendingRequests', {
-          keyPath: 'id',
-          autoIncrement: true
-        });
-        store.createIndex('timestamp', 'timestamp');
-        store.createIndex('url', 'url');
-      }
-      
-      // GitHub pending requests
-      if (!db.objectStoreNames.contains('pendingGitHubRequests')) {
-        const store = db.createObjectStore('pendingGitHubRequests', {
-          keyPath: 'id',
-          autoIncrement: true
-        });
-        store.createIndex('timestamp', 'timestamp');
-        store.createIndex('url', 'url');
-      }
-      
-      // Cached API responses
-      if (!db.objectStoreNames.contains('apiCache')) {
-        const store = db.createObjectStore('apiCache', {
-          keyPath: 'url'
-        });
-        store.createIndex('timestamp', 'timestamp');
-        store.createIndex('expires', 'expires');
-      }
-      
-      // Offline mods/3D models
-      if (!db.objectStoreNames.contains('offlineModels')) {
-        const store = db.createObjectStore('offlineModels', {
-          keyPath: 'id'
-        });
-        store.createIndex('name', 'name');
-        store.createIndex('timestamp', 'timestamp');
-        store.createIndex('type', 'type');
-      }
-      
-      // Network status history
-      if (!db.objectStoreNames.contains('networkHistory')) {
-        const store = db.createObjectStore('networkHistory', {
-          keyPath: 'timestamp'
-        });
-        store.createIndex('online', 'online');
-        store.createIndex('blocked', 'blocked');
-      }
-    };
-  });
-}
-
-async function getOfflineDatabase() {
-  const db = await initializeOfflineDatabase();
-  return {
-    add: (storeName, data) => {
-      return new Promise((resolve, reject) => {
-        const transaction = db.transaction([storeName], 'readwrite');
-        const store = transaction.objectStore(storeName);
-        const request = store.add(data);
-        
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      });
-    },
-    getAll: (storeName) => {
-      return new Promise((resolve, reject) => {
-        const transaction = db.transaction([storeName], 'readonly');
-        const store = transaction.objectStore(storeName);
-        const request = store.getAll();
-        
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      });
-    },
-    delete: (storeName, id) => {
-      return new Promise((resolve, reject) => {
-        const transaction = db.transaction([storeName], 'readwrite');
-        const store = transaction.objectStore(storeName);
-        const request = store.delete(id);
-        
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-      });
-    }
-  };
-}
-
-// ====== SYNC EVENTS ======
+// Background sync
 self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-pending-requests') {
-    console.log('🔄 Syncing pending requests...');
-    event.waitUntil(syncPendingRequests());
-  }
+  console.log('🔄 Background sync:', event.tag);
   
-  if (event.tag === 'sync-github-requests') {
-    console.log('🔄 Syncing GitHub requests...');
-    event.waitUntil(syncGitHubRequests());
-  }
-  
-  if (event.tag === 'sync-models') {
-    console.log('🔄 Syncing offline models...');
-    event.waitUntil(syncOfflineModels());
+  switch (event.tag) {
+    case 'sync-queued-requests':
+      event.waitUntil(syncQueuedRequests());
+      break;
+    case 'sync-telemetry':
+      event.waitUntil(Telemetry.flush());
+      break;
+    case 'sync-models':
+      event.waitUntil(syncOfflineModels());
+      break;
+    case 'cleanup-cache':
+      event.waitUntil(cleanupCache());
+      break;
   }
 });
 
-// Sync pending requests when back online
-async function syncPendingRequests() {
-  const db = await getOfflineDatabase();
-  const pending = await db.getAll('pendingRequests');
+async function syncQueuedRequests() {
+  const db = await Database.getInstance();
+  const transaction = db.transaction(['queuedRequests'], 'readwrite');
+  const store = transaction.objectStore('queuedRequests');
+  const index = store.index('status');
   
-  for (const request of pending) {
+  const requests = await new Promise((resolve, reject) => {
+    const req = index.getAll('pending');
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  
+  for (const queued of requests) {
     try {
-      const response = await fetch(request.url, {
-        method: request.method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request.data)
+      const response = await fetch(queued.url, {
+        method: queued.method,
+        headers: queued.headers,
+        body: queued.body
       });
       
       if (response.ok) {
-        await db.delete('pendingRequests', request.id);
-        console.log(`✅ Synced: ${request.url}`);
+        // Mark as completed
+        queued.status = 'completed';
+        queued.completedAt = Date.now();
+        store.put(queued);
         
         // Notify clients
         self.clients.matchAll().then(clients => {
           clients.forEach(client => {
             client.postMessage({
-              type: 'SYNC_COMPLETE',
-              requestId: request.id,
-              success: true
+              type: 'SYNC_COMPLETED',
+              requestId: queued.id,
+              success: true,
+              timestamp: Date.now()
             });
           });
         });
+        
+        Telemetry.track('sync_success', { url: queued.url, id: queued.id });
       }
     } catch (error) {
-      console.error(`❌ Sync failed: ${request.url}`, error);
+      queued.retries++;
+      queued.lastError = error.message;
       
-      // Increment retry count
-      request.retries++;
-      if (request.retries < 3) {
-        console.log(`🔄 Will retry (${request.retries}/3): ${request.url}`);
-      } else {
-        await db.delete('pendingRequests', request.id);
-        console.log(`🗑️ Deleted after too many retries: ${request.url}`);
+      if (queued.retries >= CONFIG.retryAttempts) {
+        queued.status = 'failed';
       }
+      
+      store.put(queued);
+      Telemetry.track('sync_error', { url: queued.url, error: error.message });
     }
   }
 }
 
-// Sync GitHub-specific requests
-async function syncGitHubRequests() {
-  const db = await getOfflineDatabase();
-  const pending = await db.getAll('pendingGitHubRequests');
+// Heartbeat for service worker health monitoring
+function startHeartbeat() {
+  setInterval(() => {
+    Telemetry.track('heartbeat', {
+      memory: performance.memory,
+      clients: self.clients ? 'available' : 'unavailable',
+      network: navigator.onLine ? 'online' : 'offline'
+    });
+    
+    // Periodic cache cleanup
+    if (Math.random() < 0.1) { // 10% chance each heartbeat
+      cleanupCache();
+    }
+  }, CONFIG.heartbeatInterval);
+}
+
+async function cleanupCache() {
+  const cache = await caches.open(CACHE_NAME);
+  const keys = await cache.keys();
+  const now = Date.now();
   
-  for (const request of pending) {
+  for (const request of keys) {
     try {
-      console.log(`🔄 Attempting GitHub sync: ${request.url}`);
-      
-      // For GitHub API, we need to add proper headers
-      const response = await fetch(request.url, {
-        method: request.method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...request.headers
-        },
-        body: request.data ? JSON.stringify(request.data) : undefined
-      });
-      
-      if (response.ok) {
-        await db.delete('pendingGitHubRequests', request.id);
-        console.log(`✅ GitHub sync successful: ${request.url}`);
-      } else if (response.status === 403 || response.status === 429) {
-        console.log(`⚠️ GitHub still blocked, will retry later: ${request.url}`);
-        // Keep in queue for next sync
-      } else {
-        console.log(`❌ GitHub sync failed with status ${response.status}`);
-        await db.delete('pendingGitHubRequests', request.id);
+      const response = await cache.match(request);
+      if (response) {
+        const cacheDate = response.headers.get('X-Cache-Date');
+        if (cacheDate) {
+          const age = now - new Date(cacheDate).getTime();
+          if (age > CONFIG.maxCacheAge) {
+            await cache.delete(request);
+            Telemetry.track('cache_expired', { url: request.url, age });
+          }
+        }
       }
     } catch (error) {
-      console.error(`❌ GitHub sync error: ${error.message}`);
-      // Keep in queue for next attempt
+      console.warn('Error cleaning up cache entry:', error);
     }
   }
 }
 
-// ====== OFFLINE DETECTION & NETWORK STATUS ======
-self.addEventListener('offline', () => {
-  console.log('📴 App is offline');
-  networkStatus.online = false;
-  
-  self.clients.matchAll().then(clients => {
-    clients.forEach(client => {
-      client.postMessage({
-        type: 'NETWORK_STATUS',
-        online: false,
-        networkStatus: networkStatus,
-        timestamp: new Date().toISOString()
-      });
-    });
-  });
-});
-
-self.addEventListener('online', () => {
-  console.log('📶 App is back online');
-  networkStatus.online = true;
-  
-  // Re-check network status when back online
-  checkNetworkStatus();
-  
-  self.clients.matchAll().then(clients => {
-    clients.forEach(client => {
-      client.postMessage({
-        type: 'NETWORK_STATUS',
-        online: true,
-        networkStatus: networkStatus,
-        timestamp: new Date().toISOString()
-      });
-    });
-  });
-  
-  // Trigger sync when back online
-  if ('sync' in self.registration) {
-    self.registration.sync.register('sync-pending-requests');
-    self.registration.sync.register('sync-github-requests');
-    self.registration.sync.register('sync-models');
-  }
-});
-
-// ====== MESSAGE HANDLING ======
+// Message handling for client communication
 self.addEventListener('message', (event) => {
-  const { type, data } = event.data || {};
+  const { type, data, id } = event.data || {};
+  
+  const respond = (response) => {
+    if (event.ports && event.ports[0]) {
+      event.ports[0].postMessage({ id, ...response });
+    }
+  };
   
   switch (type) {
-    case 'SKIP_WAITING':
-      self.skipWaiting();
+    case 'GET_NETWORK_STATUS':
+      respond({ 
+        success: true, 
+        data: networkIntelligence?.status || {} 
+      });
+      break;
+      
+    case 'GET_CACHE_STATS':
+      const cacheManager = new CacheManager();
+      respond({ 
+        success: true, 
+        data: cacheManager.stats 
+      });
       break;
       
     case 'CLEAR_CACHE':
-      clearCacheAndDatabase()
-        .then(() => {
-          event.ports?.[0]?.postMessage({ success: true });
-        })
-        .catch(error => {
-          event.ports?.[0]?.postMessage({ success: false, error: error.message });
-        });
+      caches.delete(CACHE_NAME)
+        .then(() => respond({ success: true }))
+        .catch(error => respond({ success: false, error: error.message }));
       break;
       
     case 'SAVE_FOR_OFFLINE':
-      saveModelForOffline(data)
-        .then(() => {
-          event.ports?.[0]?.postMessage({ success: true });
+      saveForOffline(data)
+        .then(() => respond({ success: true }))
+        .catch(error => respond({ success: false, error: error.message }));
+      break;
+      
+    case 'QUEUE_REQUEST':
+      Database.getInstance()
+        .then(db => db.queueRequest(new Request(data.url, data.options), data.classification))
+        .then(id => respond({ success: true, id }))
+        .catch(error => respond({ success: false, error: error.message }));
+      break;
+      
+    case 'GET_OFFLINE_DATA':
+      Database.getInstance()
+        .then(db => {
+          const transaction = db.transaction(['offlineModels'], 'readonly');
+          const store = transaction.objectStore('offlineModels');
+          return store.getAll();
         })
-        .catch(error => {
-          event.ports?.[0]?.postMessage({ success: false, error: error.message });
-        });
+        .then(data => respond({ success: true, data }))
+        .catch(error => respond({ success: false, error: error.message }));
       break;
       
-    case 'CHECK_OFFLINE_STATUS':
-      checkOfflineStatus()
-        .then(status => {
-          event.ports?.[0]?.postMessage({ success: true, status });
-        });
+    case 'FORCE_SYNC':
+      if ('sync' in self.registration) {
+        self.registration.sync.register('sync-queued-requests')
+          .then(() => respond({ success: true }))
+          .catch(error => respond({ success: false, error: error.message }));
+      } else {
+        respond({ success: false, error: 'Sync not supported' });
+      }
       break;
       
-    case 'CHECK_GITHUB_ACCESS':
-      checkGitHubAccess()
-        .then(access => {
-          event.ports?.[0]?.postMessage({ success: true, access });
-        });
-      break;
-      
-    case 'DETECT_SCHOOL_NETWORK':
-      detectSchoolNetwork()
-        .then(isSchool => {
-          event.ports?.[0]?.postMessage({ success: true, isSchool });
-        });
+    case 'DEBUG_INFO':
+      respond({
+        success: true,
+        data: {
+          version: VERSION,
+          cacheName: CACHE_NAME,
+          networkStatus: networkIntelligence?.status || {},
+          clients: self.clients ? 'available' : 'unavailable',
+          registration: self.registration ? 'available' : 'unavailable',
+          indexedDB: 'available'
+        }
+      });
       break;
   }
 });
 
-// Check GitHub access specifically
-async function checkGitHubAccess() {
-  try {
-    const startTime = Date.now();
-    const response = await fetch('https://api.github.com/zen', {
-      method: 'HEAD',
-      cache: 'no-cache',
-      mode: 'no-cors'
-    });
-    const responseTime = Date.now() - startTime;
-    
-    return {
-      accessible: true,
-      responseTime: responseTime,
-      schoolNetwork: responseTime > 1000,
-      timestamp: new Date().toISOString()
-    };
-  } catch (error) {
-    return {
-      accessible: false,
-      error: error.message,
-      schoolNetwork: networkStatus.schoolNetwork,
-      timestamp: new Date().toISOString()
-    };
-  }
-}
-
-// Detect school network
-async function detectSchoolNetwork() {
-  const indicators = [
-    window.location.hostname.includes('.edu'),
-    window.location.hostname.includes('school'),
-    navigator.userAgent.includes('ChromeOS'),
-    networkStatus.schoolNetwork
-  ];
+async function saveForOffline(modelData) {
+  const db = await Database.getInstance();
+  const transaction = db.transaction(['offlineModels'], 'readwrite');
+  const store = transaction.objectStore('offlineModels');
   
-  return indicators.some(indicator => indicator);
-}
-
-// Save 3D model for offline use
-async function saveModelForOffline(modelData) {
-  const db = await getOfflineDatabase();
-  
-  await db.add('offlineModels', {
-    id: modelData.id || Date.now(),
+  const offlineModel = {
+    id: modelData.id || `model_${Date.now()}`,
     name: modelData.name,
     data: modelData.model,
     preview: modelData.preview,
     type: modelData.type || '3d_model',
     timestamp: Date.now(),
-    size: JSON.stringify(modelData.model).length
+    version: modelData.version || '1.0',
+    size: JSON.stringify(modelData.model).length,
+    metadata: modelData.metadata || {}
+  };
+  
+  await new Promise((resolve, reject) => {
+    const req = store.put(offlineModel);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
   });
   
-  // Also cache any associated assets
-  if (modelData.textures) {
-    for (const textureUrl of modelData.textures) {
+  // Cache associated assets
+  if (modelData.assets) {
+    const cache = await caches.open(CACHE_NAME);
+    for (const asset of modelData.assets) {
       try {
-        const response = await fetch(textureUrl);
+        const response = await fetch(asset.url);
         if (response.ok) {
-          const cache = await caches.open(CACHE_NAME);
-          await cache.put(new Request(textureUrl), response);
+          await cache.put(new Request(asset.url), response);
         }
       } catch (error) {
-        console.error(`❌ Failed to cache texture: ${textureUrl}`, error);
+        console.warn('Failed to cache asset:', asset.url, error);
       }
     }
   }
   
-  console.log(`✅ Saved model for offline: ${modelData.name}`);
-  
-  // Notify all clients
-  self.clients.matchAll().then(clients => {
-    clients.forEach(client => {
-      client.postMessage({
-        type: 'OFFLINE_MODEL_SAVED',
-        modelName: modelData.name,
-        timestamp: new Date().toISOString()
-      });
-    });
+  Telemetry.track('offline_save', { 
+    modelId: offlineModel.id, 
+    name: offlineModel.name,
+    size: offlineModel.size 
   });
 }
 
-// Check offline capabilities
-async function checkOfflineStatus() {
-  const cache = await caches.open(CACHE_NAME);
-  const keys = await cache.keys();
-  const db = await getOfflineDatabase();
-  const offlineModels = await db.getAll('offlineModels');
+// Push notifications with rich capabilities
+self.addEventListener('push', (event) => {
+  const data = event.data ? event.data.json() : {};
   
-  return {
-    cacheSize: keys.length,
-    offlineModels: offlineModels.length,
-    networkStatus: networkStatus,
-    storage: {
-      estimated: await navigator.storage?.estimate?.(),
-      persisted: await navigator.storage?.persisted?.()
-    },
-    capabilities: {
-      backgroundSync: 'sync' in self.registration,
-      periodicSync: 'periodicSync' in self.registration,
-      pushNotifications: 'PushManager' in self
-    }
+  const options = {
+    body: data.body || 'Modz Update',
+    icon: '/Modz.png',
+    badge: '/Modz.png',
+    vibrate: [100, 50, 100],
+    data: data.data || {},
+    actions: data.actions || [
+      { action: 'open', title: 'Open App' },
+      { action: 'dismiss', title: 'Dismiss' }
+    ],
+    tag: data.tag || 'modz-notification',
+    requireInteraction: data.requireInteraction || false,
+    silent: data.silent || false
   };
-}
-
-// Clear all offline data
-async function clearCacheAndDatabase() {
-  await caches.delete(CACHE_NAME);
   
-  const request = indexedDB.deleteDatabase('ModzOfflineDB');
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+  // Add image if provided
+  if (data.image) {
+    options.image = data.image;
+  }
+  
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Modz', options)
+  );
+  
+  Telemetry.track('push_received', { data });
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  
+  const { action, notification } = event;
+  const data = notification.data || {};
+  
+  Telemetry.track('notification_click', { action, data });
+  
+  if (action === 'open' || action === '') {
+    event.waitUntil(
+      clients.matchAll({ type: 'window' }).then(windowClients => {
+        for (const client of windowClients) {
+          if (client.url === data.url && 'focus' in client) {
+            return client.focus();
+          }
+        }
+        if (clients.openWindow) {
+          return clients.openWindow(data.url || '/');
+        }
+      })
+    );
+  }
+});
+
+// Periodic sync for background updates
+if ('periodicSync' in self.registration) {
+  self.addEventListener('periodicsync', (event) => {
+    switch (event.tag) {
+      case 'update-content':
+        event.waitUntil(updateContent());
+        break;
+      case 'cleanup-storage':
+        event.waitUntil(cleanupStorage());
+        break;
+      case 'send-telemetry':
+        event.waitUntil(Telemetry.flush());
+        break;
+    }
   });
 }
 
-// Periodic network checks (every 5 minutes)
-setInterval(() => {
-  if (navigator.onLine) {
-    checkNetworkStatus();
+async function updateContent() {
+  // Update frequently accessed content in background
+  const urlsToUpdate = [
+    '/api/community',
+    '/api/mods/featured',
+    '/api/assets'
+  ];
+  
+  const cache = await caches.open(CACHE_NAME);
+  
+  for (const url of urlsToUpdate) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        await cache.put(new Request(url), response);
+        Telemetry.track('periodic_update', { url, success: true });
+      }
+    } catch (error) {
+      Telemetry.track('periodic_update', { url, success: false, error: error.message });
+    }
   }
-}, 5 * 60 * 1000);
+}
 
-console.log('⚡ Modz Service Worker v6 loaded (Auth Bypass + Network Detection)');
+async function cleanupStorage() {
+  // Clean up expired data from IndexedDB
+  const db = await Database.getInstance();
+  const transaction = db.transaction(['queuedRequests'], 'readwrite');
+  const store = transaction.objectStore('queuedRequests');
+  const index = store.index('timestamp');
+  
+  const weekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+  const range = IDBKeyRange.upperBound(weekAgo);
+  
+  const oldRequests = await new Promise((resolve, reject) => {
+    const req = index.getAll(range);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  
+  for (const request of oldRequests) {
+    await new Promise((resolve, reject) => {
+      const req = store.delete(request.id);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+  
+  Telemetry.track('storage_cleanup', { removed: oldRequests.length });
+}
+
+console.log(`⚡ Modz Enterprise Service Worker v${VERSION} loaded`);
+console.log(`🔧 Config: ${JSON.stringify(CONFIG, null, 2)}`);
