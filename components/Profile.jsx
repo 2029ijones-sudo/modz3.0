@@ -6,6 +6,7 @@ import './Profile.css';
 export default function Profile() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true); // ADD THIS
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
@@ -14,30 +15,82 @@ export default function Profile() {
   });
 
   useEffect(() => {
+    // 1. Initial check
     fetchUserAndProfile();
+    
+    // 2. CRITICAL: Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session);
+        
+        if (session?.user) {
+          setUser(session.user);
+          await fetchProfile(session.user.id);
+        } else {
+          setUser(null);
+          setProfile(null);
+        }
+        setLoading(false);
+      }
+    );
+    
+    // Cleanup
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const fetchUserAndProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
+    try {
+      console.log('Fetching user...');
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error) {
+        console.error('Error getting user:', error);
+        return;
+      }
+      
+      console.log('User found:', user);
+      setUser(user);
 
-    if (user) {
-      const { data: profile } = await supabase
+      if (user) {
+        await fetchProfile(user.id);
+      }
+    } catch (error) {
+      console.error('Error in fetchUserAndProfile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchProfile = async (userId) => {
+    try {
+      console.log('Fetching profile for user:', userId);
+      const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .single();
 
-      if (profile) {
-        setProfile(profile);
-        setFormData({
-          username: profile.username,
-          bio: profile.bio || '',
-          profile_picture_url: profile.profile_picture_url || ''
-        });
-      } else {
-        setEditMode(true);
+      if (error) {
+        if (error.code === 'PGRST116') { // No profile found
+          console.log('No profile found, enabling edit mode');
+          setEditMode(true);
+        } else {
+          console.error('Error fetching profile:', error);
+        }
+        return;
       }
+
+      console.log('Profile found:', profile);
+      setProfile(profile);
+      setFormData({
+        username: profile.username,
+        bio: profile.bio || '',
+        profile_picture_url: profile.profile_picture_url || ''
+      });
+    } catch (error) {
+      console.error('Error in fetchProfile:', error);
     }
   };
 
@@ -102,13 +155,65 @@ export default function Profile() {
     setFormData({ ...formData, profile_picture_url: publicUrl });
   };
 
+  // ADD DEBUG FUNCTION
+  const handleGitHubLogin = async () => {
+    console.log('Starting GitHub login...');
+    
+    // ADD redirectTo option
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: {
+        redirectTo: `${window.location.origin}/profile`
+      }
+    });
+    
+    if (error) {
+      console.error('GitHub login error:', error);
+      alert('Login failed: ' + error.message);
+    }
+  };
+
+  // ADD DEBUG INFO
+  const debugAuth = () => {
+    console.log('=== DEBUG INFO ===');
+    console.log('User state:', user);
+    console.log('Profile state:', profile);
+    console.log('LocalStorage:', Object.keys(localStorage));
+    
+    // Check localStorage for auth tokens
+    const authKeys = Object.keys(localStorage).filter(key => 
+      key.includes('supabase') || key.includes('auth')
+    );
+    console.log('Auth keys in localStorage:', authKeys);
+  };
+
+  if (loading) {
+    return (
+      <div className="profile-container">
+        <div className="loading">Loading...</div>
+        <button onClick={debugAuth} style={{ marginTop: '10px' }}>
+          Debug Auth State
+        </button>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="profile-container">
         <div className="login-prompt">
           <h2>Please log in to view your profile</h2>
-          <button onClick={() => supabase.auth.signInWithOAuth({ provider: 'github' })}>
+          <button onClick={handleGitHubLogin}>
             Login with GitHub
+          </button>
+          <button onClick={debugAuth} style={{ marginTop: '10px' }}>
+            Debug Auth State
+          </button>
+          <button onClick={() => {
+            // Force check auth
+            fetchUserAndProfile();
+          }} style={{ marginTop: '10px' }}>
+            Check Auth Again
           </button>
         </div>
       </div>
@@ -119,11 +224,14 @@ export default function Profile() {
     <div className="profile-container">
       <div className="profile-header">
         <h2>{editMode ? 'Create Profile' : 'Your Profile'}</h2>
-        {!editMode && (
-          <button className="edit-btn" onClick={() => setEditMode(true)}>
-            Edit Profile
+        <div>
+          <button className="edit-btn" onClick={() => setEditMode(!editMode)}>
+            {editMode ? 'Cancel' : 'Edit Profile'}
           </button>
-        )}
+          <button onClick={debugAuth} style={{ marginLeft: '10px' }}>
+            Debug
+          </button>
+        </div>
       </div>
 
       <div className="profile-content">
@@ -172,18 +280,18 @@ export default function Profile() {
               <button type="submit" className="save-btn">
                 Save Profile
               </button>
-              {profile && (
-                <button type="button" className="cancel-btn" onClick={() => {
-                  setEditMode(false);
+              <button type="button" className="cancel-btn" onClick={() => {
+                setEditMode(false);
+                if (profile) {
                   setFormData({
                     username: profile.username,
                     bio: profile.bio || '',
                     profile_picture_url: profile.profile_picture_url || ''
                   });
-                }}>
-                  Cancel
-                </button>
-              )}
+                }
+              }}>
+                Cancel
+              </button>
             </div>
           </form>
         ) : (
@@ -193,7 +301,8 @@ export default function Profile() {
                 src={profile?.profile_picture_url || '/default-avatar.png'} 
                 alt={profile?.username} 
               />
-              <h3>{profile?.username}</h3>
+              <h3>{profile?.username || user.email?.split('@')[0] || 'User'}</h3>
+              <p>{user.email}</p>
             </div>
             
             <div className="profile-details">
