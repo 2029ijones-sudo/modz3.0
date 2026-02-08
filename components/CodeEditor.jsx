@@ -3,7 +3,7 @@ import { EditorState } from '@codemirror/state';
 import { useState, useEffect, useRef } from 'react';
 import { javascript } from '@codemirror/lang-javascript';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { basicSetup } from 'codemirror';
+import { basicSetup } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { autocompletion } from '@codemirror/autocomplete';
 import { linter } from '@codemirror/lint';
