@@ -22,13 +22,16 @@ export async function GET(request) {
 
     switch (type) {
       case 'forks':
+        // FIXED: Join with users table, not profiles
         query = supabase
           .from('world_forks')
           .select(`
             *,
-            profiles:forked_by_user_id (
+            users!world_forks_forked_by_user_id_fkey (
+              id,
+              email,
               username,
-              profile_picture_url
+              avatar_url
             )
           `)
           .eq('is_public', true)
@@ -50,21 +53,26 @@ export async function GET(request) {
         break;
 
       case 'comments':
+        // FIXED: Join with users table, not profiles
         query = supabase
           .from('world_comments')
           .select(`
             *,
-            profiles:user_id (
+            users!world_comments_user_id_fkey (
+              id,
+              email,
               username,
-              profile_picture_url
+              avatar_url
             ),
             replies:world_comments!parent_comment_id (
               id,
               content,
               created_at,
-              profiles:user_id (
+              users!world_comments_user_id_fkey (
+                id,
+                email,
                 username,
-                profile_picture_url
+                avatar_url
               )
             )
           `)
@@ -83,13 +91,16 @@ export async function GET(request) {
         break;
 
       case 'issues':
+        // FIXED: Join with users table, not profiles
         query = supabase
           .from('world_issues')
           .select(`
             *,
-            profiles:reported_by_user_id (
+            users!world_issues_reported_by_user_id_fkey (
+              id,
+              email,
               username,
-              profile_picture_url
+              avatar_url
             )
           `)
           .order('created_at', { ascending: false });
@@ -120,10 +131,25 @@ export async function GET(request) {
       countQuery
     ]);
 
-    if (dataResult.error) throw dataResult.error;
+    if (dataResult.error) {
+      console.error('Supabase query error:', dataResult.error);
+      throw dataResult.error;
+    }
+
+    // Transform the data to match what your frontend expects
+    const transformedData = dataResult.data.map(item => {
+      const user = item.users || {};
+      return {
+        ...item,
+        profiles: {
+          username: user.username || user.email?.split('@')[0] || 'Anonymous',
+          profile_picture_url: user.avatar_url || null
+        }
+      };
+    });
 
     return NextResponse.json({
-      data: dataResult.data,
+      data: transformedData,
       pagination: {
         page,
         limit,
@@ -134,7 +160,7 @@ export async function GET(request) {
   } catch (error) {
     console.error('Error fetching community data:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch community data' },
+      { error: error.message || 'Failed to fetch community data' },
       { status: 500 }
     );
   }
@@ -153,11 +179,11 @@ export async function POST(request) {
       case 'fork':
         tableName = 'world_forks';
         insertData = {
-          original_world_state_id: body.world_id,
+          original_world_state_id: body.world_id || 'current',
           forked_by_user_id: body.user_id,
           name: body.name,
           description: body.description,
-          data: body.data,
+          data: body.data || {},
           tags: body.tags || [],
           is_public: body.is_public !== false
         };
@@ -172,6 +198,10 @@ export async function POST(request) {
           content: body.content,
           parent_comment_id: body.parent_comment_id
         };
+        // Ensure at least one world reference exists
+        if (!insertData.world_fork_id && !insertData.world_state_id) {
+          insertData.world_state_id = 'current';
+        }
         break;
 
       case 'issue':
@@ -185,6 +215,10 @@ export async function POST(request) {
           priority: body.priority || 'medium',
           category: body.category || 'other'
         };
+        // Ensure at least one world reference exists
+        if (!insertData.world_fork_id && !insertData.world_state_id) {
+          insertData.world_state_id = 'current';
+        }
         break;
 
       default:
@@ -206,7 +240,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('Error creating community content:', error);
     return NextResponse.json(
-      { error: 'Failed to create community content' },
+      { error: error.message || 'Failed to create community content' },
       { status: 500 }
     );
   }
