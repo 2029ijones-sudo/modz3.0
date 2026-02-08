@@ -1,0 +1,217 @@
+/* Three.js Components CSS - Custom styles for 3D elements */
+
+/* 3D Canvas Container */
+.canvas-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Loading states for 3D models */
+.model-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* 3D object hover effects */
+.three-object-hover {
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.three-object-hover:hover {
+  filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.7));
+}
+
+/* 3D Grid Lines */
+.grid-line {
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 1;
+}
+
+.grid-line-major {
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 2;
+}
+
+/* Coordinate Axes */
+.axis-x {
+  color: #ff3333;
+  stroke: #ff3333;
+}
+
+.axis-y {
+  color: #33ff33;
+  stroke: #33ff33;
+}
+
+.axis-z {
+  color: #3333ff;
+  stroke: #3333ff;
+}
+
+/* 3D Controls */
+.control-panel-3d {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  border-radius: 10px;
+  padding: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Stats Panel */
+.stats-panel {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  padding: 10px;
+  border-radius: 5px;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+/* Selection Outline */
+.selection-outline {
+  outline: 2px solid #00ffff;
+  outline-offset: 2px;
+  animation: pulse-outline 2s infinite;
+}
+
+@keyframes pulse-outline {
+  0%, 100% {
+    outline-color: #00ffff;
+    outline-width: 2px;
+  }
+  50% {
+    outline-color: #ff00ff;
+    outline-width: 3px;
+  }
+}
+
+/* Drag and Drop for 3D */
+.drop-zone-3d {
+  border: 2px dashed rgba(99, 102, 241, 0.5);
+  border-radius: 10px;
+  padding: 40px;
+  text-align: center;
+  background: rgba(99, 102, 241, 0.1);
+  transition: all 0.3s ease;
+}
+
+.drop-zone-3d.active {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.2);
+}
+
+/* 3D Viewport Controls */
+.viewport-controls {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+.viewport-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.viewport-btn:hover {
+  background: rgba(99, 102, 241, 0.7);
+  transform: scale(1.1);
+}
+
+/* Wireframe Mode */
+.wireframe-mode {
+  filter: brightness(1.5) contrast(1.2);
+  opacity: 0.8;
+}
+
+/* Bounding Box */
+.bounding-box {
+  stroke: #00ff00;
+  stroke-width: 1;
+  fill: none;
+}
+
+/* Camera Controls Info */
+.camera-info {
+  position: absolute;
+  bottom: 70px;
+  left: 20px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-family: monospace;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 5px 10px;
+  border-radius: 5px;
+}
+
+/* Light Indicators */
+.light-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 5px;
+}
+
+.light-ambient {
+  background-color: #ffffff;
+}
+
+.light-directional {
+  background-color: #ffff00;
+}
+
+.light-point {
+  background-color: #ff8800;
+}
+
+.light-spot {
+  background-color: #8800ff;
+}
+
+/* Performance Warning */
+.performance-warning {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 100, 0, 0.8);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 5px;
+  font-size: 12px;
+  animation: pulse-warning 1.5s infinite;
+}
+
+@keyframes pulse-warning {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
