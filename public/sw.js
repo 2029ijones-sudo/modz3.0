@@ -1,8 +1,8 @@
-// public/sw.js - Enhanced Service Worker for Modz with Full Offline Support
+// public/sw.js - Enhanced Service Worker with Auth Bypass & Network Detection
 
-const CACHE_NAME = 'modz-v5-offline';
+const CACHE_NAME = 'modz-v6-offline';
 const OFFLINE_ASSETS = {
-  HTML: '/offline.html',  // You'll need to create this
+  HTML: '/offline.html',
   IMAGE: '/Modz.png',
   DATA: '/offline-data.json'
 };
@@ -14,33 +14,37 @@ const ASSETS_TO_CACHE = [
   '/manifest.json',
   '/Modz.png',
   '/styles/three-components.css',
-  '/offline.html',  // Offline fallback page
-  '/js/app.js',     // Your main app script
-  '/js/offline.js', // Offline-specific logic
+  '/offline.html',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
-  
-  // Add more static assets your app needs
-  '/css/styles.css',
-  '/favicon.ico'
 ];
 
-// URLs to skip caching (dynamic/auth endpoints)
-const SKIP_CACHE_URLS = [
-  // Supabase endpoints (auth only)
-  '/auth/v1/token',
-  '/auth/v1/logout',
-  '/auth/v1/refresh',
+// URLs to COMPLETELY BYPASS service worker (no interception at all)
+const BYPASS_SERVICE_WORKER = [
+  'supabase.co',
+  '.supabase.co',
+  '/auth/v1/',
   '/rest/v1/auth',
-  
-  // GitHub OAuth
   'github.com/login/oauth',
   'access_token',
-  
-  // Real-time/WebSocket connections
+  'refresh_token',
   'realtime',
   'websocket',
-  'wss://'
+  'wss://',
+  // Add any other auth/real-time endpoints
+  'oauth2',
+  'session',
+  'token',
+  'callback',
+  'authorize'
+];
+
+// GitHub endpoints that might be blocked
+const GITHUB_ENDPOINTS = [
+  'github.com',
+  'api.github.com',
+  'raw.githubusercontent.com',
+  'githubusercontent.com'
 ];
 
 // URLs that CAN be cached for offline (read-only APIs)
@@ -48,23 +52,39 @@ const OFFLINE_API_CACHE = [
   '/api/mods/public',
   '/api/mods/featured',
   '/api/assets',
-  '/api/config'
+  '/api/config',
+  '/api/community'  // Add community API for offline
 ];
 
+// Network status tracking
+let networkStatus = {
+  online: navigator.onLine,
+  supabase: 'unknown',
+  github: 'unknown',
+  schoolNetwork: false,
+  blocked: []
+};
+
 // Determine strategy for different resources
-function getStrategy(url) {
+function getStrategy(url, requestMethod = 'GET') {
   const urlString = url.toString();
   
-  // ====== SKIP DYNAMIC/AUTH REQUESTS ======
-  for (const skipUrl of SKIP_CACHE_URLS) {
-    if (urlString.includes(skipUrl)) {
-      console.log(`🚫 Network-only (auth/dynamic): ${urlString}`);
-      return 'network-only';
+  // ====== BYPASS SERVICE WORKER COMPLETELY FOR AUTH/SUPABASE ======
+  for (const bypassUrl of BYPASS_SERVICE_WORKER) {
+    if (urlString.includes(bypassUrl)) {
+      console.log(`🔓 Bypassing service worker: ${urlString}`);
+      return 'bypass';  // Special strategy that doesn't intercept
     }
   }
   
+  // Track GitHub endpoints for network detection
+  if (GITHUB_ENDPOINTS.some(endpoint => urlString.includes(endpoint))) {
+    console.log(`🐙 GitHub endpoint detected: ${urlString}`);
+    // We'll handle this specially to detect blocking
+  }
+  
   // Offline API cache (GET requests only)
-  if (event && event.request.method === 'GET') {
+  if (requestMethod === 'GET') {
     for (const cacheUrl of OFFLINE_API_CACHE) {
       if (urlString.includes(cacheUrl)) {
         console.log(`📊 Offline API cache: ${urlString}`);
@@ -94,7 +114,7 @@ function getStrategy(url) {
 
 // Install event - cache critical assets
 self.addEventListener('install', (event) => {
-  console.log('🚀 Modz Service Worker installing (offline enabled)...');
+  console.log('🚀 Modz Service Worker installing (v6)...');
   
   event.waitUntil(
     Promise.all([
@@ -106,7 +126,10 @@ self.addEventListener('install', (event) => {
         }),
       
       // Create offline fallback responses
-      createOfflineFallbacks()
+      createOfflineFallbacks(),
+      
+      // Initialize network status
+      checkNetworkStatus()
     ])
     .then(() => {
       console.log('✅ Offline assets cached');
@@ -118,11 +141,65 @@ self.addEventListener('install', (event) => {
   );
 });
 
+// Check network status for GitHub/Supabase
+async function checkNetworkStatus() {
+  console.log('🌐 Checking network status...');
+  
+  const endpoints = [
+    { name: 'supabase', url: 'https://api.supabase.io/health' },
+    { name: 'github', url: 'https://api.github.com/zen' },
+    { name: 'google', url: 'https://www.google.com/favicon.ico' }
+  ];
+  
+  for (const endpoint of endpoints) {
+    try {
+      const startTime = Date.now();
+      const response = await fetch(endpoint.url, { 
+        method: 'HEAD',
+        cache: 'no-cache'
+      });
+      const responseTime = Date.now() - startTime;
+      
+      if (response.ok) {
+        console.log(`✅ ${endpoint.name} reachable (${responseTime}ms)`);
+        networkStatus[endpoint.name] = 'reachable';
+      } else {
+        console.log(`⚠️ ${endpoint.name} returned ${response.status}`);
+        networkStatus[endpoint.name] = 'blocked';
+        networkStatus.blocked.push(endpoint.name);
+      }
+      
+      // School network detection based on response time
+      if (responseTime > 1000) { // Over 1 second might be school network
+        networkStatus.schoolNetwork = true;
+      }
+      
+    } catch (error) {
+      console.log(`❌ ${endpoint.name} unreachable:`, error.message);
+      networkStatus[endpoint.name] = 'unreachable';
+      networkStatus.blocked.push(endpoint.name);
+    }
+  }
+  
+  // Notify all clients about network status
+  self.clients.matchAll().then(clients => {
+    clients.forEach(client => {
+      client.postMessage({
+        type: 'NETWORK_STATUS',
+        status: networkStatus,
+        timestamp: new Date().toISOString()
+      });
+    });
+  });
+  
+  return networkStatus;
+}
+
 // Create offline fallback responses
 async function createOfflineFallbacks() {
   const cache = await caches.open(CACHE_NAME);
   
-  // HTML offline page
+  // Enhanced offline HTML page with network detection
   const offlineHtml = `
     <!DOCTYPE html>
     <html>
@@ -134,14 +211,19 @@ async function createOfflineFallbacks() {
           display: flex;
           justify-content: center;
           align-items: center;
-          height: 100vh;
+          min-height: 100vh;
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           color: white;
           text-align: center;
+          margin: 0;
+          padding: 20px;
         }
         .container {
           max-width: 500px;
           padding: 2rem;
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 20px;
+          backdrop-filter: blur(10px);
         }
         h1 {
           font-size: 2.5rem;
@@ -152,6 +234,21 @@ async function createOfflineFallbacks() {
           margin-bottom: 2rem;
           opacity: 0.9;
         }
+        .network-status {
+          background: rgba(0, 0, 0, 0.3);
+          border-radius: 10px;
+          padding: 1rem;
+          margin: 1rem 0;
+          text-align: left;
+        }
+        .status-item {
+          display: flex;
+          justify-content: space-between;
+          margin: 0.5rem 0;
+        }
+        .status-good { color: #4CAF50; }
+        .status-warning { color: #FF9800; }
+        .status-bad { color: #F44336; }
         .icon {
           font-size: 4rem;
           margin-bottom: 2rem;
@@ -162,6 +259,12 @@ async function createOfflineFallbacks() {
           50% { opacity: 0.7; }
           100% { opacity: 1; }
         }
+        .buttons {
+          display: flex;
+          gap: 1rem;
+          justify-content: center;
+          flex-wrap: wrap;
+        }
         button {
           background: white;
           color: #667eea;
@@ -170,10 +273,40 @@ async function createOfflineFallbacks() {
           font-size: 1rem;
           border-radius: 50px;
           cursor: pointer;
-          transition: transform 0.3s;
+          transition: transform 0.3s, background 0.3s;
+          flex: 1;
+          min-width: 150px;
         }
         button:hover {
           transform: scale(1.05);
+          background: #f0f0f0;
+        }
+        button.secondary {
+          background: transparent;
+          border: 2px solid white;
+          color: white;
+        }
+        button.secondary:hover {
+          background: rgba(255, 255, 255, 0.1);
+        }
+        .features {
+          margin-top: 2rem;
+          text-align: left;
+        }
+        .features ul {
+          list-style: none;
+          padding: 0;
+        }
+        .features li {
+          margin: 0.5rem 0;
+          display: flex;
+          align-items: center;
+        }
+        .features li:before {
+          content: "✓";
+          color: #4CAF50;
+          margin-right: 10px;
+          font-weight: bold;
         }
       </style>
     </head>
@@ -181,11 +314,84 @@ async function createOfflineFallbacks() {
       <div class="container">
         <div class="icon">📶</div>
         <h1>You're Offline</h1>
-        <p>Don't worry! You can still browse previously loaded 3D models and assets.</p>
-        <p>New features requiring internet will be available when you reconnect.</p>
-        <button onclick="window.location.reload()">Retry Connection</button>
-        <button onclick="history.back()" style="margin-left: 1rem; background: transparent; border: 1px solid white;">Go Back</button>
+        <p>Don't worry! You can still use Modz with these features:</p>
+        
+        <div class="features">
+          <ul>
+            <li>Browse previously loaded 3D models</li>
+            <li>View cached community mods</li>
+            <li>Edit models locally</li>
+            <li>Save your work offline</li>
+            <li>Queue actions for when you're back online</li>
+          </ul>
+        </div>
+        
+        <div id="networkStatus" class="network-status">
+          <h3>Network Status</h3>
+          <div id="statusItems">
+            <!-- Network status will be populated by JavaScript -->
+          </div>
+        </div>
+        
+        <div class="buttons">
+          <button onclick="window.location.reload()">Retry Connection</button>
+          <button onclick="history.back()" class="secondary">Go Back</button>
+          <button onclick="window.location.href='/offline-models.html'" class="secondary">View Offline Models</button>
+        </div>
+        
+        <p style="margin-top: 2rem; font-size: 0.9rem; opacity: 0.7;">
+          Modz will automatically sync when you reconnect
+        </p>
       </div>
+      
+      <script>
+        // Update network status on the offline page
+        function updateNetworkStatus() {
+          const statusItems = document.getElementById('statusItems');
+          if (!statusItems) return;
+          
+          statusItems.innerHTML = \`
+            <div class="status-item">
+              <span>Internet Connection:</span>
+              <span class="status-\${navigator.onLine ? 'good' : 'bad'}">
+                \${navigator.onLine ? 'Online' : 'Offline'}
+              </span>
+            </div>
+            <div class="status-item">
+              <span>GitHub Access:</span>
+              <span class="status-warning">Checking...</span>
+            </div>
+            <div class="status-item">
+              <span>Service Worker:</span>
+              <span class="status-good">Active</span>
+            </div>
+          \`;
+          
+          // Check GitHub access
+          fetch('https://api.github.com/zen', { 
+            method: 'HEAD',
+            mode: 'no-cors'
+          }).then(() => {
+            document.querySelector('.status-warning').textContent = 'Available';
+            document.querySelector('.status-warning').className = 'status-good';
+          }).catch(() => {
+            document.querySelector('.status-warning').textContent = 'Blocked';
+            document.querySelector('.status-warning').className = 'status-bad';
+          });
+        }
+        
+        updateNetworkStatus();
+        window.addEventListener('online', updateNetworkStatus);
+        window.addEventListener('offline', updateNetworkStatus);
+        
+        // Try to detect school network
+        if (window.location.hostname.includes('.edu') || 
+            window.location.hostname.includes('school') ||
+            navigator.userAgent.includes('ChromeOS')) {
+          document.querySelector('.network-status').innerHTML += 
+            '<p style="color: #FF9800; margin-top: 10px;">⚠️ School network detected. Some features may be restricted.</p>';
+        }
+      </script>
     </body>
     </html>
   `;
@@ -202,7 +408,8 @@ async function createOfflineFallbacks() {
     timestamp: new Date().toISOString(),
     message: "You're offline. Data was last updated while online.",
     cachedMods: [],
-    status: "offline"
+    status: "offline",
+    networkStatus: networkStatus
   };
   
   await cache.put(
@@ -235,7 +442,10 @@ self.addEventListener('activate', (event) => {
       self.clients.claim(),
       
       // Initialize IndexedDB for offline storage
-      initializeOfflineDatabase()
+      initializeOfflineDatabase(),
+      
+      // Check network status
+      checkNetworkStatus()
     ])
     .then(() => {
       console.log('✅ Service Worker activated with offline support');
@@ -245,8 +455,9 @@ self.addEventListener('activate', (event) => {
         clients.forEach(client => {
           client.postMessage({
             type: 'SW_READY',
-            version: 'v5-offline',
-            timestamp: new Date().toISOString()
+            version: 'v6',
+            timestamp: new Date().toISOString(),
+            networkStatus: networkStatus
           });
         });
       });
@@ -421,7 +632,7 @@ async function networkFirst(request) {
   }
 }
 
-// Network-only (for auth)
+// Network-only (for auth - but actually we should bypass completely)
 async function networkOnly(request) {
   console.log(`🌐 Network-only: ${request.url}`);
   return fetch(request);
@@ -432,13 +643,22 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   const urlString = url.toString();
   
-  // Skip non-GET requests for caching
+  // ====== CRITICAL FIX: Check for bypass URLs BEFORE anything else ======
+  for (const bypassUrl of BYPASS_SERVICE_WORKER) {
+    if (urlString.includes(bypassUrl)) {
+      console.log(`🔓 COMPLETE BYPASS for: ${urlString}`);
+      // DON'T call event.respondWith() - let request go directly to network
+      return;
+    }
+  }
+  
+  // Skip non-GET requests for caching (except for our offline queue)
   if (event.request.method !== 'GET') {
-    // But allow POST to be intercepted for offline queue
     if (event.request.method === 'POST' && urlString.includes('/api/')) {
       handleOfflinePost(event);
       return;
     }
+    // For other non-GET requests (like auth), just let them through
     return;
   }
   
@@ -449,7 +669,13 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  const strategy = getStrategy(url);
+  // Get strategy with correct method parameter
+  const strategy = getStrategy(url, event.request.method);
+  
+  if (strategy === 'bypass') {
+    // Should have been caught earlier, but just in case
+    return;
+  }
   
   console.log(`🔄 ${strategy} for ${url.pathname}`);
   
@@ -471,8 +697,8 @@ self.addEventListener('fetch', (event) => {
       break;
       
     case 'network-only':
-      // Don't intercept - let it go directly to network
-      return;
+      event.respondWith(fetch(event.request));
+      break;
       
     default:
       event.respondWith(
@@ -481,8 +707,72 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
+// Handle GitHub authorization attempts with fallback
+async function handleGitHubRequest(request) {
+  try {
+    // First try direct request
+    const response = await fetch(request);
+    
+    // If we get a 403/429 (rate limit or blocking), try alternative approach
+    if (response.status === 403 || response.status === 429) {
+      console.log(`🐙 GitHub request blocked (${response.status}), trying fallback...`);
+      
+      // Store the request for later retry
+      const db = await getOfflineDatabase();
+      await db.add('pendingGitHubRequests', {
+        url: request.url,
+        method: request.method,
+        timestamp: Date.now(),
+        headers: Object.fromEntries(request.headers.entries())
+      });
+      
+      // Return a message about the blocking
+      return new Response(
+        JSON.stringify({
+          error: 'github_blocked',
+          message: 'GitHub is currently blocked or rate limited. We\'ll retry later.',
+          status: 'queued',
+          timestamp: new Date().toISOString()
+        }),
+        {
+          status: 202,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+    }
+    
+    return response;
+  } catch (error) {
+    console.error(`❌ GitHub request failed: ${error.message}`);
+    
+    // If it's an OAuth request, we need special handling
+    if (request.url.includes('github.com/login/oauth')) {
+      // Notify user about GitHub access issues
+      self.clients.matchAll().then(clients => {
+        clients.forEach(client => {
+          client.postMessage({
+            type: 'GITHUB_BLOCKED',
+            message: 'GitHub authentication is blocked. Please try from a different network.',
+            timestamp: new Date().toISOString()
+          });
+        });
+      });
+    }
+    
+    throw error;
+  }
+}
+
 // Handle POST requests while offline
 async function handleOfflinePost(event) {
+  const url = new URL(event.request.url);
+  
+  // Check if it's a GitHub-related API call
+  if (url.pathname.includes('github') || url.pathname.includes('issue') || url.pathname.includes('fork')) {
+    event.respondWith(handleGitHubRequest(event.request));
+    return;
+  }
+  
   if (!navigator.onLine) {
     // Queue the request for later
     const request = event.request;
@@ -524,7 +814,7 @@ async function handleOfflinePost(event) {
 // ====== OFFLINE DATABASE ======
 async function initializeOfflineDatabase() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('ModzOfflineDB', 2);
+    const request = indexedDB.open('ModzOfflineDB', 3);
     
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
@@ -535,6 +825,16 @@ async function initializeOfflineDatabase() {
       // Pending requests (for POST/PUT/DELETE)
       if (!db.objectStoreNames.contains('pendingRequests')) {
         const store = db.createObjectStore('pendingRequests', {
+          keyPath: 'id',
+          autoIncrement: true
+        });
+        store.createIndex('timestamp', 'timestamp');
+        store.createIndex('url', 'url');
+      }
+      
+      // GitHub pending requests
+      if (!db.objectStoreNames.contains('pendingGitHubRequests')) {
+        const store = db.createObjectStore('pendingGitHubRequests', {
           keyPath: 'id',
           autoIncrement: true
         });
@@ -558,6 +858,16 @@ async function initializeOfflineDatabase() {
         });
         store.createIndex('name', 'name');
         store.createIndex('timestamp', 'timestamp');
+        store.createIndex('type', 'type');
+      }
+      
+      // Network status history
+      if (!db.objectStoreNames.contains('networkHistory')) {
+        const store = db.createObjectStore('networkHistory', {
+          keyPath: 'timestamp'
+        });
+        store.createIndex('online', 'online');
+        store.createIndex('blocked', 'blocked');
       }
     };
   });
@@ -606,6 +916,11 @@ self.addEventListener('sync', (event) => {
     event.waitUntil(syncPendingRequests());
   }
   
+  if (event.tag === 'sync-github-requests') {
+    console.log('🔄 Syncing GitHub requests...');
+    event.waitUntil(syncGitHubRequests());
+  }
+  
   if (event.tag === 'sync-models') {
     console.log('🔄 Syncing offline models...');
     event.waitUntil(syncOfflineModels());
@@ -646,10 +961,8 @@ async function syncPendingRequests() {
       // Increment retry count
       request.retries++;
       if (request.retries < 3) {
-        // Will retry on next sync
         console.log(`🔄 Will retry (${request.retries}/3): ${request.url}`);
       } else {
-        // Too many retries, delete
         await db.delete('pendingRequests', request.id);
         console.log(`🗑️ Deleted after too many retries: ${request.url}`);
       }
@@ -657,41 +970,82 @@ async function syncPendingRequests() {
   }
 }
 
-// ====== PUSH NOTIFICATIONS ======
-self.addEventListener('push', (event) => {
-  const options = {
-    body: event.data?.text() || 'Modz update available',
-    icon: '/Modz.png',
-    badge: '/Modz.png',
-    vibrate: [100, 50, 100],
-    data: {
-      url: '/',
-      timestamp: new Date().toISOString()
-    },
-    actions: [
-      {
-        action: 'open',
-        title: 'Open App'
-      },
-      {
-        action: 'dismiss',
-        title: 'Dismiss'
-      }
-    ]
-  };
+// Sync GitHub-specific requests
+async function syncGitHubRequests() {
+  const db = await getOfflineDatabase();
+  const pending = await db.getAll('pendingGitHubRequests');
   
-  event.waitUntil(
-    self.registration.showNotification('Modz', options)
-  );
+  for (const request of pending) {
+    try {
+      console.log(`🔄 Attempting GitHub sync: ${request.url}`);
+      
+      // For GitHub API, we need to add proper headers
+      const response = await fetch(request.url, {
+        method: request.method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...request.headers
+        },
+        body: request.data ? JSON.stringify(request.data) : undefined
+      });
+      
+      if (response.ok) {
+        await db.delete('pendingGitHubRequests', request.id);
+        console.log(`✅ GitHub sync successful: ${request.url}`);
+      } else if (response.status === 403 || response.status === 429) {
+        console.log(`⚠️ GitHub still blocked, will retry later: ${request.url}`);
+        // Keep in queue for next sync
+      } else {
+        console.log(`❌ GitHub sync failed with status ${response.status}`);
+        await db.delete('pendingGitHubRequests', request.id);
+      }
+    } catch (error) {
+      console.error(`❌ GitHub sync error: ${error.message}`);
+      // Keep in queue for next attempt
+    }
+  }
+}
+
+// ====== OFFLINE DETECTION & NETWORK STATUS ======
+self.addEventListener('offline', () => {
+  console.log('📴 App is offline');
+  networkStatus.online = false;
+  
+  self.clients.matchAll().then(clients => {
+    clients.forEach(client => {
+      client.postMessage({
+        type: 'NETWORK_STATUS',
+        online: false,
+        networkStatus: networkStatus,
+        timestamp: new Date().toISOString()
+      });
+    });
+  });
 });
 
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
+self.addEventListener('online', () => {
+  console.log('📶 App is back online');
+  networkStatus.online = true;
   
-  if (event.action === 'open') {
-    event.waitUntil(
-      clients.openWindow(event.notification.data.url || '/')
-    );
+  // Re-check network status when back online
+  checkNetworkStatus();
+  
+  self.clients.matchAll().then(clients => {
+    clients.forEach(client => {
+      client.postMessage({
+        type: 'NETWORK_STATUS',
+        online: true,
+        networkStatus: networkStatus,
+        timestamp: new Date().toISOString()
+      });
+    });
+  });
+  
+  // Trigger sync when back online
+  if ('sync' in self.registration) {
+    self.registration.sync.register('sync-pending-requests');
+    self.registration.sync.register('sync-github-requests');
+    self.registration.sync.register('sync-models');
   }
 });
 
@@ -730,8 +1084,61 @@ self.addEventListener('message', (event) => {
           event.ports?.[0]?.postMessage({ success: true, status });
         });
       break;
+      
+    case 'CHECK_GITHUB_ACCESS':
+      checkGitHubAccess()
+        .then(access => {
+          event.ports?.[0]?.postMessage({ success: true, access });
+        });
+      break;
+      
+    case 'DETECT_SCHOOL_NETWORK':
+      detectSchoolNetwork()
+        .then(isSchool => {
+          event.ports?.[0]?.postMessage({ success: true, isSchool });
+        });
+      break;
   }
 });
+
+// Check GitHub access specifically
+async function checkGitHubAccess() {
+  try {
+    const startTime = Date.now();
+    const response = await fetch('https://api.github.com/zen', {
+      method: 'HEAD',
+      cache: 'no-cache',
+      mode: 'no-cors'
+    });
+    const responseTime = Date.now() - startTime;
+    
+    return {
+      accessible: true,
+      responseTime: responseTime,
+      schoolNetwork: responseTime > 1000,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    return {
+      accessible: false,
+      error: error.message,
+      schoolNetwork: networkStatus.schoolNetwork,
+      timestamp: new Date().toISOString()
+    };
+  }
+}
+
+// Detect school network
+async function detectSchoolNetwork() {
+  const indicators = [
+    window.location.hostname.includes('.edu'),
+    window.location.hostname.includes('school'),
+    navigator.userAgent.includes('ChromeOS'),
+    networkStatus.schoolNetwork
+  ];
+  
+  return indicators.some(indicator => indicator);
+}
 
 // Save 3D model for offline use
 async function saveModelForOffline(modelData) {
@@ -742,6 +1149,7 @@ async function saveModelForOffline(modelData) {
     name: modelData.name,
     data: modelData.model,
     preview: modelData.preview,
+    type: modelData.type || '3d_model',
     timestamp: Date.now(),
     size: JSON.stringify(modelData.model).length
   });
@@ -762,6 +1170,17 @@ async function saveModelForOffline(modelData) {
   }
   
   console.log(`✅ Saved model for offline: ${modelData.name}`);
+  
+  // Notify all clients
+  self.clients.matchAll().then(clients => {
+    clients.forEach(client => {
+      client.postMessage({
+        type: 'OFFLINE_MODEL_SAVED',
+        modelName: modelData.name,
+        timestamp: new Date().toISOString()
+      });
+    });
+  });
 }
 
 // Check offline capabilities
@@ -774,6 +1193,7 @@ async function checkOfflineStatus() {
   return {
     cacheSize: keys.length,
     offlineModels: offlineModels.length,
+    networkStatus: networkStatus,
     storage: {
       estimated: await navigator.storage?.estimate?.(),
       persisted: await navigator.storage?.persisted?.()
@@ -797,39 +1217,11 @@ async function clearCacheAndDatabase() {
   });
 }
 
-// ====== OFFLINE DETECTION ======
-self.addEventListener('offline', () => {
-  console.log('📴 App is offline');
-  
-  self.clients.matchAll().then(clients => {
-    clients.forEach(client => {
-      client.postMessage({
-        type: 'NETWORK_STATUS',
-        online: false,
-        timestamp: new Date().toISOString()
-      });
-    });
-  });
-});
-
-self.addEventListener('online', () => {
-  console.log('📶 App is back online');
-  
-  self.clients.matchAll().then(clients => {
-    clients.forEach(client => {
-      client.postMessage({
-        type: 'NETWORK_STATUS',
-        online: true,
-        timestamp: new Date().toISOString()
-      });
-    });
-  });
-  
-  // Trigger sync when back online
-  if ('sync' in self.registration) {
-    self.registration.sync.register('sync-pending-requests');
-    self.registration.sync.register('sync-models');
+// Periodic network checks (every 5 minutes)
+setInterval(() => {
+  if (navigator.onLine) {
+    checkNetworkStatus();
   }
-});
+}, 5 * 60 * 1000);
 
-console.log('⚡ Mods Service Worker loaded (Full Offline Support v5)');
+console.log('⚡ Modz Service Worker v6 loaded (Auth Bypass + Network Detection)');
