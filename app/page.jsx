@@ -16,6 +16,35 @@ export default function Home() {
   const cursorRef = useRef(null);
   const cursorTracerRef = useRef(null);
 
+  // Particle effects
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Create particle effects
+    const createParticles = () => {
+      const particleCount = 50;
+      const particlesContainer = document.getElementById('particles');
+      if (!particlesContainer) return;
+      
+      for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        particle.style.left = Math.random() * 100 + 'vw';
+        particle.style.animationDelay = Math.random() * 20 + 's';
+        particle.style.width = particle.style.height = Math.random() * 6 + 2 + 'px';
+        particle.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 70%)`;
+        particlesContainer.appendChild(particle);
+      }
+    };
+
+    createParticles();
+    
+    // Welcome message
+    setTimeout(() => {
+      addNotification('Welcome to Modz3.0! Drag & drop files to upload mods.', 'info');
+    }, 1000);
+  }, []);
+
   // 3D Cursor Effect
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -141,7 +170,7 @@ export default function Home() {
   };
 
   return (
-    <div className="app-container">
+    <div className="app-container" suppressHydrationWarning>
       {/* Custom 3D Cursor */}
       <div className="custom-cursor" id="customCursor" ref={cursorRef}>
         <div className="cursor-inner"></div>
@@ -158,7 +187,7 @@ export default function Home() {
       <header>
         <div className="logo">
           <i className="fas fa-cube logo-icon"></i>
-          <h1>Modz3.0</h1>
+          <h1>Modz</h1>
         </div>
         
         <nav className="nav-links">
@@ -272,42 +301,6 @@ export default function Home() {
           </div>
         ))}
       </div>
-
-      {/* Inline script for dynamic particles (converted from original) */}
-      <script dangerouslySetInnerHTML={{
-        __html: `
-          window.addEventListener('DOMContentLoaded', () => {
-            // Create particle effects
-            function createParticles() {
-              const particleCount = 50;
-              const particlesContainer = document.getElementById('particles');
-              for (let i = 0; i < particleCount; i++) {
-                const particle = document.createElement('div');
-                particle.className = 'particle';
-                particle.style.left = Math.random() * 100 + 'vw';
-                particle.style.animationDelay = Math.random() * 20 + 's';
-                particle.style.width = particle.style.height = Math.random() * 6 + 2 + 'px';
-                particle.style.backgroundColor = 'hsl(' + Math.random() * 360 + ', 100%, 70%)';
-                particlesContainer.appendChild(particle);
-              }
-            }
-            
-            createParticles();
-            
-            // Welcome message
-            setTimeout(() => {
-              if (typeof window !== 'undefined' && window.dispatchEvent) {
-                window.dispatchEvent(new CustomEvent('add-notification', {
-                  detail: {
-                    message: 'Welcome to Modz3.0! Drag & drop files to upload mods.',
-                    type: 'info'
-                  }
-                }));
-              }
-            }, 1000);
-          });
-        `
-      }} />
     </div>
   );
 }
