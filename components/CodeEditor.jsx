@@ -1,6 +1,6 @@
 'use client';
+import { EditorState } from '@codemirror/state';
 import { useState, useEffect, useRef } from 'react';
-import MonacoEditor from '@monaco-editor/react';
 import { javascript } from '@codemirror/lang-javascript';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { basicSetup } from 'codemirror';
@@ -124,55 +124,107 @@ export function createParticleSystem(count = 1000) {
   const [consoleOutput, setConsoleOutput] = useState([]);
   const [isRunning, setIsRunning] = useState(false);
   const editorRef = useRef(null);
+  const editorViewRef = useRef(null);
 
-  const handleEditorDidMount = (editor, monaco) => {
-    editorRef.current = editor;
-    
-    // Register custom Three.js autocompletion
-    monaco.languages.registerCompletionItemProvider('javascript', {
-      provideCompletionItems: (model, position) => {
-        const word = model.getWordUntilPosition(position);
-        const range = {
-          startLineNumber: position.lineNumber,
-          endLineNumber: position.lineNumber,
-          startColumn: word.startColumn,
-          endColumn: word.endColumn
-        };
-
-        return {
-          suggestions: [
-            {
-              label: 'THREE',
-              kind: monaco.languages.CompletionItemKind.Module,
-              documentation: 'Three.js 3D library',
-              insertText: 'THREE',
-              range: range
-            },
-            {
-              label: 'CANNON',
-              kind: monaco.languages.CompletionItemKind.Module,
-              documentation: 'Cannon.js physics engine',
-              insertText: 'CANNON',
-              range: range
-            },
-            {
-              label: 'gsap',
-              kind: monaco.languages.CompletionItemKind.Module,
-              documentation: 'GSAP animation library',
-              insertText: 'gsap',
-              range: range
-            },
-            {
-              label: 'createObject',
-              kind: monaco.languages.CompletionItemKind.Function,
-              documentation: 'Create and return a 3D object',
-              insertText: 'createObject()',
-              range: range
+  // Initialize CodeMirror editor
+  useEffect(() => {
+    if (editorRef.current && !editorViewRef.current) {
+      const startState = EditorState.create({
+        doc: code,
+        extensions: [
+          basicSetup,
+          javascript(),
+          oneDark,
+          autocompletion(),
+          linter(jsLinter.lint ? jsLinter.lint : () => []),
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged) {
+              setCode(update.state.doc.toString());
             }
-          ]
-        };
+          }),
+          EditorView.lineWrapping,
+        ],
+      });
+
+      editorViewRef.current = new EditorView({
+        state: startState,
+        parent: editorRef.current,
+      });
+
+      // Custom Three.js autocompletion
+      const threeCompletions = autocompletion({
+        override: [
+          {
+            apply: 'THREE',
+            label: 'THREE',
+            type: 'module',
+            detail: 'Three.js 3D library',
+          },
+          {
+            apply: 'CANNON',
+            label: 'CANNON',
+            type: 'module',
+            detail: 'Cannon.js physics engine',
+          },
+          {
+            apply: 'gsap',
+            label: 'gsap',
+            type: 'module',
+            detail: 'GSAP animation library',
+          },
+          {
+            apply: 'createObject()',
+            label: 'createObject',
+            type: 'function',
+            detail: 'Create and return a 3D object',
+          },
+        ],
+      });
+
+      editorViewRef.current.dispatch({
+        effects: StateEffect.appendConfig.of([threeCompletions]),
+      });
+    }
+
+    return () => {
+      if (editorViewRef.current) {
+        editorViewRef.current.destroy();
+        editorViewRef.current = null;
       }
-    });
+    };
+  }, []);
+
+  // Update editor content when code changes
+  useEffect(() => {
+    if (editorViewRef.current && editorViewRef.current.state.doc.toString() !== code) {
+      editorViewRef.current.dispatch({
+        changes: {
+          from: 0,
+          to: editorViewRef.current.state.doc.length,
+          insert: code,
+        },
+      });
+    }
+  }, [code]);
+
+  // Format code using Prettier-like formatting
+  const formatCode = () => {
+    try {
+      // Simple formatting logic (you can enhance this)
+      const formatted = code
+        .replace(/\s{2,}/g, ' ')
+        .replace(/\{\s+/g, '{ ')
+        .replace(/\s+\}/g, ' }')
+        .replace(/\(\s+/g, '( ')
+        .replace(/\s+\)/g, ' )')
+        .replace(/;\s+/g, ';\n')
+        .replace(/\n\s*\n/g, '\n');
+
+      setCode(formatted);
+      addNotification('Code formatted', 'info');
+    } catch (error) {
+      addNotification('Formatting failed', 'error');
+    }
   };
 
   const runCode = async () => {
@@ -226,13 +278,6 @@ export function createParticleSystem(count = 1000) {
     }]);
   };
 
-  const formatCode = () => {
-    if (editorRef.current) {
-      editorRef.current.getAction('editor.action.formatDocument').run();
-      addNotification('Code formatted', 'info');
-    }
-  };
-
   const saveMod = async () => {
     try {
       const response = await fetch('/api/mods', {
@@ -259,6 +304,11 @@ export function createParticleSystem(count = 1000) {
     }
   };
 
+  // Syntax highlight using Prism
+  useEffect(() => {
+    Prism.highlightAll();
+  }, [code]);
+
   return (
     <div className="editor-panel">
       <div className="editor-header">
@@ -283,33 +333,19 @@ export function createParticleSystem(count = 1000) {
       </div>
       
       <div className="editor-content">
-        <MonacoEditor
-          height="70vh"
-          language="javascript"
-          theme="vs-dark"
-          value={code}
-          onChange={setCode}
-          onMount={handleEditorDidMount}
-          options={{
-            fontSize: 14,
-            minimap: { enabled: true },
-            scrollBeyondLastLine: false,
-            wordWrap: 'on',
-            formatOnPaste: true,
-            formatOnType: true,
-            suggestOnTriggerCharacters: true,
-            acceptSuggestionOnEnter: 'on',
-            tabCompletion: 'on',
-            wordBasedSuggestions: true,
-            snippets: { prefix: 'mod' },
-            folding: true,
-            lineNumbers: 'on',
-            glyphMargin: true,
-            automaticLayout: true,
-            fontFamily: "'Fira Code', 'Cascadia Code', monospace",
-            fontLigatures: true
-          }}
-        />
+        <div className="code-editor-container">
+          <div 
+            ref={editorRef} 
+            className="code-editor"
+            style={{
+              height: '70vh',
+              overflow: 'auto',
+              fontFamily: "'Fira Code', 'Cascadia Code', monospace",
+              fontSize: '14px',
+              lineHeight: '1.5',
+            }}
+          />
+        </div>
       </div>
       
       <div className="editor-console">
