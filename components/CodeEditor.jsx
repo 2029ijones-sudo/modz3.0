@@ -1,5 +1,5 @@
 'use client';
-import { EditorState } from '@codemirror/state';
+import { EditorState, StateEffect } from '@codemirror/state';
 import { useState, useEffect, useRef } from 'react';
 import { javascript } from '@codemirror/lang-javascript';
 import { oneDark } from '@codemirror/theme-one-dark';
@@ -184,7 +184,7 @@ export function createParticleSystem(count = 1000) {
       editorViewRef.current.dispatch({
         effects: StateEffect.appendConfig.of([threeCompletions]),
       });
-    }
+    } // ← THIS BRACE WAS MISSING!
 
     return () => {
       if (editorViewRef.current) {
@@ -343,6 +343,9 @@ export function createParticleSystem(count = 1000) {
               fontFamily: "'Fira Code', 'Cascadia Code', monospace",
               fontSize: '14px',
               lineHeight: '1.5',
+              background: '#1e1e1e',
+              color: '#d4d4d4',
+              padding: '10px',
             }}
           />
         </div>
