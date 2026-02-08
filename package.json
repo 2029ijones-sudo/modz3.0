@@ -15,6 +15,7 @@
     "@react-three/fiber": "8.14.5",
     "@react-three/drei": "9.96.3",
     "@react-three/postprocessing": "2.13.1",
+    "@codemirror/state": "6.4.1",
     "coffee-script": "^1.12.7",
     "cannon-es": "0.20.0",
     "@react-three/cannon": "6.5.2",
