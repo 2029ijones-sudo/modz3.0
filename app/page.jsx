@@ -1,26 +1,101 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter, useSearchParams } from 'next/navigation';
+import CryptoJS from 'crypto-js';
 import './globals.css';
 
-// Dynamically import components for better performance (no SSR for Three.js)
+// Dynamically import components for better performance
 const ThreeWorld = dynamic(() => import('../components/ThreeWorld'), { ssr: false });
 const CodeEditor = dynamic(() => import('../components/CodeEditor'), { ssr: false });
 const ModManager = dynamic(() => import('../components/ModManager'), { ssr: false });
+const Community = dynamic(() => import('../components/Community'), { ssr: false });
+const Profile = dynamic(() => import('../components/Profile'), { ssr: false });
 
-export default function Home() {
+// Encryption key (in production, store in environment variables)
+const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || 'modz3-secret-key-2024';
+
+// Function to encrypt URL parameters
+const encryptData = (data) => {
+  try {
+    const encrypted = CryptoJS.AES.encrypt(JSON.stringify(data), ENCRYPTION_KEY).toString();
+    return encodeURIComponent(encrypted);
+  } catch (error) {
+    console.error('Encryption error:', error);
+    return null;
+  }
+};
+
+// Function to decrypt URL parameters
+const decryptData = (encrypted) => {
+  try {
+    const decrypted = CryptoJS.AES.decrypt(decodeURIComponent(encrypted), ENCRYPTION_KEY);
+    return JSON.parse(decrypted.toString(CryptoJS.enc.Utf8));
+  } catch (error) {
+    console.error('Decryption error:', error);
+    return null;
+  }
+};
+
+// Main component wrapper that handles routing
+function AppContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState('world');
   const [showEditor, setShowEditor] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [worldName, setWorldName] = useState('Untitled Metaverse');
+  const [encryptedParams, setEncryptedParams] = useState({});
   const cursorRef = useRef(null);
   const cursorTracerRef = useRef(null);
+
+  // Decrypt URL parameters on load
+  useEffect(() => {
+    const encrypted = searchParams.get('e');
+    if (encrypted) {
+      const decrypted = decryptData(encrypted);
+      if (decrypted) {
+        setEncryptedParams(decrypted);
+        
+        // Handle decrypted parameters
+        if (decrypted.tab) {
+          setActiveTab(decrypted.tab);
+        }
+        if (decrypted.world) {
+          setWorldName(decrypted.world);
+        }
+        if (decrypted.showEditor) {
+          setShowEditor(true);
+        }
+        
+        // Add notification about encrypted session
+        if (decrypted.source === 'shared') {
+          addNotification(`Loaded encrypted session from ${decrypted.owner || 'community'}`, 'info');
+        }
+      }
+    }
+  }, [searchParams]);
+
+  // Update URL when active tab changes (with encryption)
+  useEffect(() => {
+    const data = {
+      tab: activeTab,
+      world: worldName,
+      timestamp: Date.now(),
+      session: Math.random().toString(36).substring(7)
+    };
+    
+    const encrypted = encryptData(data);
+    if (encrypted) {
+      // Use replaceState to update URL without refresh
+      window.history.replaceState({}, '', `?e=${encrypted}`);
+    }
+  }, [activeTab, worldName]);
 
   // Particle effects
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Create particle effects
     const createParticles = () => {
       const particleCount = 50;
       const particlesContainer = document.getElementById('particles');
@@ -39,7 +114,6 @@ export default function Home() {
 
     createParticles();
     
-    // Welcome message
     setTimeout(() => {
       addNotification('Welcome to Modz3.0! Drag & drop files to upload mods.', 'info');
     }, 1000);
@@ -55,13 +129,11 @@ export default function Home() {
     const MAX_TRAIL = 10;
 
     const handleMouseMove = (e) => {
-      // Main cursor
       if (cursor) {
         cursor.style.left = `${e.clientX - 16}px`;
         cursor.style.top = `${e.clientY - 16}px`;
       }
 
-      // Trail effect
       if (cursorTracer) {
         const tracer = cursorTracer.cloneNode(true);
         tracer.style.left = `${e.clientX}px`;
@@ -78,7 +150,6 @@ export default function Home() {
           }
         }
 
-        // Animate trail
         cursorTrail.forEach((t, i) => {
           if (t.style.opacity > 0) {
             t.style.opacity = (0.7 * (i / cursorTrail.length)).toString();
@@ -88,7 +159,6 @@ export default function Home() {
       }
     };
 
-    // Interactive cursor effects
     const interactiveElements = document.querySelectorAll('.nav-link, .btn, .mod-item, .upload-area, .avatar-3d');
     
     const handleMouseEnter = () => {
@@ -131,18 +201,95 @@ export default function Home() {
     }, 3000);
   };
 
+  // Navigation functions with encrypted URLs
+  const navigateToTab = (tab) => {
+    setActiveTab(tab);
+    
+    // Create encrypted shareable URL
+    const data = {
+      tab,
+      world: worldName,
+      timestamp: Date.now(),
+      session: Math.random().toString(36).substring(7)
+    };
+    
+    const encrypted = encryptData(data);
+    if (encrypted) {
+      const url = `${window.location.origin}${window.location.pathname}?e=${encrypted}`;
+      console.log('Encrypted URL:', url); // For debugging
+      // In production, you might want to copy this to clipboard or show it
+    }
+  };
+
+  const navigateToProfile = () => {
+    const data = {
+      tab: 'profile',
+      timestamp: Date.now(),
+      session: Math.random().toString(36).substring(7),
+      secure: true
+    };
+    
+    const encrypted = encryptData(data);
+    if (encrypted) {
+      window.location.href = `/profile?e=${encrypted}`;
+    }
+  };
+
+  const navigateToCommunity = () => {
+    setActiveTab('community');
+  };
+
+  const generateShareLink = () => {
+    const data = {
+      tab: activeTab,
+      world: worldName,
+      timestamp: Date.now(),
+      source: 'shared',
+      owner: 'You',
+      secure: true
+    };
+    
+    const encrypted = encryptData(data);
+    if (encrypted) {
+      const shareUrl = `${window.location.origin}${window.location.pathname}?e=${encrypted}`;
+      
+      // Copy to clipboard
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        addNotification('Encrypted share link copied to clipboard!', 'success');
+      }).catch(() => {
+        // Fallback: show in prompt
+        prompt('Share this encrypted URL:', shareUrl);
+      });
+      
+      return shareUrl;
+    }
+    return null;
+  };
+
   // Handle world actions
   const handleNewWorld = () => {
     const name = prompt('Enter world name:', 'My Awesome World');
     if (name) {
       setWorldName(name);
       addNotification(`Created new world: ${name}`, 'success');
+      
+      // Update URL with new world name
+      const data = {
+        tab: activeTab,
+        world: name,
+        timestamp: Date.now(),
+        action: 'world_created'
+      };
+      
+      const encrypted = encryptData(data);
+      if (encrypted) {
+        window.history.replaceState({}, '', `?e=${encrypted}`);
+      }
     }
   };
 
   const handleClearWorld = () => {
     if (confirm('Clear the entire world?')) {
-      // Dispatch custom event for ThreeWorld to handle
       window.dispatchEvent(new CustomEvent('clear-world'));
       addNotification('World cleared', 'success');
     }
@@ -156,7 +303,6 @@ export default function Home() {
       const file = e.target.files[0];
       if (file) {
         addNotification(`Importing ${file.name}...`, 'info');
-        // Dispatch event for ModManager to handle
         window.dispatchEvent(new CustomEvent('import-world', { detail: file }));
       }
     };
@@ -165,8 +311,35 @@ export default function Home() {
 
   const handleExportWorld = () => {
     addNotification('Exporting world...', 'info');
-    // Dispatch event for ModManager to handle
     window.dispatchEvent(new CustomEvent('export-world'));
+  };
+
+  const handleShareWorld = () => {
+    const shareLink = generateShareLink();
+    if (shareLink) {
+      // Show share dialog
+      if (navigator.share) {
+        navigator.share({
+          title: `Check out my Modz3.0 world: ${worldName}`,
+          text: `I created a 3D world in Modz3.0 called "${worldName}". Check it out!`,
+          url: shareLink
+        });
+      }
+    }
+  };
+
+  // Render active tab content
+  const renderActiveTab = () => {
+    switch (activeTab) {
+      case 'world':
+        return <ThreeWorld addNotification={addNotification} worldName={worldName} />;
+      case 'community':
+        return <Community addNotification={addNotification} encryptedParams={encryptedParams} />;
+      case 'profile':
+        return <Profile addNotification={addNotification} />;
+      default:
+        return <ThreeWorld addNotification={addNotification} worldName={worldName} />;
+    }
   };
 
   return (
@@ -183,7 +356,7 @@ export default function Home() {
       <div className="hologram-effect"></div>
       <div id="particles"></div>
 
-      {/* Header - Converted from HTML header */}
+      {/* Header */}
       <header>
         <div className="logo">
           <i className="fas fa-cube logo-icon"></i>
@@ -193,7 +366,7 @@ export default function Home() {
         <nav className="nav-links">
           <button 
             className={`nav-link ${activeTab === 'world' ? 'active' : ''}`}
-            onClick={() => setActiveTab('world')}
+            onClick={() => navigateToTab('world')}
             id="navWorld"
           >
             <i className="fas fa-globe"></i>
@@ -208,12 +381,20 @@ export default function Home() {
             <span>AI Editor</span>
           </button>
           <button 
-            className="nav-link"
-            onClick={() => addNotification('Community features coming soon!', 'info')}
+            className={`nav-link ${activeTab === 'community' ? 'active' : ''}`}
+            onClick={() => navigateToTab('community')}
             id="navCommunity"
           >
             <i className="fas fa-share-alt"></i>
             <span>Community</span>
+          </button>
+          <button 
+            className={`nav-link ${activeTab === 'profile' ? 'active' : ''}`}
+            onClick={() => navigateToTab('profile')}
+            id="navProfile"
+          >
+            <i className="fas fa-user"></i>
+            <span>Profile</span>
           </button>
         </nav>
         
@@ -227,60 +408,93 @@ export default function Home() {
               <i className="fas fa-download"></i>
               <span>Export</span>
             </button>
+            <button className="btn btn-accent" onClick={handleShareWorld} id="shareWorld">
+              <i className="fas fa-share"></i>
+              <span>Share</span>
+            </button>
           </div>
           <div className="avatar-container">
             <div className="avatar-glow"></div>
-            <div className="avatar-3d" title="Metahuman Avatar" id="userAvatar" onClick={() => addNotification('User profile coming soon!', 'info')}>
+            <div className="avatar-3d" title="Profile Settings" id="userAvatar" onClick={navigateToProfile}>
               <i className="fas fa-robot"></i>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Container - Converted from HTML main-container */}
+      {/* Main Container */}
       <div className="main-container">
-        {/* Sidebar */}
-        <div className="sidebar">
-          <ModManager addNotification={addNotification} />
-        </div>
-
-        {/* 3D World */}
-        <div className="world-container">
-          <div className="world-header">
-            <h2 className="world-title" id="worldTitle">Metaverse: {worldName}</h2>
-            <div className="world-actions">
-              <button className="btn btn-secondary" id="toggleGrid" onClick={() => addNotification('Toggle Grid - Coming soon', 'info')}>
-                <i className="fas fa-th"></i>
-                <span>Grid</span>
-              </button>
-              <button className="btn btn-danger" id="clearWorld" onClick={handleClearWorld}>
-                <i className="fas fa-trash"></i>
-                <span>Clear</span>
-              </button>
-              <button className="btn btn-success" id="newWorld" onClick={handleNewWorld}>
-                <i className="fas fa-plus"></i>
-                <span>New World</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="world-overlay"></div>
-          
-          {/* Three.js Canvas */}
-          {activeTab === 'world' && <ThreeWorld addNotification={addNotification} />}
-          
-          <div className="drop-zone" id="dropZone"></div>
-        </div>
-
-        {/* Advanced Code Editor */}
-        {showEditor && (
-          <div className="editor-panel active">
-            <CodeEditor 
-              onClose={() => setShowEditor(false)}
-              addNotification={addNotification}
-            />
+        {/* Sidebar - Only show in world tab */}
+        {activeTab === 'world' && (
+          <div className="sidebar">
+            <ModManager addNotification={addNotification} />
           </div>
         )}
+
+        {/* Main Content Area */}
+        <div className={`content-area ${activeTab !== 'world' ? 'full-width' : ''}`}>
+          {activeTab === 'world' ? (
+            <>
+              <div className="world-container">
+                <div className="world-header">
+                  <h2 className="world-title" id="worldTitle">
+                    Metaverse: {worldName}
+                    {encryptedParams.source === 'shared' && (
+                      <span className="shared-badge" title="Shared via encrypted link">
+                        <i className="fas fa-lock"></i> Shared
+                      </span>
+                    )}
+                  </h2>
+                  <div className="world-actions">
+                    <button className="btn btn-secondary" id="toggleGrid" onClick={() => addNotification('Toggle Grid - Coming soon', 'info')}>
+                      <i className="fas fa-th"></i>
+                      <span>Grid</span>
+                    </button>
+                    <button className="btn btn-danger" id="clearWorld" onClick={handleClearWorld}>
+                      <i className="fas fa-trash"></i>
+                      <span>Clear</span>
+                    </button>
+                    <button className="btn btn-success" id="newWorld" onClick={handleNewWorld}>
+                      <i className="fas fa-plus"></i>
+                      <span>New World</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="world-overlay"></div>
+                {renderActiveTab()}
+                <div className="drop-zone" id="dropZone"></div>
+              </div>
+
+              {/* Advanced Code Editor */}
+              {showEditor && (
+                <div className="editor-panel active">
+                  <CodeEditor 
+                    onClose={() => setShowEditor(false)}
+                    addNotification={addNotification}
+                  />
+                </div>
+              )}
+            </>
+          ) : (
+            <div className={`tab-content ${activeTab}-tab`}>
+              <div className="tab-header">
+                <h2>
+                  {activeTab === 'community' && 'Community Hub'}
+                  {activeTab === 'profile' && 'Your Profile'}
+                </h2>
+                {activeTab === 'community' && (
+                  <button className="btn btn-accent" onClick={handleShareWorld}>
+                    <i className="fas fa-share"></i> Share Your World
+                  </button>
+                )}
+              </div>
+              <div className="tab-inner">
+                {renderActiveTab()}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Notifications Container */}
@@ -301,6 +515,31 @@ export default function Home() {
           </div>
         ))}
       </div>
+
+      {/* Encrypted Session Indicator */}
+      {encryptedParams.source === 'shared' && (
+        <div className="encrypted-session-indicator">
+          <i className="fas fa-lock"></i>
+          <span>Encrypted Session Loaded</span>
+          <button onClick={() => window.location.href = window.location.pathname}>
+            <i className="fas fa-times"></i>
+          </button>
+        </div>
+      )}
     </div>
+  );
+}
+
+// Main export with Suspense boundary
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="loading-screen">
+        <div className="loading-spinner"></div>
+        <p>Loading Modz3.0...</p>
+      </div>
+    }>
+      <AppContent />
+    </Suspense>
   );
 }
