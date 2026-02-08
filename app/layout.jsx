@@ -14,11 +14,11 @@ export const metadata = {
   icons: {
     icon: [
       { url: '/favicon.ico' },
-      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { url: '/Modz.png', sizes: '192x192', type: 'image/png' },
+      { url: '/Modz.png', sizes: '512x512', type: 'image/png' },
     ],
     apple: [
-      { url: '/apple-icon.png' },
+      { url: '/Modz.png' },
     ],
   },
   openGraph: {
@@ -32,7 +32,7 @@ export const metadata = {
     card: 'summary_large_image',
     title: 'Modz3.0 - Metaverse Builder',
     description: 'Create and customize your own 3D metaverse worlds',
-    images: ['/twitter-image.png'],
+    images: ['/Modz.png'],
   },
 }
 
