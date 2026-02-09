@@ -435,16 +435,16 @@ function AppContent() {
         <div className={`content-area ${activeTab !== 'world' ? 'full-width' : ''}`}>
           {activeTab === 'world' ? (
             <>
-              <div className="world-container">
-                <div className="world-header">
-                  <h2 className="world-title" id="worldTitle">
-                    Metaverse: {worldName}
-                    {encryptedParams.source === 'shared' && (
-                      <span className="shared-badge" title="Shared via encrypted link">
-                        <i className="fas fa-lock"></i> Shared
-                      </span>
-                    )}
-                  </h2>
+              <div className="world-wrapper">
+  <div className="world-header">
+    <h2 className="world-title" id="worldTitle">
+      Metaverse: {worldName}
+      {encryptedParams.source === 'shared' && (
+        <span className="shared-badge" title="Shared via encrypted link">
+          <i className="fas fa-lock"></i> Shared
+        </span>
+      )}
+    </h2>
                   <div className="world-actions">
                     <button className="btn btn-secondary" id="toggleGrid" onClick={() => addNotification('Toggle Grid - Coming soon', 'info')}>
                       <i className="fas fa-th"></i>
