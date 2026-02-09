@@ -8,6 +8,7 @@ export default function Community() {
   const [content, setContent] = useState([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null); // ADD THIS - same as profile.jsx
   const [newContent, setNewContent] = useState({
     type: 'comment',
     content: '',
@@ -15,77 +16,92 @@ export default function Community() {
     description: '',
     name: ''
   });
-  const [authChecked, setAuthChecked] = useState(false);
   
-  // FIX: Use refs to track mounted state and abort controllers
   const isMounted = useRef(true);
   const abortControllerRef = useRef(null);
 
-  // FIX 1: Listen for auth state changes
+  // FIX: Use SAME auth logic as profile.jsx
   useEffect(() => {
-    // Setup auth listener
+    // Check initial session
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (isMounted.current) {
+        setUser(user);
+        if (user) {
+          // Get profile SAME WAY as profile.jsx does
+          await getProfile(user.id);
+        }
+      }
+    };
+    
+    checkUser();
+
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Community auth event:', event);
         if (session?.user) {
-          setUser(session.user);
+          if (isMounted.current) {
+            setUser(session.user);
+            // Get profile when user logs in
+            await getProfile(session.user.id);
+          }
         } else {
-          setUser(null);
+          if (isMounted.current) {
+            setUser(null);
+            setProfile(null);
+          }
         }
-        setAuthChecked(true);
       }
     );
-
-    // Initial auth check
-    const checkUser = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (isMounted.current) {
-          setUser(user);
-          setAuthChecked(true);
-        }
-      } catch (error) {
-        console.error('Auth check error:', error);
-        if (isMounted.current) {
-          setAuthChecked(true);
-        }
-      }
-    };
-    checkUser();
 
     return () => {
       isMounted.current = false;
       subscription.unsubscribe();
-      // Abort any ongoing fetch requests
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
   }, []);
 
-  // Fetch content when tab changes or when user logs in/out
-  useEffect(() => {
-    if (authChecked) {
-      fetchContent();
+  // SAME function as profile.jsx uses
+  const getProfile = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      if (error) {
+        console.log('No profile found for community user:', error.message);
+        setProfile(null);
+      } else {
+        setProfile(data);
+      }
+    } catch (error) {
+      console.error('Error fetching profile for community:', error);
+      setProfile(null);
     }
-  }, [activeTab, authChecked]);
+  };
+
+  // Fetch community content
+  useEffect(() => {
+    fetchContent();
+  }, [activeTab]);
 
   const fetchContent = async () => {
-    // Abort previous request if it exists
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     
-    // Create new abort controller
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
     
     setLoading(true);
     
     try {
-      const response = await fetch(`/api/community?type=${activeTab}`, {
-        signal // Pass abort signal
-      });
+      const response = await fetch(`/api/community?type=${activeTab}`, { signal });
       
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
@@ -93,7 +109,7 @@ export default function Community() {
       
       const data = await response.json();
       
-      if (!isMounted.current) return; // Don't update if unmounted
+      if (!isMounted.current) return;
       
       if (data.error) {
         console.error('API error:', data.error);
@@ -104,7 +120,7 @@ export default function Community() {
     } catch (error) {
       if (error.name === 'AbortError') {
         console.log('Fetch aborted:', activeTab);
-        return; // Don't handle aborted errors
+        return;
       }
       console.error('Fetch error:', error);
       if (isMounted.current) {
@@ -125,9 +141,17 @@ export default function Community() {
       return;
     }
 
+    // If user doesn't have profile, redirect to create one
+    if (!profile) {
+      if (confirm('You need to create a profile first. Go to profile page?')) {
+        window.location.href = '/profile';
+      }
+      return;
+    }
+
     try {
       const abortController = new AbortController();
-      const timeoutId = setTimeout(() => abortController.abort(), 10000); // 10 second timeout
+      const timeoutId = setTimeout(() => abortController.abort(), 10000);
       
       const response = await fetch('/api/community', {
         method: 'POST',
@@ -135,6 +159,7 @@ export default function Community() {
         body: JSON.stringify({
           type: newContent.type,
           user_id: user.id,
+          username: profile.username, // Use profile username
           ...newContent
         }),
         signal: abortController.signal
@@ -171,7 +196,7 @@ export default function Community() {
           <div key={fork.id} className="community-item">
             <div className="item-header">
               <img 
-                src={fork.profiles?.profile_picture_url || fork.profiles?.avatar_url || '/default-avatar.png'} 
+                src={fork.profiles?.profile_picture_url || '/default-avatar.png'} 
                 alt={fork.profiles?.username} 
                 onError={(e) => {
                   e.target.src = '/default-avatar.png';
@@ -196,7 +221,7 @@ export default function Community() {
           <div key={comment.id} className="community-item">
             <div className="item-header">
               <img 
-                src={comment.profiles?.profile_picture_url || comment.profiles?.avatar_url || '/default-avatar.png'} 
+                src={comment.profiles?.profile_picture_url || '/default-avatar.png'} 
                 alt={comment.profiles?.username}
                 onError={(e) => {
                   e.target.src = '/default-avatar.png';
@@ -220,7 +245,7 @@ export default function Community() {
           <div key={issue.id} className="community-item">
             <div className="item-header">
               <img 
-                src={issue.profiles?.profile_picture_url || issue.profiles?.avatar_url || '/default-avatar.png'} 
+                src={issue.profiles?.profile_picture_url || '/default-avatar.png'} 
                 alt={issue.profiles?.username}
                 onError={(e) => {
                   e.target.src = '/default-avatar.png';
@@ -250,10 +275,39 @@ export default function Community() {
         <h2>Community Hub</h2>
         <div className="user-status">
           {user ? (
-            <span>Welcome, {user.email?.split('@')[0] || 'User'}!</span>
+            <div>
+              {profile ? (
+                <div className="user-info">
+                  <img 
+                    src={profile.profile_picture_url || '/default-avatar.png'} 
+                    alt={profile.username}
+                    className="user-avatar"
+                    onError={(e) => {
+                      e.target.src = '/default-avatar.png';
+                    }}
+                  />
+                  <span>Welcome, {profile.username}!</span>
+                </div>
+              ) : (
+                <div>
+                  <span>Welcome! </span>
+                  <button 
+                    onClick={() => window.location.href = '/profile'}
+                    className="create-profile-btn"
+                  >
+                    Create Profile
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <button 
-              onClick={() => window.location.href = '/auth'}
+              onClick={() => supabase.auth.signInWithOAuth({ 
+                provider: 'github',
+                options: {
+                  redirectTo: `${window.location.origin}/profile`
+                }
+              })}
               className="login-button"
             >
               Login to participate
@@ -346,10 +400,12 @@ export default function Community() {
 
             <button 
               type="submit" 
-              disabled={!user || loading}
-              className={`submit-button ${!user ? 'disabled' : ''}`}
+              disabled={!user || !profile || loading}
+              className={`submit-button ${!user || !profile ? 'disabled' : ''}`}
             >
-              {user ? 'Submit' : 'Login to contribute'}
+              {!user ? 'Login to contribute' : 
+               !profile ? 'Create Profile First' : 
+               'Submit'}
             </button>
           </form>
         </div>
