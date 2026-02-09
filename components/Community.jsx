@@ -15,63 +15,122 @@ export default function Community() {
     description: '',
     name: ''
   });
+  const [authChecked, setAuthChecked] = useState(false);
 
+  // FIX 1: Listen for auth state changes
   useEffect(() => {
-    fetchUser();
-    fetchContent();
-  }, [activeTab]);
+    // Setup auth listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Community auth event:', event);
+        if (session?.user) {
+          setUser(session.user);
+        } else {
+          setUser(null);
+        }
+        setAuthChecked(true);
+      }
+    );
 
-  const fetchUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
-  };
+    // Initial auth check
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      setAuthChecked(true);
+    };
+    checkUser();
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Fetch content when tab changes or when user logs in/out
+  useEffect(() => {
+    if (authChecked) {
+      fetchContent();
+    }
+  }, [activeTab, authChecked]);
 
   const fetchContent = async () => {
     setLoading(true);
-    const { data, error } = await fetch(`/api/community?type=${activeTab}`).then(res => res.json());
-    
-    if (!error) {
-      setContent(data.data || []);
+    try {
+      const response = await fetch(`/api/community?type=${activeTab}`);
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      const data = await response.json();
+      
+      if (data.error) {
+        console.error('API error:', data.error);
+        setContent([]);
+      } else {
+        setContent(data.data || []);
+      }
+    } catch (error) {
+      console.error('Fetch error:', error);
+      setContent([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    const response = await fetch('/api/community', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: newContent.type,
-        user_id: user.id,
-        ...newContent
-      })
-    });
+    if (!user) {
+      alert('Please login first!');
+      return;
+    }
 
-    if (response.ok) {
-      setNewContent({ type: 'comment', content: '', title: '', description: '', name: '' });
-      fetchContent();
+    try {
+      const response = await fetch('/api/community', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: newContent.type,
+          user_id: user.id,
+          ...newContent
+        })
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        setNewContent({ type: 'comment', content: '', title: '', description: '', name: '' });
+        fetchContent();
+        alert('Posted successfully!');
+      } else {
+        alert(`Error: ${result.error || 'Failed to post'}`);
+      }
+    } catch (error) {
+      console.error('Submit error:', error);
+      alert('Failed to post. Please try again.');
     }
   };
 
   const renderContent = () => {
+    if (content.length === 0) {
+      return <div className="no-content">No {activeTab} found. Be the first to post!</div>;
+    }
+
     switch (activeTab) {
       case 'forks':
         return content.map(fork => (
           <div key={fork.id} className="community-item">
             <div className="item-header">
-              <img src={fork.profiles?.profile_picture_url || '/default-avatar.png'} alt={fork.profiles?.username} />
+              <img 
+                src={fork.profiles?.profile_picture_url || fork.profiles?.avatar_url || '/default-avatar.png'} 
+                alt={fork.profiles?.username} 
+              />
               <div>
                 <h4>{fork.name}</h4>
-                <p>by {fork.profiles?.username}</p>
+                <p>by {fork.profiles?.username || 'Anonymous'}</p>
               </div>
             </div>
-            <p>{fork.description}</p>
+            <p>{fork.description || 'No description'}</p>
             <div className="item-stats">
-              <span>❤️ {fork.likes}</span>
-              <span>⬇️ {fork.downloads}</span>
-              <span>🏷️ {fork.tags?.join(', ')}</span>
+              <span>❤️ {fork.likes || 0}</span>
+              <span>⬇️ {fork.downloads || 0}</span>
+              <span>🏷️ {fork.tags?.join(', ') || 'No tags'}</span>
             </div>
           </div>
         ));
@@ -80,16 +139,19 @@ export default function Community() {
         return content.map(comment => (
           <div key={comment.id} className="community-item">
             <div className="item-header">
-              <img src={comment.profiles?.profile_picture_url || '/default-avatar.png'} alt={comment.profiles?.username} />
+              <img 
+                src={comment.profiles?.profile_picture_url || comment.profiles?.avatar_url || '/default-avatar.png'} 
+                alt={comment.profiles?.username} 
+              />
               <div>
-                <h4>{comment.profiles?.username}</h4>
+                <h4>{comment.profiles?.username || 'Anonymous'}</h4>
                 <small>{new Date(comment.created_at).toLocaleDateString()}</small>
               </div>
             </div>
             <p>{comment.content}</p>
             <div className="item-actions">
               <button>Reply</button>
-              <button>❤️ {comment.likes}</button>
+              <button>❤️ {comment.likes || 0}</button>
             </div>
           </div>
         ));
@@ -98,16 +160,19 @@ export default function Community() {
         return content.map(issue => (
           <div key={issue.id} className="community-item">
             <div className="item-header">
-              <img src={issue.profiles?.profile_picture_url || '/default-avatar.png'} alt={issue.profiles?.username} />
+              <img 
+                src={issue.profiles?.profile_picture_url || issue.profiles?.avatar_url || '/default-avatar.png'} 
+                alt={issue.profiles?.username} 
+              />
               <div>
                 <h4>{issue.title}</h4>
-                <span className={`status-badge ${issue.status}`}>{issue.status}</span>
+                <span className={`status-badge ${issue.status}`}>{issue.status || 'open'}</span>
               </div>
             </div>
             <p>{issue.description}</p>
             <div className="item-meta">
-              <span>Priority: {issue.priority}</span>
-              <span>Category: {issue.category}</span>
+              <span>Priority: {issue.priority || 'medium'}</span>
+              <span>Category: {issue.category || 'other'}</span>
             </div>
           </div>
         ));
@@ -118,6 +183,15 @@ export default function Community() {
     <div className="community-container">
       <div className="community-header">
         <h2>Community Hub</h2>
+        <div className="user-status">
+          {user ? (
+            <span>Welcome, {user.email?.split('@')[0] || 'User'}!</span>
+          ) : (
+            <button onClick={() => window.location.href = '/auth'}>
+              Login to participate
+            </button>
+          )}
+        </div>
         <div className="tab-navigation">
           {['forks', 'comments', 'issues'].map(tab => (
             <button
@@ -196,7 +270,11 @@ export default function Community() {
               />
             )}
 
-            <button type="submit" disabled={!user}>
+            <button 
+              type="submit" 
+              disabled={!user || loading}
+              className={!user ? 'disabled' : ''}
+            >
               {user ? 'Submit' : 'Login to contribute'}
             </button>
           </form>
