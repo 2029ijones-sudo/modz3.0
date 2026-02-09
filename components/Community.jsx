@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import './Community.css';
 
@@ -8,7 +8,7 @@ export default function Community() {
   const [content, setContent] = useState([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null); // ADD THIS - same as profile.jsx
+  const [profile, setProfile] = useState(null);
   const [newContent, setNewContent] = useState({
     type: 'comment',
     content: '',
@@ -16,92 +16,118 @@ export default function Community() {
     description: '',
     name: ''
   });
-  
-  const isMounted = useRef(true);
-  const abortControllerRef = useRef(null);
+  const [contentLoading, setContentLoading] = useState(false);
 
-  // FIX: Use SAME auth logic as profile.jsx
+  // EXACT SAME AUTH LOGIC AS PROFILE.JSX
   useEffect(() => {
-    // Check initial session
-    const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (isMounted.current) {
-        setUser(user);
-        if (user) {
-          // Get profile SAME WAY as profile.jsx does
-          await getProfile(user.id);
-        }
+    console.log('Community: Setting up auth...');
+    
+    // 1. Handle OAuth callback if we're returning from auth
+    const handleOAuthCallback = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error('Community: Error getting session:', error);
+      }
+      
+      if (session) {
+        console.log('Community: Session found:', session.user.email);
+        setUser(session.user);
+        await fetchProfile(session.user.id);
       }
     };
-    
-    checkUser();
 
-    // Listen for auth changes
+    handleOAuthCallback();
+    
+    // 2. Initial check
+    fetchUserAndProfile();
+    
+    // 3. Listen for auth state changes (EXACT SAME AS PROFILE.JSX)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Community auth event:', event);
+        console.log('Community: Auth state changed:', event, session?.user?.email);
+        
         if (session?.user) {
-          if (isMounted.current) {
-            setUser(session.user);
-            // Get profile when user logs in
-            await getProfile(session.user.id);
-          }
+          setUser(session.user);
+          await fetchProfile(session.user.id);
         } else {
-          if (isMounted.current) {
-            setUser(null);
-            setProfile(null);
-          }
+          setUser(null);
+          setProfile(null);
         }
+        setLoading(false);
       }
     );
-
+    
+    // Cleanup
     return () => {
-      isMounted.current = false;
-      subscription.unsubscribe();
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      subscription?.unsubscribe();
     };
   }, []);
 
-  // SAME function as profile.jsx uses
-  const getProfile = async (userId) => {
+  // EXACT SAME AS PROFILE.JSX
+  const fetchUserAndProfile = async () => {
     try {
-      const { data, error } = await supabase
+      console.log('Community: Fetching user...');
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error) {
+        console.error('Community: Error getting user:', error);
+        return;
+      }
+      
+      console.log('Community: User found:', user?.email);
+      setUser(user);
+
+      if (user) {
+        await fetchProfile(user.id);
+      }
+    } catch (error) {
+      console.error('Community: Error in fetchUserAndProfile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // SIMILAR TO PROFILE.JSX
+  const fetchProfile = async (userId) => {
+    try {
+      console.log('Community: Fetching profile for user:', userId);
+      const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
         .single();
-      
+
       if (error) {
-        console.log('No profile found for community user:', error.message);
-        setProfile(null);
-      } else {
-        setProfile(data);
+        if (error.code === 'PGRST116') { // No profile found
+          console.log('Community: No profile found');
+          setProfile(null);
+        } else {
+          console.error('Community: Error fetching profile:', error);
+        }
+        return;
       }
+
+      console.log('Community: Profile found:', profile.username);
+      setProfile(profile);
     } catch (error) {
-      console.error('Error fetching profile for community:', error);
+      console.error('Community: Error in fetchProfile:', error);
       setProfile(null);
     }
   };
 
   // Fetch community content
   useEffect(() => {
-    fetchContent();
-  }, [activeTab]);
+    if (!loading) { // Only fetch after auth check is done
+      fetchContent();
+    }
+  }, [activeTab, loading]);
 
   const fetchContent = async () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    
-    abortControllerRef.current = new AbortController();
-    const signal = abortControllerRef.current.signal;
-    
-    setLoading(true);
+    setContentLoading(true);
     
     try {
-      const response = await fetch(`/api/community?type=${activeTab}`, { signal });
+      const response = await fetch(`/api/community?type=${activeTab}`);
       
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
@@ -109,27 +135,17 @@ export default function Community() {
       
       const data = await response.json();
       
-      if (!isMounted.current) return;
-      
       if (data.error) {
-        console.error('API error:', data.error);
+        console.error('Community: API error:', data.error);
         setContent([]);
       } else {
         setContent(data.data || []);
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
-        console.log('Fetch aborted:', activeTab);
-        return;
-      }
-      console.error('Fetch error:', error);
-      if (isMounted.current) {
-        setContent([]);
-      }
+      console.error('Community: Fetch error:', error);
+      setContent([]);
     } finally {
-      if (isMounted.current) {
-        setLoading(false);
-      }
+      setContentLoading(false);
     }
   };
 
@@ -141,31 +157,17 @@ export default function Community() {
       return;
     }
 
-    // If user doesn't have profile, redirect to create one
-    if (!profile) {
-      if (confirm('You need to create a profile first. Go to profile page?')) {
-        window.location.href = '/profile';
-      }
-      return;
-    }
-
     try {
-      const abortController = new AbortController();
-      const timeoutId = setTimeout(() => abortController.abort(), 10000);
-      
       const response = await fetch('/api/community', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: newContent.type,
           user_id: user.id,
-          username: profile.username, // Use profile username
           ...newContent
-        }),
-        signal: abortController.signal
+        })
       });
 
-      clearTimeout(timeoutId);
       const result = await response.json();
       
       if (response.ok) {
@@ -176,12 +178,56 @@ export default function Community() {
         alert(`Error: ${result.error || 'Failed to post'}`);
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
-        alert('Request timed out. Please try again.');
-      } else {
-        console.error('Submit error:', error);
-        alert('Failed to post. Please try again.');
+      console.error('Community: Submit error:', error);
+      alert('Failed to post. Please try again.');
+    }
+  };
+
+  // USE EXACT SAME LOGIN FUNCTION AS PROFILE.JSX
+  const handleGitHubLogin = async () => {
+    console.log('Community: Starting GitHub login...');
+    
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({ 
+        provider: 'github',
+        options: {
+          redirectTo: `${window.location.origin}/profile`,
+          scopes: 'read:user user:email'
+        }
+      });
+      
+      if (error) {
+        console.error('Community: GitHub login error:', error);
+        alert('GitHub login failed: ' + error.message);
       }
+    } catch (error) {
+      console.error('Community: Unexpected error during GitHub login:', error);
+      alert('An unexpected error occurred');
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    console.log('Community: Starting Google login...');
+    
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({ 
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/profile`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          }
+        }
+      });
+      
+      if (error) {
+        console.error('Community: Google login error:', error);
+        alert('Google login failed: ' + error.message);
+      }
+    } catch (error) {
+      console.error('Community: Unexpected error during Google login:', error);
+      alert('An unexpected error occurred');
     }
   };
 
@@ -269,15 +315,26 @@ export default function Community() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="community-container">
+        <div className="loading">
+          <div className="spinner"></div>
+          <p>Loading community...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="community-container">
       <div className="community-header">
         <h2>Community Hub</h2>
         <div className="user-status">
           {user ? (
-            <div>
+            <div className="user-info">
               {profile ? (
-                <div className="user-info">
+                <>
                   <img 
                     src={profile.profile_picture_url || '/default-avatar.png'} 
                     alt={profile.username}
@@ -286,32 +343,29 @@ export default function Community() {
                       e.target.src = '/default-avatar.png';
                     }}
                   />
-                  <span>Welcome, {profile.username}!</span>
-                </div>
+                  <span>Welcome, {profile.username || user.email?.split('@')[0] || 'User'}!</span>
+                </>
               ) : (
-                <div>
-                  <span>Welcome! </span>
-                  <button 
-                    onClick={() => window.location.href = '/profile'}
-                    className="create-profile-btn"
-                  >
-                    Create Profile
-                  </button>
-                </div>
+                <>
+                  <img 
+                    src="/default-avatar.png" 
+                    alt="User"
+                    className="user-avatar"
+                  />
+                  <span>Welcome! <a href="/profile">Create Profile</a></span>
+                </>
               )}
             </div>
           ) : (
-            <button 
-              onClick={() => supabase.auth.signInWithOAuth({ 
-                provider: 'github',
-                options: {
-                  redirectTo: `${window.location.origin}/profile`
-                }
-              })}
-              className="login-button"
-            >
-              Login to participate
-            </button>
+            <div className="login-buttons">
+              <button className="github-login-btn" onClick={handleGitHubLogin}>
+                <i className="fab fa-github"></i> Login with GitHub
+              </button>
+              
+              <button className="google-login-btn" onClick={handleGoogleLogin}>
+                <i className="fab fa-google"></i> Login with Google
+              </button>
+            </div>
           )}
         </div>
         <div className="tab-navigation">
@@ -328,7 +382,7 @@ export default function Community() {
       </div>
 
       <div className="community-content">
-        {loading ? (
+        {contentLoading ? (
           <div className="loading">Loading community content...</div>
         ) : (
           <div className="content-grid">
@@ -400,12 +454,10 @@ export default function Community() {
 
             <button 
               type="submit" 
-              disabled={!user || !profile || loading}
-              className={`submit-button ${!user || !profile ? 'disabled' : ''}`}
+              disabled={!user || contentLoading}
+              className={`submit-button ${!user ? 'disabled' : ''}`}
             >
-              {!user ? 'Login to contribute' : 
-               !profile ? 'Create Profile First' : 
-               'Submit'}
+              {user ? 'Submit' : 'Login to contribute'}
             </button>
           </form>
         </div>
