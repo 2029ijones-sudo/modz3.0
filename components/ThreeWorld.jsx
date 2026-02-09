@@ -4,305 +4,308 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import * as CANNON from 'cannon-es';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
-import { EffectComposer, BloomEffect, VignetteEffect } from '@react-three/postprocessing';
 import { gsap } from 'gsap';
 
-export default function ThreeWorld() {
+export default function ThreeWorld({ addNotification, worldName }) {
+  const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const sceneRef = useRef(null);
-  const worldRef = useRef(null);
   const [objects, setObjects] = useState([]);
-  const physicsWorld = useRef(new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0) }));
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [error, setError] = useState(null);
+  
+  // Keep physics world reference
+  const physicsWorld = useRef(null);
 
   useEffect(() => {
-    if (!canvasRef.current) return;
+    // Don't run on server side
+    if (typeof window === 'undefined') return;
+    
+    const init = async () => {
+      try {
+        if (!containerRef.current || !canvasRef.current) {
+          throw new Error('Container or canvas not found');
+        }
 
-    // Initialize THREE.js scene
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0a1a);
-    scene.fog = new THREE.Fog(0x0a0a1a, 10, 100);
+        console.log('Initializing 3D World...');
+        
+        // Get container dimensions
+        const container = containerRef.current;
+        const { width, height } = container.getBoundingClientRect();
+        
+        if (width === 0 || height === 0) {
+          throw new Error('Container has zero dimensions');
+        }
 
-    // Camera with cinematic effects
-    const camera = new THREE.PerspectiveCamera(
-      75,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      1000
-    );
-    camera.position.set(15, 10, 20);
+        // Initialize THREE.js scene
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a1a);
+        scene.fog = new THREE.Fog(0x0a0a1a, 10, 100);
 
-    // Advanced renderer with effects
-    const renderer = new THREE.WebGLRenderer({
-      canvas: canvasRef.current,
-      antialias: true,
-      alpha: true,
-      powerPreference: "high-performance"
-    });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.5;
+        // Camera
+        const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+        camera.position.set(15, 10, 20);
 
-    // Advanced OrbitControls
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.screenSpacePanning = false;
-    controls.minDistance = 5;
-    controls.maxDistance = 100;
-    controls.maxPolarAngle = Math.PI / 2.2;
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({
+          canvas: canvasRef.current,
+          antialias: true,
+          alpha: false,
+          powerPreference: "high-performance"
+        });
+        
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.5;
 
-    // Physics world setup
-    physicsWorld.current.gravity.set(0, -9.82, 0);
-    physicsWorld.current.broadphase = new CANNON.NaiveBroadphase();
-    physicsWorld.current.solver.iterations = 10;
+        // Controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = false;
+        controls.minDistance = 5;
+        controls.maxDistance = 100;
+        controls.maxPolarAngle = Math.PI / 2.2;
 
-    // Advanced lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-    scene.add(ambientLight);
+        // Initialize physics
+        const world = new CANNON.World({
+          gravity: new CANNON.Vec3(0, -9.82, 0)
+        });
+        world.broadphase = new CANNON.NaiveBroadphase();
+        world.solver.iterations = 10;
+        physicsWorld.current = world;
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    directionalLight.position.set(10, 30, 15);
-    directionalLight.castShadow = true;
-    directionalLight.shadow.camera.left = -50;
-    directionalLight.shadow.camera.right = 50;
-    directionalLight.shadow.camera.top = 50;
-    directionalLight.shadow.camera.bottom = -50;
-    directionalLight.shadow.mapSize.width = 2048;
-    directionalLight.shadow.mapSize.height = 2048;
-    scene.add(directionalLight);
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
 
-    const pointLight = new THREE.PointLight(0x6c5ce7, 3, 100);
-    pointLight.position.set(0, 20, 0);
-    scene.add(pointLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        directionalLight.position.set(10, 30, 15);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
 
-    const hemisphereLight = new THREE.HemisphereLight(0x4433ff, 0x00ffaa, 0.5);
-    scene.add(hemisphereLight);
+        const pointLight = new THREE.PointLight(0x6c5ce7, 3, 100);
+        pointLight.position.set(0, 20, 0);
+        scene.add(pointLight);
 
-    // Grid floor with physics
-    const gridSize = 100;
-    const gridDivisions = 100;
-    const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x6c5ce7, 0x6c5ce7);
-    gridHelper.material.opacity = 0.2;
-    gridHelper.material.transparent = true;
-    scene.add(gridHelper);
+        // Grid floor
+        const gridSize = 100;
+        const gridDivisions = 100;
+        const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x6c5ce7, 0x6c5ce7);
+        gridHelper.material.opacity = 0.2;
+        gridHelper.material.transparent = true;
+        scene.add(gridHelper);
 
-    // Physics ground
-    const groundShape = new CANNON.Plane();
-    const groundBody = new CANNON.Body({ mass: 0 });
-    groundBody.addShape(groundShape);
-    groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-    physicsWorld.current.addBody(groundBody);
+        // Physics ground
+        const groundShape = new CANNON.Plane();
+        const groundBody = new CANNON.Body({ mass: 0 });
+        groundBody.addShape(groundShape);
+        groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+        world.addBody(groundBody);
 
-    // Particle system
-    const particleCount = 2000;
-    const particles = new THREE.BufferGeometry();
-    const positions = new Float32Array(particleCount * 3);
-    const colors = new Float32Array(particleCount * 3);
+        // Add sample objects
+        const addCube = (position, color = 0x6c5ce7) => {
+          const geometry = new THREE.BoxGeometry(2, 2, 2);
+          const material = new THREE.MeshStandardMaterial({
+            color,
+            metalness: 0.9,
+            roughness: 0.1,
+            emissive: color,
+            emissiveIntensity: 0.3
+          });
 
-    for (let i = 0; i < particleCount * 3; i += 3) {
-      positions[i] = (Math.random() - 0.5) * 200;
-      positions[i + 1] = (Math.random() - 0.5) * 200;
-      positions[i + 2] = (Math.random() - 0.5) * 200;
-      
-      colors[i] = Math.random();
-      colors[i + 1] = Math.random();
-      colors[i + 2] = Math.random();
-    }
+          const cube = new THREE.Mesh(geometry, material);
+          cube.position.copy(position);
+          cube.castShadow = true;
+          cube.receiveShadow = true;
 
-    particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    particles.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+          // Physics
+          const shape = new CANNON.Box(new CANNON.Vec3(1, 1, 1));
+          const body = new CANNON.Body({ mass: 1 });
+          body.addShape(shape);
+          body.position.copy(position);
+          world.addBody(body);
 
-    const particleMaterial = new THREE.PointsMaterial({
-      size: 0.5,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.8,
-      blending: THREE.AdditiveBlending
-    });
+          cube.userData = { physicsBody: body };
+          scene.add(cube);
+          return cube;
+        };
 
-    const particleSystem = new THREE.Points(particles, particleMaterial);
-    scene.add(particleSystem);
+        // Create initial cubes
+        const cubes = [
+          addCube(new THREE.Vector3(0, 5, 0), 0xff0000),
+          addCube(new THREE.Vector3(5, 10, 0), 0x00ff00),
+          addCube(new THREE.Vector3(-5, 8, 5), 0x0000ff),
+        ];
 
-    // Add default interactive objects
-    const addInteractiveCube = (position, color = 0x6c5ce7, size = 2) => {
-      const geometry = new THREE.BoxGeometry(size, size, size);
-      const material = new THREE.MeshStandardMaterial({
-        color,
-        metalness: 0.9,
-        roughness: 0.1,
-        emissive: color,
-        emissiveIntensity: 0.3
+        setObjects(cubes);
+        sceneRef.current = scene;
+
+        // Animation loop
+        let frameId;
+        const animate = () => {
+          frameId = requestAnimationFrame(animate);
+          
+          // Update physics
+          world.step(1/60);
+          
+          // Update object positions from physics
+          cubes.forEach(cube => {
+            if (cube.userData.physicsBody) {
+              cube.position.copy(cube.userData.physicsBody.position);
+              cube.quaternion.copy(cube.userData.physicsBody.quaternion);
+            }
+          });
+          
+          // Update controls
+          controls.update();
+          
+          // Render
+          renderer.render(scene, camera);
+        };
+
+        // Start animation
+        animate();
+        
+        // Handle resize
+        const handleResize = () => {
+          const { width, height } = container.getBoundingClientRect();
+          camera.aspect = width / height;
+          camera.updateProjectionMatrix();
+          renderer.setSize(width, height);
+        };
+        
+        window.addEventListener('resize', handleResize);
+        
+        // Cleanup function
+        return () => {
+          window.removeEventListener('resize', handleResize);
+          if (frameId) cancelAnimationFrame(frameId);
+          renderer.dispose();
+          
+          // Dispose geometries and materials
+          cubes.forEach(cube => {
+            cube.geometry.dispose();
+            cube.material.dispose();
+          });
+        };
+
+      } catch (error) {
+        console.error('Failed to initialize 3D world:', error);
+        setError(error.message);
+        addNotification(`3D World Error: ${error.message}`, 'error');
+        throw error;
+      }
+    };
+
+    init()
+      .then(() => {
+        setIsInitialized(true);
+        addNotification(`${worldName} loaded successfully!`, 'success');
+      })
+      .catch(err => {
+        console.error('Initialization failed:', err);
       });
 
-      const cube = new THREE.Mesh(geometry, material);
-      cube.position.copy(position);
-      cube.castShadow = true;
-      cube.receiveShadow = true;
+  }, [addNotification, worldName]);
 
-      // Physics body
-      const shape = new CANNON.Box(new CANNON.Vec3(size/2, size/2, size/2));
-      const body = new CANNON.Body({ mass: 1 });
-      body.addShape(shape);
-      body.position.copy(position);
-      physicsWorld.current.addBody(body);
-
-      // Interactive properties
-      cube.userData = {
-        type: 'interactive',
-        physicsBody: body,
-        update: (time) => {
-          cube.position.copy(body.position);
-          cube.quaternion.copy(body.quaternion);
-          cube.rotation.y = time * 0.001;
+  // Force canvas to fill container
+  useEffect(() => {
+    if (containerRef.current && canvasRef.current) {
+      const updateSize = () => {
+        const container = containerRef.current;
+        const canvas = canvasRef.current;
+        if (container && canvas) {
+          const { width, height } = container.getBoundingClientRect();
+          canvas.style.width = `${width}px`;
+          canvas.style.height = `${height}px`;
         }
       };
-
-      scene.add(cube);
-      return cube;
-    };
-
-    // Create initial objects
-    const initialObjects = [];
-    for (let i = 0; i < 5; i++) {
-      const pos = new THREE.Vector3(
-        (Math.random() - 0.5) * 20,
-        5 + Math.random() * 10,
-        (Math.random() - 0.5) * 20
-      );
-      const color = new THREE.Color(Math.random() * 0xffffff);
-      initialObjects.push(addInteractiveCube(pos, color));
+      
+      updateSize();
+      window.addEventListener('resize', updateSize);
+      return () => window.removeEventListener('resize', updateSize);
     }
-
-    setObjects(initialObjects);
-
-    // Animation loop
-    let lastTime = 0;
-    const animate = (currentTime) => {
-      requestAnimationFrame(animate);
-
-      const delta = (currentTime - lastTime) / 1000;
-      lastTime = currentTime;
-
-      // Update physics
-      if (delta > 0) {
-        physicsWorld.current.step(1/60, delta, 3);
-      }
-
-      // Update objects
-      scene.traverse((object) => {
-        if (object.userData && object.userData.update) {
-          object.userData.update(currentTime);
-        }
-      });
-
-      // Animate particles
-      particleSystem.rotation.y += 0.001;
-
-      // Update controls
-      controls.update();
-
-      // Render
-      renderer.render(scene, camera);
-    };
-
-    // Handle window resize
-    const handleResize = () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    };
-
-    window.addEventListener('resize', handleResize);
-    animate(0);
-
-    sceneRef.current = scene;
-
-    // Cleanup
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      renderer.dispose();
-    };
   }, []);
 
-  const addObjectFromMod = async (modData) => {
-    if (!sceneRef.current) return;
-
-    try {
-      // Parse mod data
-      const mod = typeof modData === 'string' ? JSON.parse(modData) : modData;
-      
-      if (mod.type === 'javascript') {
-        // Execute JavaScript mod
-        const sandbox = createSandbox(sceneRef.current, physicsWorld.current);
-        const result = await executeInSandbox(mod.code, sandbox);
-        
-        if (result && result.object) {
-          sceneRef.current.add(result.object);
-          setObjects(prev => [...prev, result.object]);
-        }
-      } else if (mod.type === '3d-model') {
-        // Load 3D model
-        const loader = new GLTFLoader();
-        const gltf = await loader.loadAsync(mod.url);
-        sceneRef.current.add(gltf.scene);
-        setObjects(prev => [...prev, gltf.scene]);
-      }
-    } catch (error) {
-      console.error('Error adding mod:', error);
-    }
-  };
-
-  const createSandbox = (scene, physicsWorld) => {
-    return {
-      THREE,
-      CANNON,
-      gsap,
-      scene,
-      physicsWorld,
-      Math,
-      Date,
-      console: {
-        log: (...args) => console.log('[Sandbox]:', ...args),
-        warn: (...args) => console.warn('[Sandbox]:', ...args),
-        error: (...args) => console.error('[Sandbox]:', ...args)
-      },
-      setTimeout: (fn, delay) => setTimeout(fn, delay),
-      setInterval: (fn, interval) => setInterval(fn, interval),
-      clearTimeout: (id) => clearTimeout(id),
-      clearInterval: (id) => clearInterval(id)
-    };
-  };
-
-  const executeInSandbox = async (code, sandbox) => {
-    try {
-      // Create a function from the code with sandboxed scope
-      const func = new Function(...Object.keys(sandbox), `
-        "use strict";
-        try {
-          ${code}
-          return typeof createObject !== 'undefined' ? createObject() : undefined;
-        } catch(error) {
-          console.error('Sandbox error:', error);
-          return null;
-        }
-      `);
-      
-      return func(...Object.values(sandbox));
-    } catch (error) {
-      console.error('Execution error:', error);
-      return null;
-    }
-  };
+  if (error) {
+    return (
+      <div className="error-fallback">
+        <i className="fas fa-exclamation-triangle fa-3x"></i>
+        <h3>3D World Failed to Load</h3>
+        <p>Error: {error}</p>
+        <p>This could be due to WebGL not being supported in your browser.</p>
+        <button 
+          className="btn btn-primary"
+          onClick={() => window.location.reload()}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="world-container">
-      <canvas ref={canvasRef} className="three-canvas" />
-      <div className="world-stats">
-        <div className="stat">Objects: {objects.length}</div>
-        <div className="stat">Physics: Active</div>
-        <div className="stat">FPS: 60</div>
+    <div className="world-container" ref={containerRef}>
+      <canvas 
+        ref={canvasRef} 
+        className="three-canvas"
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          background: '#0a0a1a'
+        }}
+      />
+      
+      {!isInitialized && (
+        <div className="loading-overlay">
+          <div className="spinner"></div>
+          <p>Loading 3D World...</p>
+        </div>
+      )}
+      
+      <div className="world-ui">
+        <div className="world-header">
+          <h3>{worldName || '3D World'}</h3>
+          <div className="stats">
+            <span className="stat">Objects: {objects.length}</span>
+            <span className="stat">Physics: Active</span>
+          </div>
+        </div>
+        
+        <div className="controls">
+          <button className="btn btn-small" onClick={() => addNotification('Add Object feature coming soon', 'info')}>
+            <i className="fas fa-cube"></i> Add Object
+          </button>
+          <button className="btn btn-small" onClick={() => {
+            if (sceneRef.current) {
+              sceneRef.current.children.forEach(obj => {
+                if (obj.userData?.physicsBody) {
+                  obj.userData.physicsBody.applyImpulse(
+                    new CANNON.Vec3(
+                      (Math.random() - 0.5) * 10,
+                      Math.random() * 20,
+                      (Math.random() - 0.5) * 10
+                    ),
+                    new CANNON.Vec3(0, 0, 0)
+                  );
+                }
+              });
+              addNotification('Physics impulse applied!', 'success');
+            }
+          }}>
+            <i className="fas fa-bolt"></i> Apply Physics
+          </button>
+        </div>
+      </div>
+      
+      {/* Instructions overlay */}
+      <div className="instructions">
+        <p>Click and drag to orbit • Scroll to zoom • Right-click to pan</p>
       </div>
     </div>
   );
