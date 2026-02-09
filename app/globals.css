@@ -1204,3 +1204,189 @@ header::before {
         width: 100%;
     }
 }
+/* ===== ADD THESE MISSING STYLES FOR ThreeWorld ===== */
+
+/* .error-fallback class (missing) */
+.error-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: white;
+  text-align: center;
+  padding: 40px;
+  border-radius: 10px;
+}
+
+.error-fallback i {
+  color: #ff6b6b;
+  margin-bottom: 20px;
+  font-size: 3rem;
+}
+
+.error-fallback h3 {
+  margin: 0 0 10px 0;
+  font-size: 1.5rem;
+}
+
+.error-fallback p {
+  margin: 5px 0;
+  opacity: 0.8;
+}
+
+/* .loading-overlay class (missing) */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: rgba(10, 10, 26, 0.9);
+  color: white;
+  z-index: 10;
+}
+
+/* .spinner class (missing) */
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 3px solid transparent;
+  border-top-color: #6c5ce7;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+/* Add this keyframe if not already there */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* .world-ui class (missing) */
+.world-ui {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.world-ui > * {
+  pointer-events: auto;
+}
+
+/* .world-header class (adjust existing) */
+.world-header h3 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+/* .stats class (missing) */
+.stats {
+  display: flex;
+  gap: 20px;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+/* .controls class (missing) */
+.controls {
+  display: flex;
+  gap: 10px;
+}
+
+/* .btn-small class (missing) */
+.btn-small {
+  padding: 6px 12px;
+  font-size: 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  backdrop-filter: blur(10px);
+  transition: all 0.2s;
+}
+
+.btn-small:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+/* .instructions class (missing) */
+.instructions {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* .btn-primary class (adjust existing) */
+.btn-primary {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-top: 20px;
+  transition: all 0.3s;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(108, 92, 231, 0.3);
+}
+
+/* ===== FIX THE CANVAS STYLING ===== */
+.three-canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+/* ===== ENSURE PARENT CONTAINER HAS HEIGHT ===== */
+.world-wrapper {
+  width: 100%;
+  height: 100%;
+  min-height: 500px;
+  position: relative;
+}
+
+/* ===== DEBUG STYLES (remove after fixing) ===== */
+.debug-info {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0,0,0,0.7);
+  color: #00ff00;
+  padding: 10px;
+  font-family: monospace;
+  font-size: 12px;
+  z-index: 1000;
+  border: 1px solid #00ff00;
+}
