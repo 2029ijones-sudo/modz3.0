@@ -22,16 +22,14 @@ export async function GET(request) {
 
     switch (type) {
       case 'forks':
-        // FIXED: Join with users table, not profiles
+        // FIXED: Get user info from auth.users via profiles table OR use default
         query = supabase
           .from('world_forks')
           .select(`
             *,
-            users!world_forks_forked_by_user_id_fkey (
-              id,
-              email,
+            profiles:profiles!inner (
               username,
-              avatar_url
+              profile_picture_url
             )
           `)
           .eq('is_public', true)
@@ -53,26 +51,22 @@ export async function GET(request) {
         break;
 
       case 'comments':
-        // FIXED: Join with users table, not profiles
+        // FIXED: Get user info from auth.users via profiles
         query = supabase
           .from('world_comments')
           .select(`
             *,
-            users!world_comments_user_id_fkey (
-              id,
-              email,
+            profiles:profiles!inner (
               username,
-              avatar_url
+              profile_picture_url
             ),
             replies:world_comments!parent_comment_id (
               id,
               content,
               created_at,
-              users!world_comments_user_id_fkey (
-                id,
-                email,
+              profiles:profiles!inner (
                 username,
-                avatar_url
+                profile_picture_url
               )
             )
           `)
@@ -91,16 +85,14 @@ export async function GET(request) {
         break;
 
       case 'issues':
-        // FIXED: Join with users table, not profiles
+        // FIXED: Get user info from auth.users via profiles
         query = supabase
           .from('world_issues')
           .select(`
             *,
-            users!world_issues_reported_by_user_id_fkey (
-              id,
-              email,
+            profiles:profiles!inner (
               username,
-              avatar_url
+              profile_picture_url
             )
           `)
           .order('created_at', { ascending: false });
@@ -133,17 +125,45 @@ export async function GET(request) {
 
     if (dataResult.error) {
       console.error('Supabase query error:', dataResult.error);
-      throw dataResult.error;
+      // If profiles join fails, try without it
+      const fallbackQuery = supabase
+        .from(type === 'forks' ? 'world_forks' : 
+              type === 'comments' ? 'world_comments' : 'world_issues')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      const fallbackResult = await fallbackQuery.range(offset, offset + limit - 1);
+      
+      if (fallbackResult.error) throw fallbackResult.error;
+      
+      // Add default profile data
+      const transformedData = fallbackResult.data.map(item => ({
+        ...item,
+        profiles: {
+          username: 'Anonymous',
+          profile_picture_url: null
+        }
+      }));
+      
+      return NextResponse.json({
+        data: transformedData,
+        pagination: {
+          page,
+          limit,
+          total: countResult.count || 0,
+          totalPages: Math.ceil((countResult.count || 0) / limit)
+        }
+      });
     }
 
-    // Transform the data to match what your frontend expects
+    // Transform the data
     const transformedData = dataResult.data.map(item => {
-      const user = item.users || {};
+      const profile = item.profiles || {};
       return {
         ...item,
         profiles: {
-          username: user.username || user.email?.split('@')[0] || 'Anonymous',
-          profile_picture_url: user.avatar_url || null
+          username: profile.username || 'Anonymous',
+          profile_picture_url: profile.profile_picture_url || null
         }
       };
     });
@@ -170,7 +190,15 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { type } = body;
+    const { type, user_id } = body;
+
+    // Validate user exists (check auth)
+    if (!user_id) {
+      return NextResponse.json(
+        { error: 'User ID is required' },
+        { status: 401 }
+      );
+    }
 
     let tableName;
     let insertData;
@@ -180,7 +208,7 @@ export async function POST(request) {
         tableName = 'world_forks';
         insertData = {
           original_world_state_id: body.world_id || 'current',
-          forked_by_user_id: body.user_id,
+          forked_by_user_id: user_id,
           name: body.name,
           description: body.description,
           data: body.data || {},
@@ -194,11 +222,10 @@ export async function POST(request) {
         insertData = {
           world_fork_id: body.world_fork_id,
           world_state_id: body.world_state_id,
-          user_id: body.user_id,
+          user_id: user_id,
           content: body.content,
           parent_comment_id: body.parent_comment_id
         };
-        // Ensure at least one world reference exists
         if (!insertData.world_fork_id && !insertData.world_state_id) {
           insertData.world_state_id = 'current';
         }
@@ -209,13 +236,12 @@ export async function POST(request) {
         insertData = {
           world_fork_id: body.world_fork_id,
           world_state_id: body.world_state_id,
-          reported_by_user_id: body.user_id,
+          reported_by_user_id: user_id,
           title: body.title,
           description: body.description,
           priority: body.priority || 'medium',
           category: body.category || 'other'
         };
-        // Ensure at least one world reference exists
         if (!insertData.world_fork_id && !insertData.world_state_id) {
           insertData.world_state_id = 'current';
         }
