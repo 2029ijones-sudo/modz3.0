@@ -1,144 +1,183 @@
 import { NextResponse } from 'next/server';
-import * as acorn from 'acorn';
-import * as acornLoose from 'acorn-loose';
 
-// Validate and parse code (no execution)
+// Validate and parse code (no execution) - FIXED VERSION
 export async function POST(request) {
   try {
     const { code } = await request.json();
     
-    // Import safe libraries (these don't cause build issues)
-    const THREE = await import('three');
-    const CANNON = await import('cannon-es');
-    const gsap = await import('gsap');
-    const lodash = await import('lodash');
-    const uuid = await import('uuid');
-    const p5 = await import('p5');
-    const matter = await import('matter-js');
-    
-    // Parse with acorn to validate syntax
-    let ast;
-    try {
-      ast = acorn.parse(code, {
-        ecmaVersion: 'latest',
-        sourceType: 'module'
-      });
-    } catch (strictError) {
-      // Try loose parsing
-      ast = acornLoose.parse(code, {
-        ecmaVersion: 'latest',
-        sourceType: 'module'
-      });
+    if (!code || typeof code !== 'string') {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'No code provided' 
+      }, { status: 400 });
     }
+    
+    // Only parse if code is relatively small (avoid DoS)
+    if (code.length > 100000) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Code too large (max 100KB)' 
+      }, { status: 400 });
+    }
+    
+    // Try to parse with acorn if available, otherwise use basic validation
+    let ast = null;
+    let syntaxValid = true;
+    let parseError = null;
+    let acornAvailable = false;
+    
+    try {
+      // Dynamic import to avoid build issues
+      const acorn = await import('acorn');
+      const acornLoose = await import('acorn-loose');
+      
+      acornAvailable = true;
+      
+      try {
+        ast = acorn.parse(code, {
+          ecmaVersion: 'latest',
+          sourceType: 'module'
+        });
+      } catch (strictError) {
+        // Try loose parsing
+        ast = acornLoose.parse(code, {
+          ecmaVersion: 'latest',
+          sourceType: 'module'
+        });
+      }
+    } catch (importError) {
+      console.log('Acorn not available, using basic validation:', importError.message);
+      // Fallback to basic validation
+      try {
+        // Simple validation that doesn't execute
+        new Function(code);
+      } catch (basicError) {
+        syntaxValid = false;
+        parseError = basicError.message;
+      }
+    }
+    
+    // Analyze the code
+    const lines = code.split('\n').length;
+    const sizeBytes = new Blob([code]).size;
+    
+    // Check for library usage (simple string matching)
+    const hasThreeJS = /THREE\.|three|import.*three|from.*three/i.test(code);
+    const hasPhysics = /CANNON\.|cannon|import.*cannon|from.*cannon/i.test(code);
+    const hasGSAP = /gsap\.|import.*gsap|from.*gsap/i.test(code);
+    const hasLodash = /lodash\.|import.*lodash|from.*lodash|_\./i.test(code);
+    const hasP5 = /p5\.|import.*p5|from.*p5/i.test(code);
+    const hasMatter = /matter\.|import.*matter|from.*matter/i.test(code);
     
     // Check for dangerous patterns
     const dangerousPatterns = [
       'eval',
-      'Function',
-      'setTimeout',
-      'setInterval',
-      'require',
-      'import',
-      'fetch',
+      'Function(',
+      'setTimeout(',
+      'setInterval(',
+      'require(',
+      'fetch(',
       'XMLHttpRequest',
-      'document',
-      'window',
+      'document.',
+      'window.',
       'localStorage',
       'sessionStorage',
       'indexedDB'
     ];
     
-    const codeLower = code.toLowerCase();
     const foundDangerous = dangerousPatterns.filter(pattern => 
-      codeLower.includes(pattern.toLowerCase())
+      code.includes(pattern)
     );
     
-    // Analyze the AST for more insights
+    // Count functions and variables if AST is available
     let functionCount = 0;
     let variableCount = 0;
     let importCount = 0;
     
-    // Simple AST traversal
-    const traverse = (node) => {
-      if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression') {
-        functionCount++;
-      }
-      if (node.type === 'VariableDeclaration') {
-        variableCount += node.declarations?.length || 0;
-      }
-      if (node.type === 'ImportDeclaration') {
-        importCount++;
-      }
-      
-      for (const key in node) {
-        if (node[key] && typeof node[key] === 'object') {
-          if (Array.isArray(node[key])) {
-            node[key].forEach(traverse);
-          } else {
-            traverse(node[key]);
+    if (ast && acornAvailable) {
+      const traverse = (node) => {
+        if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') {
+          functionCount++;
+        }
+        if (node.type === 'VariableDeclaration') {
+          variableCount += node.declarations?.length || 0;
+        }
+        if (node.type === 'ImportDeclaration') {
+          importCount++;
+        }
+        
+        for (const key in node) {
+          if (node[key] && typeof node[key] === 'object') {
+            if (Array.isArray(node[key])) {
+              node[key].forEach(traverse);
+            } else {
+              traverse(node[key]);
+            }
           }
         }
-      }
+      };
+      
+      traverse(ast);
+    } else {
+      // Fallback counts
+      functionCount = (code.match(/function\s+\w+\s*\(|\([^)]*\)\s*=>|\basync\s+function/g) || []).length;
+      importCount = (code.match(/import\s+.*\s+from/g) || []).length;
+      variableCount = (code.match(/\b(const|let|var)\s+\w+/g) || []).length;
+    }
+    
+    // Create analysis result
+    const analysis = {
+      lines,
+      characters: code.length,
+      sizeBytes,
+      functions: functionCount,
+      variables: variableCount,
+      imports: importCount,
+      libraries: {
+        hasThreeJS,
+        hasPhysics, 
+        hasGSAP,
+        hasLodash,
+        hasP5,
+        hasMatter
+      },
+      dangerousPatterns: foundDangerous,
+      syntaxValid: syntaxValid && !parseError,
+      parseError: parseError || null,
+      acornUsed: acornAvailable
     };
     
-    traverse(ast);
-    
-    // Check for library usage
-    const hasThreeJS = code.includes('THREE.') || code.includes('three');
-    const hasPhysics = code.includes('CANNON.') || code.includes('cannon');
-    const hasGSAP = code.includes('gsap');
-    const hasLodash = code.includes('lodash') || code.includes('_');
-    const hasP5 = code.includes('p5');
-    const hasMatter = code.includes('matter');
-    
-    // Create a mock/simulated result using the actual libraries
-    // This is just for demonstration - not actual execution
-    const mockResult = {
+    // Create simulated result WITHOUT importing actual libraries
+    const simulatedResult = {
       librariesAvailable: {
-        THREE: THREE.default ? 'Loaded' : 'Available',
-        CANNON: CANNON.default ? 'Loaded' : 'Available', 
-        gsap: gsap.default ? 'Loaded' : 'Available',
-        lodash: lodash.default ? 'Loaded' : 'Available',
-        uuid: uuid.v4 ? 'Loaded' : 'Available',
-        p5: p5.default ? 'Loaded' : 'Available',
-        matter: matter.default ? 'Loaded' : 'Available'
+        THREE: hasThreeJS ? 'Detected in code' : 'Not used',
+        CANNON: hasPhysics ? 'Detected in code' : 'Not used', 
+        gsap: hasGSAP ? 'Detected in code' : 'Not used',
+        lodash: hasLodash ? 'Detected in code' : 'Not used',
+        uuid: code.includes('uuid') ? 'Detected' : 'Not used',
+        p5: hasP5 ? 'Detected in code' : 'Not used',
+        matter: hasMatter ? 'Detected in code' : 'Not used'
       },
-      objectsCreated: hasThreeJS ? 1 : 0,
-      physicsBodies: hasPhysics ? 1 : 0,
-      animations: hasGSAP ? 1 : 0,
-      utilityFunctions: hasLodash ? 1 : 0
+      objectsCreated: hasThreeJS ? '3D objects would be created' : 0,
+      physicsBodies: hasPhysics ? 'Physics bodies would be created' : 0,
+      animations: hasGSAP ? 'Animations would run' : 0,
+      utilityFunctions: hasLodash ? 'Utility functions available' : 0,
+      executionTime: 'Simulated 100ms',
+      memoryUsed: 'Simulated 25MB',
+      timestamp: new Date().toISOString(),
+      note: 'This is code validation only. Actual execution requires a secure sandbox environment.'
     };
     
     return NextResponse.json({ 
       success: true, 
-      message: 'Code validated successfully - Libraries confirmed available',
-      analysis: {
-        lines: code.split('\n').length,
-        characters: code.length,
-        functions: functionCount,
-        variables: variableCount,
-        imports: importCount,
-        libraries: {
-          hasThreeJS,
-          hasPhysics, 
-          hasGSAP,
-          hasLodash,
-          hasP5,
-          hasMatter
-        },
-        dangerousPatterns: foundDangerous,
-        syntaxValid: true,
-        sizeBytes: new Blob([code]).size
-      },
-      // Return mock execution result showing libraries are available
-      simulatedResult: {
-        ...mockResult,
-        executionTime: '100ms',
-        memoryUsed: '25MB',
-        timestamp: new Date().toISOString(),
-        note: 'Libraries loaded successfully - For full execution, implement secure sandbox'
-      }
+      message: syntaxValid ? 'Code validated successfully' : 'Code has syntax issues',
+      analysis,
+      simulatedResult,
+      warning: foundDangerous.length > 0 ? 
+        `Code contains potentially dangerous patterns: ${foundDangerous.join(', ')}` : 
+        undefined
     });
+    
   } catch (error) {
     console.error('Validation error:', error);
     return NextResponse.json({ 
@@ -149,6 +188,6 @@ export async function POST(request) {
   }
 }
 
-// Add runtime configuration
+// Runtime configuration
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
