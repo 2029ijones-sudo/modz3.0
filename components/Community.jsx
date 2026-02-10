@@ -132,56 +132,163 @@ export default function Community() {
     }
   }, [activeTab, loading]);
 
-  const fetchRepositories = async () => {
-    setContentLoading(true);
+const fetchRepositories = async () => {
+  setContentLoading(true);
+  
+  try {
+    // First, let's check what data we have
+    console.log('Fetching repositories...');
     
-    try {
-      let query = supabase
-        .from('repositories')
-        .select(`
-          *,
-          profiles:user_id (
-            username,
-            profile_picture_url
-          ),
-          forks:fork_count,
-          stars:star_count,
-          issues:issue_count
-        `)
-        .order('created_at', { ascending: false });
+    let query = supabase
+      .from('repositories')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-      // Add filters based on activeTab
-      if (activeTab === 'my-repos' && user) {
-        query = query.eq('user_id', user.id);
-      } else if (activeTab === 'starred' && user) {
-        // Get starred repos
-        const { data: stars } = await supabase
-          .from('repo_stars')
-          .select('repo_id')
-          .eq('user_id', user.id);
-        
-        if (stars && stars.length > 0) {
-          query = query.in('id', stars.map(s => s.repo_id));
-        } else {
-          setRepositories([]);
-          setContentLoading(false);
-          return;
-        }
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
+    // Add filters based on activeTab
+    if (activeTab === 'my-repos' && user) {
+      console.log('Filtering for user:', user.id);
+      query = query.eq('user_id', user.id);
+    } else if (activeTab === 'starred' && user) {
+      console.log('Fetching starred repos for user:', user.id);
+      // Get starred repos
+      const { data: stars, error: starsError } = await supabase
+        .from('repo_stars')
+        .select('repo_id')
+        .eq('user_id', user.id);
       
-      setRepositories(data || []);
-    } catch (error) {
-      console.error('Community: Fetch error:', error);
-      setRepositories([]);
-    } finally {
-      setContentLoading(false);
+      if (starsError) {
+        console.error('Error fetching stars:', starsError);
+      }
+      
+      if (stars && stars.length > 0) {
+        query = query.in('id', stars.map(s => s.repo_id));
+      } else {
+        console.log('No starred repos found');
+        setRepositories([]);
+        setContentLoading(false);
+        return;
+      }
     }
-  };
 
+    const { data: repos, error: reposError } = await query;
+
+    if (reposError) {
+      console.error('Error fetching repos:', reposError);
+      throw reposError;
+    }
+    
+    console.log('Raw repositories data:', repos);
+    
+    if (!repos || repos.length === 0) {
+      console.log('No repositories found in database');
+      setRepositories([]);
+      setContentLoading(false);
+      return;
+    }
+
+    // Now get user info for each repository
+    const reposWithUsers = await Promise.all(
+      repos.map(async (repo) => {
+        console.log('Processing repo:', repo.id, 'with user_id:', repo.user_id);
+        
+        // Try to get profile from profiles table first
+        let userInfo = {
+          username: 'Anonymous',
+          profile_picture_url: '/default-avatar.png'
+        };
+        
+        try {
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('username, profile_picture_url')
+            .eq('user_id', repo.user_id)
+            .single();
+          
+          if (!profileError && profile) {
+            console.log('Found profile for user:', repo.user_id, profile);
+            userInfo = {
+              username: profile.username || userInfo.username,
+              profile_picture_url: profile.profile_picture_url || userInfo.profile_picture_url
+            };
+          } else {
+            // If no profile, try to get user from auth
+            console.log('No profile found for user:', repo.user_id, 'Profile error:', profileError);
+            const { data: authUser } = await supabase.auth.admin.getUserById(repo.user_id);
+            if (authUser?.user) {
+              userInfo = {
+                username: authUser.user.email?.split('@')[0] || 'User',
+                profile_picture_url: authUser.user.user_metadata?.avatar_url || userInfo.profile_picture_url
+              };
+              console.log('Got user from auth:', userInfo);
+            }
+          }
+        } catch (error) {
+          console.error('Error getting user info:', error);
+        }
+        
+        // Get star count
+        let starCount = 0;
+        try {
+          const { count, error: starError } = await supabase
+            .from('repo_stars')
+            .select('*', { count: 'exact', head: true })
+            .eq('repo_id', repo.id);
+          
+          if (!starError) starCount = count || 0;
+        } catch (error) {
+          console.error('Error getting star count:', error);
+        }
+        
+        // Get fork count
+        let forkCount = 0;
+        try {
+          const { count, error: forkError } = await supabase
+            .from('repositories')
+            .select('*', { count: 'exact', head: true })
+            .eq('original_repo_id', repo.id);
+          
+          if (!forkError) forkCount = count || 0;
+        } catch (error) {
+          console.error('Error getting fork count:', error);
+        }
+        
+        // Get issue count
+        let issueCount = 0;
+        try {
+          const { count, error: issueError } = await supabase
+            .from('repo_issues')
+            .select('*', { count: 'exact', head: true })
+            .eq('repo_id', repo.id)
+            .eq('status', 'open');
+          
+          if (!issueError) issueCount = count || 0;
+        } catch (error) {
+          console.error('Error getting issue count:', error);
+        }
+        
+        const repoWithInfo = {
+          ...repo,
+          profiles: userInfo,
+          star_count: starCount,
+          fork_count: forkCount,
+          issue_count: issueCount
+        };
+        
+        console.log('Repo with info:', repoWithInfo);
+        return repoWithInfo;
+      })
+    );
+    
+    console.log('Final repositories:', reposWithUsers);
+    setRepositories(reposWithUsers);
+    
+  } catch (error) {
+    console.error('Community: Fetch error:', error);
+    setRepositories([]);
+  } finally {
+    setContentLoading(false);
+  }
+};
   // Create new repository
   const createRepository = async (e) => {
     e.preventDefault();
