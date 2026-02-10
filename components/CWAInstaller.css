@@ -1,0 +1,299 @@
+/* CWA Install Button */
+.cwa-installer {
+  position: relative;
+  z-index: 1000;
+}
+
+.cwa-install-button {
+  background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
+  border: none;
+  border-radius: 12px;
+  color: white;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.cwa-install-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(108, 92, 231, 0.4);
+  background: linear-gradient(135deg, #5b4bd8 0%, #9189f0 100%);
+}
+
+.cwa-install-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+}
+
+.cwa-icon {
+  font-size: 18px;
+}
+
+.cwa-text {
+  white-space: nowrap;
+}
+
+.cwa-badge {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+/* Modal Overlay */
+.cwa-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+  animation: fadeIn 0.3s ease;
+}
+
+.cwa-modal {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 20px;
+  border: 1px solid #6c5ce7;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+  width: 100%;
+  max-width: 500px;
+  position: relative;
+  animation: slideUp 0.4s ease;
+  overflow: hidden;
+}
+
+.cwa-modal-close {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+  z-index: 10;
+}
+
+.cwa-modal-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Modal Header */
+.cwa-modal-header {
+  padding: 40px 40px 20px;
+  text-align: center;
+  border-bottom: 1px solid rgba(108, 92, 231, 0.2);
+}
+
+.cwa-modal-icon {
+  font-size: 60px;
+  margin-bottom: 15px;
+  animation: pulse 2s infinite;
+}
+
+.cwa-modal-header h2 {
+  color: white;
+  font-size: 28px;
+  margin: 0 0 10px;
+  background: linear-gradient(45deg, #6c5ce7, #a29bfe);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.cwa-modal-header p {
+  color: #aaa;
+  font-size: 14px;
+  margin: 0;
+  opacity: 0.8;
+}
+
+/* Features List */
+.cwa-features {
+  padding: 25px 40px;
+}
+
+.cwa-feature {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.cwa-feature:last-child {
+  border-bottom: none;
+}
+
+.feature-icon {
+  font-size: 24px;
+  min-width: 40px;
+  text-align: center;
+}
+
+.cwa-feature h4 {
+  color: white;
+  font-size: 16px;
+  margin: 0 0 5px;
+}
+
+.cwa-feature p {
+  color: #888;
+  font-size: 13px;
+  margin: 0;
+}
+
+/* School Warning */
+.cwa-school-warning {
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  border-radius: 10px;
+  padding: 12px 20px;
+  margin: 0 40px 20px;
+  color: #FFC107;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Buttons */
+.cwa-modal-buttons {
+  padding: 0 40px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cwa-btn {
+  padding: 16px;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.3s ease;
+}
+
+.cwa-btn-primary {
+  background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
+  color: white;
+}
+
+.cwa-btn-primary:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 30px rgba(108, 92, 231, 0.4);
+}
+
+.cwa-btn-secondary {
+  background: rgba(108, 92, 231, 0.1);
+  color: #a29bfe;
+  border: 1px solid rgba(108, 92, 231, 0.3);
+}
+
+.cwa-btn-secondary:hover {
+  background: rgba(108, 92, 231, 0.2);
+  transform: translateY(-2px);
+}
+
+.cwa-btn-tertiary {
+  background: transparent;
+  color: #888;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cwa-btn-tertiary:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-icon {
+  font-size: 20px;
+}
+
+/* Footer */
+.cwa-footer {
+  padding: 20px 40px 30px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  text-align: center;
+}
+
+.cwa-footer p {
+  color: #666;
+  font-size: 12px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .cwa-modal {
+    max-width: 95%;
+  }
+  
+  .cwa-modal-header,
+  .cwa-features,
+  .cwa-modal-buttons,
+  .cwa-footer {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  
+  .cwa-modal-header h2 {
+    font-size: 24px;
+  }
+  
+  .cwa-btn {
+    padding: 14px;
+    font-size: 14px;
+  }
+}
