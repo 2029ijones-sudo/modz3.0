@@ -1,24 +1,54 @@
-    case 'status':
-      return new Response(JSON.stringify({
-        status: 'quantum_entangled',
-        cache_version: QUANTUM_CACHE_VERSION,
-        chaos_active: true,
-        clients_count: await getClientCount(),
-        quantum_state: QUANTUM_STATES.ENTANGLED
-      }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-    default:
-      return new Response(JSON.stringify({
-        error: 'Unknown quantum endpoint',
-        available_endpoints: ['init', 'status']
-      }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
+// Define missing constants at the top
+const QUANTUM_CACHE_VERSION = 'quantum_v2';
+const CHAOS_CACHE = 'chaos_cache_v1';
+const QUANTUM_STATES = {
+  ENTANGLED: 'entangled',
+  SUPERPOSITION: 'superposition',
+  COLLAPSED: 'collapsed',
+  DECOHERED: 'decohered',
+  TUNNELING: 'quantum_tunneling'
+};
+
+// The case statement appears to be part of a larger switch block
+// Assuming it's inside a fetch event handler
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  // Handle quantum API endpoints
+  if (url.pathname.startsWith('/api/quantum/')) {
+    const endpoint = url.pathname.split('/').pop();
+    
+    switch (endpoint) {
+      case 'status':
+        event.respondWith((async () => {
+          return new Response(JSON.stringify({
+            status: 'quantum_entangled',
+            cache_version: QUANTUM_CACHE_VERSION,
+            chaos_active: true,
+            clients_count: await getClientCount(),
+            quantum_state: QUANTUM_STATES.ENTANGLED
+          }), {
+            headers: { 'Content-Type': 'application/json' }
+          });
+        })());
+        break;
+        
+      case 'chaos-stream':
+        event.respondWith(handleChaosStream(event.request));
+        break;
+        
+      default:
+        event.respondWith(new Response(JSON.stringify({
+          error: 'Unknown quantum endpoint',
+          available_endpoints: ['init', 'status', 'chaos-stream']
+        }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        }));
+    }
+    return;
   }
-}
+});
 
 // Handle chaos stream requests
 function handleChaosStream(request) {
@@ -47,6 +77,17 @@ function handleChaosStream(request) {
         clearInterval(chaosInterval);
         controller.close();
       }, 30000);
+      
+      // Handle client disconnect
+      request.signal.addEventListener('abort', () => {
+        clearInterval(chaosInterval);
+        controller.close();
+      });
+    },
+    
+    cancel() {
+      // Cleanup if stream is cancelled
+      console.log('Chaos stream cancelled');
     }
   });
   
@@ -111,14 +152,38 @@ function generateChaosData() {
 }
 
 function generateQuantumSessionId() {
+  // Fixed btoa reference - use a workaround if btoa is not available
+  let userAgentString = '';
+  try {
+    // In service worker context, we might not have navigator
+    userAgentString = self.navigator ? self.navigator.userAgent : 'quantum_client';
+  } catch {
+    userAgentString = 'quantum_client';
+  }
+  
+  // Create base64 encoding function
+  const toBase64 = (str) => {
+    try {
+      return btoa(str);
+    } catch {
+      // Fallback for environments without btoa
+      return Buffer.from(str).toString('base64');
+    }
+  };
+  
   return 'quantum_' + Date.now() + '_' + 
          Math.random().toString(36).substr(2, 9) + '_' +
-         btoa(navigator.userAgent).substr(0, 8);
+         toBase64(userAgentString).substr(0, 8).replace(/[+/=]/g, '');
 }
 
 async function getClientCount() {
-  const clients = await self.clients.matchAll();
-  return clients.length;
+  try {
+    const clients = await self.clients.matchAll();
+    return clients.length;
+  } catch (error) {
+    console.error('Failed to get client count:', error);
+    return 0;
+  }
 }
 
 function activateQuantumStreams() {
@@ -147,11 +212,17 @@ function initializeQuantumChaos() {
 function sendQuantumMessage(message) {
   self.clients.matchAll().then(clients => {
     clients.forEach(client => {
-      client.postMessage({
-        source: 'quantum_service_worker',
-        ...message
-      });
+      try {
+        client.postMessage({
+          source: 'quantum_service_worker',
+          ...message
+        });
+      } catch (error) {
+        console.error('Failed to send message to client:', error);
+      }
     });
+  }).catch(error => {
+    console.error('Failed to get clients:', error);
   });
 }
 
@@ -184,20 +255,28 @@ async function syncQuantumData() {
 }
 
 async function syncChaosState() {
-  // Synchronize chaos state between clients
-  const clients = await self.clients.matchAll();
-  const chaosState = {
-    timestamp: Date.now(),
-    global_entropy: Math.random(),
-    active_attractors: generateStrangeAttractors(3)
-  };
-  
-  clients.forEach(client => {
-    client.postMessage({
-      type: 'CHAOS_STATE_UPDATE',
-      state: chaosState
+  try {
+    // Synchronize chaos state between clients
+    const clients = await self.clients.matchAll();
+    const chaosState = {
+      timestamp: Date.now(),
+      global_entropy: Math.random(),
+      active_attractors: generateStrangeAttractors(3)
+    };
+    
+    clients.forEach(client => {
+      try {
+        client.postMessage({
+          type: 'CHAOS_STATE_UPDATE',
+          state: chaosState
+        });
+      } catch (error) {
+        console.error('Failed to send chaos state to client:', error);
+      }
     });
-  });
+  } catch (error) {
+    console.error('Failed to sync chaos state:', error);
+  }
 }
 
 // Push notifications with quantum effects
@@ -206,7 +285,15 @@ self.addEventListener('push', (event) => {
   
   let data = {};
   try {
-    data = event.data.json();
+    if (event.data) {
+      data = event.data.json();
+    } else {
+      data = {
+        title: 'Quantum Alert',
+        body: 'Chaos fluctuation detected',
+        chaos: Math.random()
+      };
+    }
   } catch {
     data = {
       title: 'Quantum Alert',
@@ -321,12 +408,23 @@ self.addEventListener('message', (event) => {
   
   switch (type) {
     case 'GET_QUANTUM_STATE':
-      event.ports[0].postMessage({
-        cache_version: QUANTUM_CACHE_VERSION,
-        quantum_state: QUANTUM_STATES.ENTANGLED,
-        chaos_active: true,
-        offline_capable: true
-      });
+      if (event.ports && event.ports[0]) {
+        event.ports[0].postMessage({
+          cache_version: QUANTUM_CACHE_VERSION,
+          quantum_state: QUANTUM_STATES.ENTANGLED,
+          chaos_active: true,
+          offline_capable: true
+        });
+      } else {
+        // Fallback if MessageChannel not used
+        event.source.postMessage({
+          type: 'QUANTUM_STATE_RESPONSE',
+          cache_version: QUANTUM_CACHE_VERSION,
+          quantum_state: QUANTUM_STATES.ENTANGLED,
+          chaos_active: true,
+          offline_capable: true
+        }, event.origin);
+      }
       break;
       
     case 'TRIGGER_CHAOS':
@@ -340,7 +438,13 @@ self.addEventListener('message', (event) => {
       
     case 'CLEAR_QUANTUM_CACHE':
       caches.delete(QUANTUM_CACHE_VERSION).then(() => {
-        event.ports[0].postMessage({ success: true });
+        if (event.ports && event.ports[0]) {
+          event.ports[0].postMessage({ success: true });
+        }
+      }).catch(error => {
+        if (event.ports && event.ports[0]) {
+          event.ports[0].postMessage({ success: false, error: error.message });
+        }
       });
       break;
   }
@@ -351,18 +455,22 @@ async function quantumFallback(request, error) {
   console.error('🌌 Quantum fallback triggered:', error);
   
   // Try to serve from cache with quantum modifications
-  const cache = await caches.open(QUANTUM_CACHE_VERSION);
-  const cached = await cache.match(request);
-  
-  if (cached) {
-    return cached;
+  try {
+    const cache = await caches.open(QUANTUM_CACHE_VERSION);
+    const cached = await cache.match(request);
+    
+    if (cached) {
+      return cached;
+    }
+  } catch (cacheError) {
+    console.error('Cache fallback failed:', cacheError);
   }
   
   // Ultimate quantum fallback
   return new Response(
     JSON.stringify({
       quantum_fallback: true,
-      error: error.message,
+      error: error?.message || 'Unknown quantum error',
       timestamp: Date.now(),
       chaos_recommendation: 'Increase quantum stability',
       retry_after: 30
@@ -378,12 +486,48 @@ async function quantumFallback(request, error) {
   );
 }
 
+// Service Worker installation
+self.addEventListener('install', (event) => {
+  console.log('🔬 Installing Quantum Service Worker...');
+  event.waitUntil(
+    caches.open(QUANTUM_CACHE_VERSION).then(cache => {
+      return cache.addAll([
+        '/',
+        '/Modz.png',
+        '/api/quantum/status'
+      ]);
+    }).then(() => {
+      return self.skipWaiting();
+    })
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  console.log('⚡ Quantum Service Worker activated');
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== QUANTUM_CACHE_VERSION && cacheName !== CHAOS_CACHE) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    }).then(() => {
+      return self.clients.claim();
+    })
+  );
+});
+
 // Export for testing (if needed)
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     QUANTUM_CACHE_VERSION,
     QUANTUM_STATES,
+    CHAOS_CACHE,
     generateChaosParticles,
-    generateQuantumSessionId
+    generateQuantumSessionId,
+    handleChaosStream,
+    quantumFallback
   };
 }
