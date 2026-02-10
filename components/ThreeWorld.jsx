@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import * as CANNON from 'cannon-es';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { gsap } from 'gsap';
 
 export default function ThreeWorld({ addNotification, worldName }) {
@@ -13,28 +12,60 @@ export default function ThreeWorld({ addNotification, worldName }) {
   const [objects, setObjects] = useState([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   
   // Keep physics world reference
   const physicsWorld = useRef(null);
+  const animationRef = useRef(null);
+  const rendererRef = useRef(null);
+  const cameraRef = useRef(null);
+  const controlsRef = useRef(null);
 
+  // First: Wait for container to be available and get its size
   useEffect(() => {
-    // Don't run on server side
-    if (typeof window === 'undefined') return;
+    if (!containerRef.current) return;
+
+    const updateSize = () => {
+      if (containerRef.current) {
+        const { width, height } = containerRef.current.getBoundingClientRect();
+        if (width > 0 && height > 0) {
+          setContainerSize({ width, height });
+        }
+      }
+    };
+
+    updateSize();
+    window.addEventListener('resize', updateSize);
     
+    // Use ResizeObserver for better performance
+    const resizeObserver = new ResizeObserver(updateSize);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateSize);
+      resizeObserver.disconnect();
+    };
+  }, []);
+
+  // Second: Initialize Three.js only when container has size
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (containerSize.width === 0 || containerSize.height === 0) return;
+    if (!containerRef.current || !canvasRef.current) return;
+
+    let isMounted = true;
+
     const init = async () => {
       try {
-        if (!containerRef.current || !canvasRef.current) {
-          throw new Error('Container or canvas not found');
-        }
-
-        console.log('Initializing 3D World...');
+        console.log('Initializing 3D World with size:', containerSize);
         
-        // Get container dimensions
         const container = containerRef.current;
-        const { width, height } = container.getBoundingClientRect();
+        const canvas = canvasRef.current;
         
-        if (width === 0 || height === 0) {
-          throw new Error('Container has zero dimensions');
+        if (!container || !canvas) {
+          throw new Error('Container or canvas element not found');
         }
 
         // Initialize THREE.js scene
@@ -43,23 +74,30 @@ export default function ThreeWorld({ addNotification, worldName }) {
         scene.fog = new THREE.Fog(0x0a0a1a, 10, 100);
 
         // Camera
-        const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+        const camera = new THREE.PerspectiveCamera(
+          75, 
+          containerSize.width / containerSize.height, 
+          0.1, 
+          1000
+        );
         camera.position.set(15, 10, 20);
+        cameraRef.current = camera;
 
         // Renderer
         const renderer = new THREE.WebGLRenderer({
-          canvas: canvasRef.current,
+          canvas: canvas,
           antialias: true,
           alpha: false,
           powerPreference: "high-performance"
         });
         
-        renderer.setSize(width, height);
+        renderer.setSize(containerSize.width, containerSize.height);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.5;
+        rendererRef.current = renderer;
 
         // Controls
         const controls = new OrbitControls(camera, renderer.domElement);
@@ -69,6 +107,7 @@ export default function ThreeWorld({ addNotification, worldName }) {
         controls.minDistance = 5;
         controls.maxDistance = 100;
         controls.maxPolarAngle = Math.PI / 2.2;
+        controlsRef.current = controls;
 
         // Initialize physics
         const world = new CANNON.World({
@@ -85,6 +124,8 @@ export default function ThreeWorld({ addNotification, worldName }) {
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
         directionalLight.position.set(10, 30, 15);
         directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
         scene.add(directionalLight);
 
         const pointLight = new THREE.PointLight(0x6c5ce7, 3, 100);
@@ -145,90 +186,92 @@ export default function ThreeWorld({ addNotification, worldName }) {
         sceneRef.current = scene;
 
         // Animation loop
-        let frameId;
         const animate = () => {
-          frameId = requestAnimationFrame(animate);
+          if (!isMounted) return;
+          
+          animationRef.current = requestAnimationFrame(animate);
           
           // Update physics
-          world.step(1/60);
+          if (physicsWorld.current) {
+            physicsWorld.current.step(1/60);
+          }
           
           // Update object positions from physics
           cubes.forEach(cube => {
-            if (cube.userData.physicsBody) {
+            if (cube.userData?.physicsBody) {
               cube.position.copy(cube.userData.physicsBody.position);
               cube.quaternion.copy(cube.userData.physicsBody.quaternion);
             }
           });
           
           // Update controls
-          controls.update();
+          if (controlsRef.current) {
+            controlsRef.current.update();
+          }
           
           // Render
-          renderer.render(scene, camera);
+          if (rendererRef.current && cameraRef.current && scene) {
+            rendererRef.current.render(scene, cameraRef.current);
+          }
         };
 
         // Start animation
         animate();
         
-        // Handle resize
-        const handleResize = () => {
-          const { width, height } = container.getBoundingClientRect();
-          camera.aspect = width / height;
-          camera.updateProjectionMatrix();
-          renderer.setSize(width, height);
-        };
-        
-        window.addEventListener('resize', handleResize);
-        
-        // Cleanup function
-        return () => {
-          window.removeEventListener('resize', handleResize);
-          if (frameId) cancelAnimationFrame(frameId);
-          renderer.dispose();
-          
-          // Dispose geometries and materials
-          cubes.forEach(cube => {
-            cube.geometry.dispose();
-            cube.material.dispose();
-          });
-        };
+        setIsInitialized(true);
+        addNotification(`${worldName} loaded successfully!`, 'success');
 
       } catch (error) {
         console.error('Failed to initialize 3D world:', error);
         setError(error.message);
-        addNotification(`3D World Error: ${error.message}`, 'error');
-        throw error;
+        if (isMounted) {
+          addNotification(`3D World Error: ${error.message}`, 'error');
+        }
       }
     };
 
-    init()
-      .then(() => {
-        setIsInitialized(true);
-        addNotification(`${worldName} loaded successfully!`, 'success');
-      })
-      .catch(err => {
-        console.error('Initialization failed:', err);
-      });
+    init();
 
-  }, [addNotification, worldName]);
-
-  // Force canvas to fill container
-  useEffect(() => {
-    if (containerRef.current && canvasRef.current) {
-      const updateSize = () => {
-        const container = containerRef.current;
-        const canvas = canvasRef.current;
-        if (container && canvas) {
-          const { width, height } = container.getBoundingClientRect();
-          canvas.style.width = `${width}px`;
-          canvas.style.height = `${height}px`;
-        }
-      };
+    // Cleanup function
+    return () => {
+      isMounted = false;
       
-      updateSize();
-      window.addEventListener('resize', updateSize);
-      return () => window.removeEventListener('resize', updateSize);
-    }
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+      
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
+        rendererRef.current = null;
+      }
+      
+      if (controlsRef.current) {
+        controlsRef.current.dispose();
+        controlsRef.current = null;
+      }
+      
+      if (physicsWorld.current) {
+        // Clean up physics bodies
+        physicsWorld.current = null;
+      }
+      
+      cameraRef.current = null;
+    };
+  }, [containerSize, addNotification, worldName]);
+
+  // Handle resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (containerRef.current && cameraRef.current && rendererRef.current) {
+        const { width, height } = containerRef.current.getBoundingClientRect();
+        cameraRef.current.aspect = width / height;
+        cameraRef.current.updateProjectionMatrix();
+        rendererRef.current.setSize(width, height);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   if (error) {
@@ -249,7 +292,11 @@ export default function ThreeWorld({ addNotification, worldName }) {
   }
 
   return (
-    <div className="world-container" ref={containerRef}>
+    <div 
+      className="world-container" 
+      ref={containerRef}
+      style={{ width: '100%', height: '100%', position: 'relative' }}
+    >
       <canvas 
         ref={canvasRef} 
         className="three-canvas"
