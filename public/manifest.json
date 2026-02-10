@@ -1,21 +1,162 @@
 {
-  "name": "Modz",
+  "name": "Modz 3.0",
   "short_name": "Modz",
-  "description": "Metaverse Modding Platform",
+  "description": "Create, mod and share 3D metaverse worlds with physics, AI coding & real-time collaboration",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "minimal-ui"],
   "background_color": "#0a0a1a",
-  "theme_color": "#0a0a1a",
+  "theme_color": "#6c5ce7",
+  "orientation": "landscape",
+  "scope": "/",
+  "id": "/",
+  "categories": [
+    "entertainment",
+    "productivity",
+    "graphics",
+    "games",
+    "development",
+    "3d"
+  ],
+  "screenshots": [
+    {
+      "src": "/Modz.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Modz 3D World Editor"
+    },
+    {
+      "src": "/Modz.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Modz on Mobile"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New 3D World",
+      "short_name": "New World",
+      "description": "Create a new 3D metaverse world",
+      "url": "/?action=new-world",
+      "icons": [{ "src": "/Modz.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Community Hub",
+      "short_name": "Community",
+      "description": "Browse shared 3D worlds",
+      "url": "/?tab=community",
+      "icons": [{ "src": "/Modz.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "AI Code Editor",
+      "short_name": "AI Editor",
+      "description": "Open the AI-powered code editor",
+      "url": "/?showEditor=true",
+      "icons": [{ "src": "/Modz.png", "sizes": "192x192" }]
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+modz",
+      "url": "/import?url=%s"
+    }
+  ],
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+  "handle_links": "preferred",
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
   "icons": [
     {
       "src": "/Modz.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/Modz.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/Modz.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/Modz.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/Modz.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/Modz.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/Modz.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/Modz.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=com.modz.app",
+      "id": "com.modz.app"
+    }
+  ],
+  "prefer_related_applications": false,
+  "features": [
+    "3D Graphics",
+    "Physics Engine",
+    "Real-time Collaboration",
+    "AI Code Assistant",
+    "File Import/Export",
+    "Offline Mode",
+    "Encrypted Sharing"
+  ],
+  "permissions": [
+    "clipboard-write",
+    "clipboard-read",
+    "file-handling"
+  ],
+  "file_handlers": [
+    {
+      "action": "/import",
+      "accept": {
+        "application/json": [".modz3", ".json"],
+        "application/zip": [".zip"],
+        "model/gltf-binary": [".glb", ".gltf"]
+      },
+      "icons": [
+        {
+          "src": "/icons/file-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }
