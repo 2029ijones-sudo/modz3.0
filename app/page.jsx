@@ -1,12 +1,20 @@
 'use client';
-import { useEffect, useState, useRef, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import CryptoJS from 'crypto-js';
 import './globals.css';
 
 // Dynamically import components for better performance
-const ThreeWorld = dynamic(() => import('../components/ThreeWorld'), { ssr: false });
+const ThreeWorld = dynamic(() => import('../components/ThreeWorld'), { 
+  ssr: false,
+  loading: () => (
+    <div className="loading-overlay">
+      <div className="spinner"></div>
+      <p>Loading 3D World...</p>
+    </div>
+  )
+});
 const CodeEditor = dynamic(() => import('../components/CodeEditor'), { ssr: false });
 const ModManager = dynamic(() => import('../components/ModManager'), { ssr: false });
 const Community = dynamic(() => import('../components/Community'), { ssr: false });
@@ -52,6 +60,25 @@ function AppContent() {
   const [showPWAInstaller, setShowPWAInstaller] = useState(true);
   const [draggedMod, setDraggedMod] = useState(null);
   const [isDraggingOverWorld, setIsDraggingOverWorld] = useState(false);
+  const [webGLError, setWebGLError] = useState(null);
+  const [isThreeWorldReady, setIsThreeWorldReady] = useState(false);
+
+  // Check WebGL support
+  const checkWebGLSupport = useCallback(() => {
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      return !!gl;
+    } catch (error) {
+      return false;
+    }
+  }, []);
+
+  // Handle WebGL errors from ThreeWorld
+  const handleWebGLError = useCallback((errorMessage) => {
+    setWebGLError(errorMessage);
+    addNotification(`3D Error: ${errorMessage}`, 'error');
+  }, []);
 
   // Decrypt URL parameters on load
   useEffect(() => {
@@ -78,7 +105,12 @@ function AppContent() {
         }
       }
     }
-  }, [searchParams]);
+
+    // Check WebGL support on load
+    if (!checkWebGLSupport()) {
+      handleWebGLError('WebGL is not supported in your browser. Please try a different browser or enable WebGL.');
+    }
+  }, [searchParams, checkWebGLSupport, handleWebGLError]);
 
   // Update URL when active tab changes (with encryption)
   useEffect(() => {
@@ -259,6 +291,12 @@ function AppContent() {
     }, 3000);
   };
 
+  // Handle ThreeWorld initialization
+  const handleThreeWorldReady = useCallback(() => {
+    setIsThreeWorldReady(true);
+    addNotification('3D World is ready!', 'success');
+  }, []);
+
   // Handle mod drag from ModManager
   const handleModDragStart = (mod) => {
     setDraggedMod(mod);
@@ -266,7 +304,7 @@ function AppContent() {
   };
 
   // Handle mod drop into world
-  const handleModDropIntoWorld = (position) => {
+  const handleModDropIntoWorld = useCallback((position) => {
     if (draggedMod) {
       window.dispatchEvent(new CustomEvent('add-mod-to-world', {
         detail: {
@@ -277,11 +315,12 @@ function AppContent() {
       addNotification(`Added ${draggedMod.name} to world at position`, 'success');
       setDraggedMod(null);
     }
-  };
+  }, [draggedMod, addNotification]);
 
   // Navigation functions with encrypted URLs
   const navigateToTab = (tab) => {
     setActiveTab(tab);
+    setWebGLError(null); // Clear any previous WebGL errors
     
     // Create encrypted shareable URL
     const data = {
@@ -294,8 +333,7 @@ function AppContent() {
     const encrypted = encryptData(data);
     if (encrypted) {
       const url = `${window.location.origin}${window.location.pathname}?e=${encrypted}`;
-      console.log('Encrypted URL:', url); // For debugging
-      // In production, you might want to copy this to clipboard or show it
+      console.log('Encrypted URL:', url);
     }
   };
 
@@ -408,7 +446,6 @@ function AppContent() {
 
   // Handle PWA installation
   const handlePWAInstall = () => {
-    // This will be called from PWAInstaller component
     addNotification('PWA installation initiated', 'info');
   };
 
@@ -428,6 +465,8 @@ function AppContent() {
             worldName={worldName}
             onModDrop={handleModDropIntoWorld}
             isDraggingOverWorld={isDraggingOverWorld}
+            onReady={handleThreeWorldReady}
+            onError={handleWebGLError}
           />
         );
       case 'community':
@@ -435,9 +474,48 @@ function AppContent() {
       case 'profile':
         return <Profile addNotification={addNotification} />;
       default:
-        return <ThreeWorld addNotification={addNotification} worldName={worldName} />;
+        return (
+          <ThreeWorld 
+            addNotification={addNotification} 
+            worldName={worldName}
+            onReady={handleThreeWorldReady}
+            onError={handleWebGLError}
+          />
+        );
     }
   };
+
+  // WebGL error fallback
+  const renderWebGLErrorFallback = () => (
+    <div className="error-fallback">
+      <i className="fas fa-exclamation-triangle fa-3x"></i>
+      <h3>WebGL Not Available</h3>
+      <p>{webGLError}</p>
+      <div className="error-actions">
+        <button 
+          className="btn btn-primary"
+          onClick={() => window.location.reload()}
+        >
+          <i className="fas fa-redo"></i> Retry
+        </button>
+        <button 
+          className="btn btn-secondary"
+          onClick={() => setActiveTab('community')}
+        >
+          <i className="fas fa-share-alt"></i> Go to Community
+        </button>
+      </div>
+      <div className="webgl-tips">
+        <p><strong>Tips:</strong></p>
+        <ul>
+          <li>Use Chrome, Firefox, or Edge</li>
+          <li>Enable WebGL in browser settings</li>
+          <li>Update your graphics drivers</li>
+          <li>Disable hardware acceleration blockers</li>
+        </ul>
+      </div>
+    </div>
+  );
 
   return (
     <div className="app-container" suppressHydrationWarning>
@@ -468,6 +546,11 @@ function AppContent() {
           >
             <i className="fas fa-globe"></i>
             <span>3D World</span>
+            {webGLError && activeTab === 'world' && (
+              <span className="error-badge">
+                <i className="fas fa-exclamation-circle"></i>
+              </span>
+            )}
           </button>
           <button 
             className="nav-link"
@@ -527,6 +610,7 @@ function AppContent() {
             <ModManager 
               addNotification={addNotification} 
               onModDragStart={handleModDragStart}
+              isWorldReady={isThreeWorldReady && !webGLError}
             />
           </div>
         )}
@@ -542,6 +626,11 @@ function AppContent() {
                     {encryptedParams.source === 'shared' && (
                       <span className="shared-badge" title="Shared via encrypted link">
                         <i className="fas fa-lock"></i> Shared
+                      </span>
+                    )}
+                    {webGLError && (
+                      <span className="error-badge-global" title="WebGL Error">
+                        <i className="fas fa-exclamation-triangle"></i> 3D Error
                       </span>
                     )}
                   </h2>
@@ -562,7 +651,7 @@ function AppContent() {
                 </div>
 
                 <div className="world-overlay"></div>
-                {renderActiveTab()}
+                {webGLError ? renderWebGLErrorFallback() : renderActiveTab()}
                 <div className="drop-zone" id="dropZone"></div>
               </div>
 
@@ -644,6 +733,17 @@ function AppContent() {
           <i className="fas fa-lock"></i>
           <span>Encrypted Session Loaded</span>
           <button onClick={() => window.location.href = window.location.pathname}>
+            <i className="fas fa-times"></i>
+          </button>
+        </div>
+      )}
+
+      {/* WebGL Error Indicator */}
+      {webGLError && (
+        <div className="webgl-error-indicator">
+          <i className="fas fa-exclamation-triangle"></i>
+          <span>3D Graphics Error</span>
+          <button onClick={() => setWebGLError(null)}>
             <i className="fas fa-times"></i>
           </button>
         </div>
