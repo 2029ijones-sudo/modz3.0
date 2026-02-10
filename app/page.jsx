@@ -11,6 +11,7 @@ const CodeEditor = dynamic(() => import('../components/CodeEditor'), { ssr: fals
 const ModManager = dynamic(() => import('../components/ModManager'), { ssr: false });
 const Community = dynamic(() => import('../components/Community'), { ssr: false });
 const Profile = dynamic(() => import('../components/Profile'), { ssr: false });
+const PWAInstaller = dynamic(() => import('../components/PWAInstaller'), { ssr: false });
 
 // Encryption key (in production, store in environment variables)
 const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || 'modz3-secret-key-2024';
@@ -48,6 +49,7 @@ function AppContent() {
   const [encryptedParams, setEncryptedParams] = useState({});
   const cursorRef = useRef(null);
   const cursorTracerRef = useRef(null);
+  const [showPWAInstaller, setShowPWAInstaller] = useState(true);
 
   // Decrypt URL parameters on load
   useEffect(() => {
@@ -328,6 +330,18 @@ function AppContent() {
     }
   };
 
+  // Handle PWA installation
+  const handlePWAInstall = () => {
+    // This will be called from PWAInstaller component
+    addNotification('PWA installation initiated', 'info');
+  };
+
+  // Dismiss PWA installer
+  const dismissPWAInstaller = () => {
+    setShowPWAInstaller(false);
+    localStorage.setItem('pwa_installer_dismissed', 'true');
+  };
+
   // Render active tab content
   const renderActiveTab = () => {
     switch (activeTab) {
@@ -436,15 +450,15 @@ function AppContent() {
           {activeTab === 'world' ? (
             <>
               <div className="world-wrapper">
-  <div className="world-header">
-    <h2 className="world-title" id="worldTitle">
-      Metaverse: {worldName}
-      {encryptedParams.source === 'shared' && (
-        <span className="shared-badge" title="Shared via encrypted link">
-          <i className="fas fa-lock"></i> Shared
-        </span>
-      )}
-    </h2>
+                <div className="world-header">
+                  <h2 className="world-title" id="worldTitle">
+                    Metaverse: {worldName}
+                    {encryptedParams.source === 'shared' && (
+                      <span className="shared-badge" title="Shared via encrypted link">
+                        <i className="fas fa-lock"></i> Shared
+                      </span>
+                    )}
+                  </h2>
                   <div className="world-actions">
                     <button className="btn btn-secondary" id="toggleGrid" onClick={() => addNotification('Toggle Grid - Coming soon', 'info')}>
                       <i className="fas fa-th"></i>
@@ -497,6 +511,15 @@ function AppContent() {
         </div>
       </div>
 
+      {/* PWA Installer Component */}
+      {showPWAInstaller && (
+        <PWAInstaller 
+          addNotification={addNotification}
+          onInstall={handlePWAInstall}
+          onDismiss={dismissPWAInstaller}
+        />
+      )}
+
       {/* Notifications Container */}
       <div className="notification-container" id="notificationContainer">
         {notifications.map((notification) => (
@@ -523,6 +546,21 @@ function AppContent() {
           <span>Encrypted Session Loaded</span>
           <button onClick={() => window.location.href = window.location.pathname}>
             <i className="fas fa-times"></i>
+          </button>
+        </div>
+      )}
+
+      {/* PWA Install Button (Mobile) */}
+      {typeof window !== 'undefined' && 
+       !window.matchMedia('(display-mode: standalone)').matches &&
+       'serviceWorker' in navigator && (
+        <div className="pwa-install-button">
+          <button 
+            className="btn btn-primary btn-pwa-install"
+            onClick={() => setShowPWAInstaller(true)}
+          >
+            <i className="fas fa-download"></i>
+            Install App
           </button>
         </div>
       )}
