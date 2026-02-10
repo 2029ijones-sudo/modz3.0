@@ -2,14 +2,14 @@
   "name": "Modz 3.0: Quantum Metaverse",
   "short_name": "Modz Quantum",
   "description": "Quantum-grade 3D metaverse creator with AI coding, physics, encryption & real-time chaos simulation",
-  "start_url": "/?launch=quantum&pwa=1&session_id=${Date.now()}",
+  "start_url": "/?launch=quantum&session=${Date.now()}",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "minimal-ui", "fullscreen"],
   "background_color": "#000000",
   "theme_color": "#6c5ce7",
   "orientation": "any",
   "scope": "/",
-  "id": "com.modz.quantum",
+  "id": "/",
   "categories": ["entertainment", "productivity", "graphics", "games", "development", "3d", "ai", "encryption", "quantum"],
   "screenshots": [
     {
@@ -33,28 +33,42 @@
       "short_name": "Quantum",
       "description": "Create quantum-entangled 3D world",
       "url": "/?mode=quantum&launch=shortcut&timestamp=${Date.now()}",
-      "icons": [{ "src": "/Modz.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/Modz.png", "sizes": "96x96" }]
     },
     {
       "name": "🌀 Chaos Simulator",
       "short_name": "Chaos",
       "description": "Launch chaos simulation engine",
       "url": "/?mode=chaos&intensity=75&chaos_seed=${Math.random()}",
-      "icons": [{ "src": "/Modz.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/Modz.png", "sizes": "96x96" }]
     },
     {
       "name": "🔐 Encrypted Session",
       "short_name": "Encrypted",
       "description": "Start encrypted collaborative session",
       "url": "/?session=encrypted&key=${btoa('quantum-' + Date.now())}",
-      "icons": [{ "src": "/Modz.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/Modz.png", "sizes": "96x96" }]
     },
     {
       "name": "🤖 AI Code Lab",
       "short_name": "AI Lab",
       "description": "Open quantum AI code laboratory",
       "url": "/?lab=ai&mode=quantum&ai_session=${Date.now()}",
-      "icons": [{ "src": "/Modz.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/Modz.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "🚀 Quantum World (CWA)",
+      "short_name": "Quantum CWA",
+      "description": "Create quantum-entangled 3D world with CWA performance",
+      "url": "/?mode=quantum&cwa=1&launch=shortcut&timestamp=${Date.now()}",
+      "icons": [{ "src": "/Modz.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "🌀 Chaos Simulator (CWA)",
+      "short_name": "Chaos CWA",
+      "description": "Launch chaos simulation engine with CWA optimization",
+      "url": "/?mode=chaos&cwa=1&intensity=75&chaos_seed=${Math.random()}",
+      "icons": [{ "src": "/Modz.png", "sizes": "96x96" }]
     }
   ],
   "protocol_handlers": [
@@ -69,6 +83,10 @@
     {
       "protocol": "modz+encrypt",
       "url": "/decrypt?payload=%s&key=quantum"
+    },
+    {
+      "protocol": "web+modz+cwa",
+      "url": "/import?url=%s&quantum=1&cwa=1"
     }
   ],
   "launch_handler": {
@@ -80,12 +98,6 @@
     "preferred_width": 480
   },
   "icons": [
-    {
-      "src": "/Modz.png",
-      "sizes": "64x64",
-      "type": "image/png",
-      "purpose": "any monochrome maskable"
-    },
     {
       "src": "/Modz.png",
       "sizes": "72x72",
@@ -119,12 +131,6 @@
     {
       "src": "/Modz.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/Modz.png",
-      "sizes": "256x256",
       "type": "image/png",
       "purpose": "any maskable"
     },
