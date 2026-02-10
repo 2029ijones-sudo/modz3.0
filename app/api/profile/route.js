@@ -57,40 +57,87 @@ export async function POST(request) {
       );
     }
 
+    // First, check if a profile already exists for this user
+    const { data: existingUserProfile, error: fetchError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('user_id', user_id)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      throw fetchError;
+    }
+
     // Check if username is taken by another user
-    const { data: existingProfile } = await supabase
+    const { data: existingUsernameProfile } = await supabase
       .from('profiles')
       .select('user_id')
       .eq('username', username)
       .neq('user_id', user_id)
       .single();
 
-    if (existingProfile) {
+    if (existingUsernameProfile) {
       return NextResponse.json(
         { error: 'Username is already taken' },
         { status: 409 }
       );
     }
 
-    // Upsert profile
-    const { data, error } = await supabase
-      .from('profiles')
-      .upsert({
-        user_id,
-        username,
-        bio,
-        profile_picture_url
-      })
-      .select()
-      .single();
+    let data, error;
+    
+    if (existingUserProfile) {
+      // Update existing profile
+      ({ data, error } = await supabase
+        .from('profiles')
+        .update({
+          username,
+          bio,
+          profile_picture_url,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingUserProfile.id)
+        .select()
+        .single());
+    } else {
+      // Create new profile
+      ({ data, error } = await supabase
+        .from('profiles')
+        .insert({
+          user_id,
+          username,
+          bio,
+          profile_picture_url
+        })
+        .select()
+        .single());
+    }
 
-    if (error) throw error;
+    if (error) {
+      console.error('Database error:', error);
+      throw error;
+    }
 
     return NextResponse.json({ profile: data });
   } catch (error) {
     console.error('Error creating/updating profile:', error);
+    
+    // More specific error messages
+    if (error.code === '23505') { // Unique violation
+      if (error.message.includes('profiles_user_id_key')) {
+        return NextResponse.json(
+          { error: 'A profile already exists for this user' },
+          { status: 409 }
+        );
+      } else if (error.message.includes('profiles_username_key')) {
+        return NextResponse.json(
+          { error: 'Username is already taken' },
+          { status: 409 }
+        );
+      }
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to create/update profile' },
+      { error: error.message || 'Failed to create/update profile' },
       { status: 500 }
     );
   }
