@@ -50,6 +50,8 @@ function AppContent() {
   const cursorRef = useRef(null);
   const cursorTracerRef = useRef(null);
   const [showPWAInstaller, setShowPWAInstaller] = useState(true);
+  const [draggedMod, setDraggedMod] = useState(null);
+  const [isDraggingOverWorld, setIsDraggingOverWorld] = useState(false);
 
   // Decrypt URL parameters on load
   useEffect(() => {
@@ -193,6 +195,60 @@ function AppContent() {
     };
   }, []);
 
+  // Drag and drop handlers for the entire page
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleGlobalDragOver = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (activeTab === 'world' && e.dataTransfer.types.includes('application/mod-data')) {
+        setIsDraggingOverWorld(true);
+        const dropZone = document.getElementById('dropZone');
+        if (dropZone) {
+          dropZone.classList.add('drag-active');
+          dropZone.innerHTML = '<div class="drop-message"><i class="fas fa-cube"></i> Drop mod to add to world!</div>';
+        }
+      }
+    };
+
+    const handleGlobalDragLeave = (e) => {
+      if (activeTab === 'world') {
+        setIsDraggingOverWorld(false);
+        const dropZone = document.getElementById('dropZone');
+        if (dropZone) {
+          dropZone.classList.remove('drag-active');
+          dropZone.innerHTML = '';
+        }
+      }
+    };
+
+    const handleGlobalDrop = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (activeTab === 'world') {
+        setIsDraggingOverWorld(false);
+        const dropZone = document.getElementById('dropZone');
+        if (dropZone) {
+          dropZone.classList.remove('drag-active');
+          dropZone.innerHTML = '';
+        }
+      }
+    };
+
+    document.addEventListener('dragover', handleGlobalDragOver);
+    document.addEventListener('dragleave', handleGlobalDragLeave);
+    document.addEventListener('drop', handleGlobalDrop);
+
+    return () => {
+      document.removeEventListener('dragover', handleGlobalDragOver);
+      document.removeEventListener('dragleave', handleGlobalDragLeave);
+      document.removeEventListener('drop', handleGlobalDrop);
+    };
+  }, [activeTab]);
+
   // Add notification
   const addNotification = (message, type = 'info') => {
     const id = Date.now();
@@ -201,6 +257,26 @@ function AppContent() {
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, 3000);
+  };
+
+  // Handle mod drag from ModManager
+  const handleModDragStart = (mod) => {
+    setDraggedMod(mod);
+    addNotification(`Dragging ${mod.name} - Drop into 3D world to place it`, 'info');
+  };
+
+  // Handle mod drop into world
+  const handleModDropIntoWorld = (position) => {
+    if (draggedMod) {
+      window.dispatchEvent(new CustomEvent('add-mod-to-world', {
+        detail: {
+          mod: draggedMod,
+          position: position
+        }
+      }));
+      addNotification(`Added ${draggedMod.name} to world at position`, 'success');
+      setDraggedMod(null);
+    }
   };
 
   // Navigation functions with encrypted URLs
@@ -346,7 +422,14 @@ function AppContent() {
   const renderActiveTab = () => {
     switch (activeTab) {
       case 'world':
-        return <ThreeWorld addNotification={addNotification} worldName={worldName} />;
+        return (
+          <ThreeWorld 
+            addNotification={addNotification} 
+            worldName={worldName}
+            onModDrop={handleModDropIntoWorld}
+            isDraggingOverWorld={isDraggingOverWorld}
+          />
+        );
       case 'community':
         return <Community addNotification={addNotification} encryptedParams={encryptedParams} />;
       case 'profile':
@@ -441,7 +524,10 @@ function AppContent() {
         {/* Sidebar - Only show in world tab */}
         {activeTab === 'world' && (
           <div className="sidebar">
-            <ModManager addNotification={addNotification} />
+            <ModManager 
+              addNotification={addNotification} 
+              onModDragStart={handleModDragStart}
+            />
           </div>
         )}
 
@@ -538,6 +624,19 @@ function AppContent() {
           </div>
         ))}
       </div>
+
+      {/* Dragging Indicator */}
+      {draggedMod && (
+        <div className="dragging-indicator">
+          <div className="dragging-icon">
+            <i className="fas fa-cube"></i>
+          </div>
+          <div className="dragging-text">
+            Dragging: {draggedMod.name}
+            <small>Drop into 3D world</small>
+          </div>
+        </div>
+      )}
 
       {/* Encrypted Session Indicator */}
       {encryptedParams.source === 'shared' && (
