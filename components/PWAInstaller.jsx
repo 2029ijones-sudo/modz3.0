@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { quantumInstallation, getQuantumStateSummary } from '@/lib/quantum-installation';
+import { quantumInstallation, getQuantumStateSummary } from '~/quantum-installation';
 
 export default function QuantumPWAInstaller({ addNotification }) {
   const [installPrompt, setInstallPrompt] = useState(null);
