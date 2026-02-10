@@ -1,99 +1,114 @@
 {
-  "name": "Modz 3.0",
-  "short_name": "Modz",
-  "description": "Create, mod and share 3D metaverse worlds with physics, AI coding & real-time collaboration",
-  "start_url": "/",
+  "name": "Modz 3.0: Quantum Metaverse",
+  "short_name": "Modz Quantum",
+  "description": "Quantum-grade 3D metaverse creator with AI coding, physics, encryption & real-time chaos simulation",
+  "start_url": "/?launch=quantum&pwa=1&session_id=${Date.now()}",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "minimal-ui"],
-  "background_color": "#0a0a1a",
+  "display_override": ["window-controls-overlay", "minimal-ui", "fullscreen"],
+  "background_color": "#000000",
   "theme_color": "#6c5ce7",
-  "orientation": "landscape",
+  "orientation": "any",
   "scope": "/",
-  "id": "/",
-  "categories": [
-    "entertainment",
-    "productivity",
-    "graphics",
-    "games",
-    "development",
-    "3d"
-  ],
+  "id": "com.modz.quantum",
+  "categories": ["entertainment", "productivity", "graphics", "games", "development", "3d", "ai", "encryption", "quantum"],
   "screenshots": [
     {
       "src": "/Modz.png",
       "sizes": "1920x1080",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Modz 3D World Editor"
+      "label": "Quantum Desktop Interface"
     },
     {
       "src": "/Modz.png",
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Modz on Mobile"
+      "label": "Chaos Simulation Mobile"
     }
   ],
   "shortcuts": [
     {
-      "name": "New 3D World",
-      "short_name": "New World",
-      "description": "Create a new 3D metaverse world",
-      "url": "/?action=new-world",
+      "name": "⚡ Quantum World",
+      "short_name": "Quantum",
+      "description": "Create quantum-entangled 3D world",
+      "url": "/?mode=quantum&launch=shortcut&timestamp=${Date.now()}",
       "icons": [{ "src": "/Modz.png", "sizes": "192x192" }]
     },
     {
-      "name": "Community Hub",
-      "short_name": "Community",
-      "description": "Browse shared 3D worlds",
-      "url": "/?tab=community",
+      "name": "🌀 Chaos Simulator",
+      "short_name": "Chaos",
+      "description": "Launch chaos simulation engine",
+      "url": "/?mode=chaos&intensity=75&chaos_seed=${Math.random()}",
       "icons": [{ "src": "/Modz.png", "sizes": "192x192" }]
     },
     {
-      "name": "AI Code Editor",
-      "short_name": "AI Editor",
-      "description": "Open the AI-powered code editor",
-      "url": "/?showEditor=true",
+      "name": "🔐 Encrypted Session",
+      "short_name": "Encrypted",
+      "description": "Start encrypted collaborative session",
+      "url": "/?session=encrypted&key=${btoa('quantum-' + Date.now())}",
+      "icons": [{ "src": "/Modz.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "🤖 AI Code Lab",
+      "short_name": "AI Lab",
+      "description": "Open quantum AI code laboratory",
+      "url": "/?lab=ai&mode=quantum&ai_session=${Date.now()}",
       "icons": [{ "src": "/Modz.png", "sizes": "192x192" }]
     }
   ],
   "protocol_handlers": [
     {
       "protocol": "web+modz",
-      "url": "/import?url=%s"
+      "url": "/import?url=%s&quantum=1"
+    },
+    {
+      "protocol": "modz+chaos",
+      "url": "/chaos?seed=%s&mode=quantum"
+    },
+    {
+      "protocol": "modz+encrypt",
+      "url": "/decrypt?payload=%s&key=quantum"
     }
   ],
   "launch_handler": {
-    "client_mode": "focus-existing"
+    "client_mode": "focus-existing",
+    "route_to": "existing-client-navigation"
   },
   "handle_links": "preferred",
   "edge_side_panel": {
-    "preferred_width": 400
+    "preferred_width": 480
   },
   "icons": [
     {
       "src": "/Modz.png",
+      "sizes": "64x64",
+      "type": "image/png",
+      "purpose": "any monochrome maskable"
+    },
+    {
+      "src": "/Modz.png",
       "sizes": "72x72",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
       "src": "/Modz.png",
       "sizes": "96x96",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
       "src": "/Modz.png",
       "sizes": "128x128",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
       "src": "/Modz.png",
       "sizes": "144x144",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
       "src": "/Modz.png",
@@ -104,6 +119,12 @@
     {
       "src": "/Modz.png",
       "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/Modz.png",
+      "sizes": "256x256",
       "type": "image/png",
       "purpose": "any maskable"
     },
@@ -120,43 +141,47 @@
       "purpose": "any maskable"
     }
   ],
-  "related_applications": [
-    {
-      "platform": "play",
-      "url": "https://play.google.com/store/apps/details?id=com.modz.app",
-      "id": "com.modz.app"
-    }
-  ],
-  "prefer_related_applications": false,
-  "features": [
-    "3D Graphics",
-    "Physics Engine",
-    "Real-time Collaboration",
-    "AI Code Assistant",
-    "File Import/Export",
-    "Offline Mode",
-    "Encrypted Sharing"
-  ],
-  "permissions": [
-    "clipboard-write",
-    "clipboard-read",
-    "file-handling"
-  ],
   "file_handlers": [
     {
-      "action": "/import",
+      "action": "/import-quantum",
       "accept": {
-        "application/json": [".modz3", ".json"],
-        "application/zip": [".zip"],
-        "model/gltf-binary": [".glb", ".gltf"]
+        "application/quantum-modz": [".qmodz", ".modz3"],
+        "application/json": [".json", ".modz"],
+        "model/gltf-binary": [".glb", ".gltf"],
+        "application/zip": [".zip", ".modzpack"]
       },
       "icons": [
         {
-          "src": "/icons/file-192.png",
-          "sizes": "192x192",
+          "src": "/Modz.png",
+          "sizes": "64x64",
           "type": "image/png"
         }
       ]
     }
-  ]
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "name",
+      "text": "description",
+      "url": "link",
+      "files": [
+        {
+          "name": "modzfile",
+          "accept": [".modz3", ".glb", ".json", ".modz"]
+        }
+      ]
+    }
+  },
+  "permissions": [
+    "clipboard-write",
+    "clipboard-read",
+    "file-handling",
+    "storage",
+    "notifications"
+  ],
+  "prefer_related_applications": false,
+  "iarc_rating_id": "e39b1f6c-5a7d-4b3a-9c2d-8f6e4a1b9c7d"
 }
