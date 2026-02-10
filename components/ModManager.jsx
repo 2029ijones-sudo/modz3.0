@@ -12,11 +12,12 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-export default function ModManager({ addNotification }) {
+export default function ModManager({ addNotification, onModDragStart }) {
   const [mods, setMods] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [worldName, setWorldName] = useState('My Awesome World');
+  const [draggingModId, setDraggingModId] = useState(null);
 
   useEffect(() => {
     fetchMods();
@@ -62,7 +63,11 @@ export default function ModManager({ addNotification }) {
             metadata: {
               uploaded_by: 'user',
               version: '1.0.0',
-              dependencies: detectDependencies(file.name, e.target.result)
+              dependencies: detectDependencies(file.name, e.target.result),
+              category: detectCategory(file.name),
+              icon: getModIcon(file.name),
+              color: getModColor(file.name),
+              script: extractScriptContent(e.target.result, file.name)
             },
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -104,7 +109,73 @@ export default function ModManager({ addNotification }) {
     if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) return 'image';
     if (['glb', 'gltf', 'fbx', 'obj'].includes(ext)) return '3d-model';
     if (['json', 'yml', 'yaml'].includes(ext)) return 'config';
+    if (['css', 'scss', 'less'].includes(ext)) return 'style';
+    if (['html', 'htm'].includes(ext)) return 'html';
     return 'other';
+  };
+
+  const detectCategory = (filename) => {
+    const name = filename.toLowerCase();
+    if (name.includes('character') || name.includes('player')) return 'character';
+    if (name.includes('vehicle') || name.includes('car')) return 'vehicle';
+    if (name.includes('building') || name.includes('house')) return 'building';
+    if (name.includes('tree') || name.includes('plant')) return 'nature';
+    if (name.includes('weapon') || name.includes('gun')) return 'weapon';
+    if (name.includes('effect') || name.includes('particle')) return 'effect';
+    if (name.includes('ui') || name.includes('interface')) return 'ui';
+    if (name.includes('ai') || name.includes('bot')) return 'ai';
+    return 'object';
+  };
+
+  const getModIcon = (filename) => {
+    const ext = filename.split('.').pop().toLowerCase();
+    if (['js', 'ts', 'jsx', 'tsx'].includes(ext)) return 'fa-code';
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) return 'fa-image';
+    if (['glb', 'gltf', 'fbx', 'obj'].includes(ext)) return 'fa-cube';
+    if (['json', 'yml', 'yaml'].includes(ext)) return 'fa-cogs';
+    if (['css', 'scss', 'less'].includes(ext)) return 'fa-paint-brush';
+    if (['html', 'htm'].includes(ext)) return 'fa-code';
+    return 'fa-file';
+  };
+
+  const getModColor = (filename) => {
+    const category = detectCategory(filename);
+    const colors = {
+      'character': '#ff6b6b',
+      'vehicle': '#4ecdc4',
+      'building': '#45b7d1',
+      'nature': '#96ceb4',
+      'weapon': '#feca57',
+      'effect': '#ff9ff3',
+      'ui': '#54a0ff',
+      'ai': '#5f27cd',
+      'object': '#8395a7',
+      'default': '#6c5ce7'
+    };
+    return colors[category] || colors['default'];
+  };
+
+  const extractScriptContent = (content, filename) => {
+    if (typeof content !== 'string') return '';
+    
+    const ext = filename.split('.').pop().toLowerCase();
+    if (!['js', 'ts', 'jsx', 'tsx'].includes(ext)) return '';
+    
+    // Extract class names, function names for display
+    const classMatches = content.match(/class\s+(\w+)/g) || [];
+    const functionMatches = content.match(/function\s+(\w+)/g) || [];
+    const constMatches = content.match(/const\s+(\w+)\s*=/g) || [];
+    
+    const allNames = [...classMatches, ...functionMatches, ...constMatches]
+      .map(name => name.replace(/class\s+|function\s+|const\s+|=\s*$/, ''))
+      .filter(name => name.length > 0);
+    
+    return {
+      content: content.substring(0, 500) + (content.length > 500 ? '...' : ''),
+      preview: content.substring(0, 200),
+      identifiers: allNames,
+      lines: content.split('\n').length
+    };
   };
 
   const detectDependencies = (filename, content) => {
@@ -115,7 +186,6 @@ export default function ModManager({ addNotification }) {
     if (contentStr.includes('CANNON') || contentStr.includes('cannon')) deps.push('cannon-es');
     if (contentStr.includes('gsap')) deps.push('gsap');
     if (contentStr.includes('import ') || contentStr.includes('require(')) {
-      // Extract imports
       const importRegex = /from\s+['"]([^'"]+)['"]|require\(['"]([^'"]+)['"]\)/g;
       let match;
       while ((match = importRegex.exec(contentStr)) !== null) {
@@ -172,6 +242,8 @@ export default function ModManager({ addNotification }) {
         } else if (mod.type === 'image') {
           const base64Data = mod.data.split(',')[1];
           zip.file(`assets/${mod.name}`, base64Data, { base64: true });
+        } else if (mod.type === '3d-model') {
+          zip.file(`models/${mod.name}`, mod.data);
         }
       }
       
@@ -205,9 +277,17 @@ export default function ModManager({ addNotification }) {
       const modPromises = [];
       
       for (const modRef of config.mods) {
-        const modFile = zipData.file(`mods/${modRef.name}`);
+        let modFile = zipData.file(`mods/${modRef.name}`);
+        if (!modFile) modFile = zipData.file(`assets/${modRef.name}`);
+        if (!modFile) modFile = zipData.file(`models/${modRef.name}`);
+        
         if (modFile) {
-          const data = await modFile.async('text');
+          let data;
+          if (modRef.type === 'image') {
+            data = `data:image/${modRef.name.split('.').pop()};base64,${await modFile.async('base64')}`;
+          } else {
+            data = await modFile.async('text');
+          }
           
           const mod = {
             ...modRef,
@@ -233,10 +313,61 @@ export default function ModManager({ addNotification }) {
     }
   };
 
+  // Drag handlers for mods
+  const handleModDragStart = (e, mod) => {
+    e.dataTransfer.setData('application/mod-data', JSON.stringify(mod));
+    e.dataTransfer.effectAllowed = 'copy';
+    
+    setDraggingModId(mod.id);
+    if (onModDragStart) {
+      onModDragStart(mod);
+    }
+    
+    // Add visual feedback
+    e.target.classList.add('dragging');
+  };
+
+  const handleModDragEnd = (e) => {
+    setDraggingModId(null);
+    e.target.classList.remove('dragging');
+  };
+
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Execute mod in 3D world
+  const executeModInWorld = (mod) => {
+    if (mod.type === 'javascript') {
+      window.dispatchEvent(new CustomEvent('execute-mod-script', {
+        detail: {
+          mod: mod,
+          script: mod.data,
+          position: { x: 0, y: 0, z: 0 }
+        }
+      }));
+      addNotification(`Executing mod: ${mod.name}`, 'info');
+    } else if (mod.type === '3d-model') {
+      window.dispatchEvent(new CustomEvent('add-3d-model', {
+        detail: {
+          mod: mod,
+          modelData: mod.data,
+          position: { x: 0, y: 5, z: 0 }
+        }
+      }));
+      addNotification(`Loading 3D model: ${mod.name}`, 'info');
+    } else if (mod.type === 'image') {
+      window.dispatchEvent(new CustomEvent('add-texture', {
+        detail: {
+          mod: mod,
+          textureData: mod.data,
+          position: { x: 0, y: 2, z: 0 }
+        }
+      }));
+      addNotification(`Adding texture: ${mod.name}`, 'info');
+    }
   };
 
   if (isLoading) {
@@ -259,6 +390,29 @@ export default function ModManager({ addNotification }) {
         <div 
           className="upload-area"
           onClick={() => document.getElementById('fileInput').click()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.add('drag-over');
+          }}
+          onDragLeave={(e) => {
+            e.currentTarget.classList.remove('drag-over');
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+              const input = document.getElementById('fileInput');
+              const dataTransfer = new DataTransfer();
+              for (let i = 0; i < files.length; i++) {
+                dataTransfer.items.add(files[i]);
+              }
+              input.files = dataTransfer.files;
+              const event = new Event('change', { bubbles: true });
+              input.dispatchEvent(event);
+            }
+          }}
         >
           <i className="fas fa-file-upload upload-icon"></i>
           <div className="upload-text">Drag & Drop Files Here</div>
@@ -282,7 +436,7 @@ export default function ModManager({ addNotification }) {
           id="fileInput"
           type="file"
           multiple
-          accept=".js,.jsx,.ts,.glb,.gltf,.fbx,.obj,.png,.jpg,.jpeg,.gif,.webp,.json,.yml,.yaml"
+          accept=".js,.jsx,.ts,.tsx,.glb,.gltf,.fbx,.obj,.png,.jpg,.jpeg,.gif,.webp,.svg,.json,.yml,.yaml,.css,.scss,.less,.html,.htm"
           onChange={handleFileUpload}
           style={{ display: 'none' }}
         />
@@ -298,30 +452,47 @@ export default function ModManager({ addNotification }) {
           <div className="empty-state">
             <i className="fas fa-cloud-upload-alt"></i>
             <p>Upload mods to get started</p>
+            <p className="empty-hint">Drag mods into the 3D world!</p>
           </div>
         ) : (
           <div className="mod-list">
             {mods.map((mod) => (
-              <div key={mod.id} className="mod-item" draggable>
-                <div className={`mod-icon ${mod.type}`}>
-                  <i className={
-                    mod.type === 'javascript' ? 'fas fa-code' :
-                    mod.type === 'image' ? 'fas fa-image' :
-                    mod.type === '3d-model' ? 'fas fa-cube' :
-                    'fas fa-file'
-                  }></i>
+              <div 
+                key={mod.id} 
+                className={`mod-item ${draggingModId === mod.id ? 'dragging' : ''}`}
+                draggable="true"
+                onDragStart={(e) => handleModDragStart(e, mod)}
+                onDragEnd={handleModDragEnd}
+                onClick={() => executeModInWorld(mod)}
+                title="Click to execute in world or drag into 3D world"
+              >
+                <div 
+                  className={`mod-icon ${mod.type}`}
+                  style={{ backgroundColor: mod.metadata?.color || '#6c5ce7' }}
+                >
+                  <i className={`fas ${mod.metadata?.icon || 'fa-file'}`}></i>
                 </div>
                 
                 <div className="mod-info">
                   <h4>{mod.name}</h4>
-                  <p>
-                    {formatFileSize(mod.size)} • 
-                    {mod.metadata?.dependencies?.length > 0 && (
-                      <span className="mod-deps">
-                        {' '}📦 {mod.metadata.dependencies.length} deps
-                      </span>
-                    )}
+                  <p className="mod-type">
+                    <span className={`mod-category ${mod.metadata?.category || 'object'}`}>
+                      {mod.metadata?.category || 'object'}
+                    </span>
+                    <span className="mod-size">{formatFileSize(mod.size)}</span>
                   </p>
+                  {mod.metadata?.dependencies?.length > 0 && (
+                    <div className="mod-deps">
+                      <i className="fas fa-code-branch"></i>
+                      <span>{mod.metadata.dependencies.length} dependencies</span>
+                    </div>
+                  )}
+                  {mod.type === 'javascript' && mod.metadata?.script?.identifiers?.length > 0 && (
+                    <div className="mod-script-info">
+                      <i className="fas fa-terminal"></i>
+                      <span>{mod.metadata.script.identifiers.slice(0, 3).join(', ')}</span>
+                    </div>
+                  )}
                   <small className="mod-date">
                     {format(new Date(mod.created_at), 'MMM d, yyyy')}
                   </small>
@@ -329,14 +500,32 @@ export default function ModManager({ addNotification }) {
                 
                 <div className="mod-actions">
                   <button 
-                    className="mod-action-btn"
-                    onClick={() => addNotification('Edit feature coming soon', 'info')}
+                    className="mod-action-btn play"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      executeModInWorld(mod);
+                    }}
+                    title="Execute in world"
+                  >
+                    <i className="fas fa-play"></i>
+                  </button>
+                  <button 
+                    className="mod-action-btn edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      addNotification('Edit feature coming soon', 'info');
+                    }}
+                    title="Edit mod"
                   >
                     <i className="fas fa-edit"></i>
                   </button>
                   <button 
                     className="mod-action-btn delete"
-                    onClick={() => deleteMod(mod.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteMod(mod.id);
+                    }}
+                    title="Delete mod"
                   >
                     <i className="fas fa-trash"></i>
                   </button>
@@ -366,6 +555,13 @@ export default function ModManager({ addNotification }) {
             onClick={exportWorld}
           >
             <i className="fas fa-download"></i> Export World
+          </button>
+          
+          <button 
+            className="btn btn-accent btn-block"
+            onClick={() => window.dispatchEvent(new CustomEvent('clear-world'))}
+          >
+            <i className="fas fa-trash"></i> Clear World
           </button>
           
           <input
@@ -399,6 +595,23 @@ export default function ModManager({ addNotification }) {
                 {_.uniq(mods.flatMap(m => m.metadata?.dependencies || [])).length} Packages
               </span>
             </div>
+            <div className="stat">
+              <i className="fas fa-memory"></i>
+              <span>
+                {formatFileSize(mods.reduce((sum, mod) => sum + mod.size, 0))}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="drag-instructions">
+          <div className="instruction">
+            <i className="fas fa-mouse-pointer"></i>
+            <span>Click mod to execute</span>
+          </div>
+          <div className="instruction">
+            <i className="fas fa-arrows-alt"></i>
+            <span>Drag mod into 3D world</span>
           </div>
         </div>
       </div>
