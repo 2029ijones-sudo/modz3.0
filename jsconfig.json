@@ -1,0 +1,46 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      // ====================================
+      // MAIN ALIASES - Use special symbols as requested
+      // ====================================
+      
+      // Use @ for components (contains .jsx files)
+      "@/*": ["components/*"],
+      
+      // Use # for app folder
+      "#/*": ["app/*"],
+      
+      // Use ~ for lib folder  
+      "~/*": ["lib/*"],
+      
+      // Use $ for public folder
+      "$/*": ["public/*"],
+      
+      // ====================================
+      // DIRECT ALIASES TO YOUR EXACT FOLDERS
+      // ====================================
+      
+      // Auth folder in app
+      "#/auth/*": ["app/auth/*"],
+      "#/auth/callback/*": ["app/auth/callback/*"],
+      
+      // Profile folder in app
+      "#/profile/*": ["app/profile/*"],
+      
+      // API routes - exact structure
+      "#/api/*": ["app/api/*"],
+      "#/api/community/*": ["app/api/community/*"],
+      "#/api/execute/*": ["app/api/execute/*"],
+      "#/api/mods/*": ["app/api/mods/*"],
+      "#/api/profile/*": ["app/api/profile/*"],
+      "#/api/world/*": ["app/api/world/*"],
+      "#/api/profile/check-username/*": ["app/api/profile/check-username/*"],
+      
+      // Public styles
+      "$/styles/*": ["public/styles/*"]
+    }
+  },
+  "exclude": ["node_modules", ".next", "out"]
+}
