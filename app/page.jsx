@@ -23,7 +23,6 @@ const CodeEditor = dynamic(() => import('../components/CodeEditor'), { ssr: fals
 const ModManager = dynamic(() => import('../components/ModManager'), { ssr: false });
 const Community = dynamic(() => import('../components/Community'), { ssr: false });
 const Profile = dynamic(() => import('../components/Profile'), { ssr: false });
-const QuantumPWAInstaller = dynamic(() => import('../components/PWAInstaller'), { ssr: false });
 
 // Quantum Installation System
 import { quantumInstallation, getQuantumStateSummary } from '~/quantum-installation';
@@ -83,6 +82,8 @@ function AppContent() {
   const [spatialDistortion, setSpatialDistortion] = useState(1.0);
   const [quantumField, setQuantumField] = useState(0);
   const [quantumEffects, setQuantumEffects] = useState([]);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [cwaInstaller, setCWAInstaller] = useState(null);
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
   const particleSystemRef = useRef(null);
@@ -642,6 +643,57 @@ function AppContent() {
     setTimeout(() => vortex.remove(), 5000);
   };
 
+  // Handle PWA Installation Events
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      console.log('PWA installation available');
+      
+      // Show install button in status bar
+      addNotification('PWA installation available. Click install button.', 'info');
+    };
+
+    const handleAppInstalled = () => {
+      console.log('PWA installed successfully');
+      addNotification('Quantum Reality installed successfully!', 'success');
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  // Handle CWA Initialization
+  useEffect(() => {
+    const initializeCWA = async () => {
+      try {
+        // Dynamically import CWA installer
+        const { CWAInstaller } = await import('../lib/cwa-installer.js');
+        const cwa = new CWAInstaller();
+        setCWAInstaller(cwa);
+        
+        // Initialize CWA if CWA mode is requested
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('cwa') === '1') {
+          const status = await cwa.init();
+          if (status.success) {
+            addNotification('CWA Mode Activated. Advanced optimizations enabled.', 'success');
+          }
+        }
+      } catch (error) {
+        console.warn('[CWA] Failed to initialize:', error);
+      }
+    };
+
+    initializeCWA();
+  }, []);
+
   // Check WebGL support
   const checkWebGLSupport = useCallback(() => {
     try {
@@ -701,6 +753,13 @@ function AppContent() {
 
     // Initialize quantum system
     initializeQuantumSystem();
+
+    // Auto-detect if installer should be shown
+    if ('serviceWorker' in navigator && 
+        !window.matchMedia('(display-mode: standalone)').matches &&
+        !localStorage.getItem('quantum_installer_dismissed')) {
+      setShowQuantumInstaller(true);
+    }
   }, [searchParams, checkWebGLSupport, handleWebGLError, initializeQuantumSystem]);
 
   // Update URL when active tab changes (with quantum encryption)
@@ -727,7 +786,7 @@ function AppContent() {
     }
   }, [activeTab, worldName]);
 
-  // Global quantum effects
+  // Global quantum effects with CWA integration
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -1256,22 +1315,192 @@ function AppContent() {
     }
   };
 
-  // Handle quantum PWA installation
-  const handleQuantumInstall = () => {
-    addNotification('Quantum installation initiated. Reality synchronization in progress...', 'info');
+  // ========== FIXED INSTALLATION FUNCTIONS ==========
+
+  // Handle PWA installation (REAL implementation)
+  const handlePWAInstall = async () => {
+    if (deferredPrompt) {
+      try {
+        // Show the browser's native install prompt
+        deferredPrompt.prompt();
+        
+        // Wait for the user to respond to the prompt
+        const { outcome } = await deferredPrompt.userChoice;
+        
+        if (outcome === 'accepted') {
+          addNotification('Quantum PWA installation started!', 'success');
+          console.log('User accepted the PWA install prompt');
+        } else {
+          addNotification('PWA installation cancelled', 'info');
+          console.log('User dismissed the PWA install prompt');
+        }
+        
+        // Clear the deferredPrompt variable
+        setDeferredPrompt(null);
+      } catch (error) {
+        console.error('PWA installation failed:', error);
+        addNotification('PWA installation failed. Please try manual installation.', 'error');
+      }
+    } else {
+      // Fallback for browsers without beforeinstallprompt event
+      addNotification('Manual PWA installation required. Use browser menu.', 'info');
+      showManualInstallInstructions('pwa');
+    }
+  };
+
+  // Handle CWA installation (REAL implementation)
+  const handleCWAInstall = async () => {
+    try {
+      // Load CWA installer if not loaded
+      if (!cwaInstaller) {
+        const { CWAInstaller } = await import('../lib/cwa-installer.js');
+        const cwa = new CWAInstaller();
+        setCWAInstaller(cwa);
+      }
+      
+      // Start CWA installation
+      addNotification('Starting CWA installation...', 'info');
+      
+      // Create CWA shortcut
+      if (cwaInstaller) {
+        const result = await cwaInstaller.installCWA();
+        
+        if (result.success) {
+          addNotification('CWA installed successfully! Advanced features enabled.', 'success');
+          
+          // Reload in CWA mode
+          setTimeout(() => {
+            window.location.href = '/?cwa=1';
+          }, 2000);
+        } else {
+          throw new Error(result.error || 'CWA installation failed');
+        }
+      } else {
+        throw new Error('CWA installer not available');
+      }
+    } catch (error) {
+      console.error('CWA installation failed:', error);
+      addNotification(`CWA installation failed: ${error.message}`, 'error');
+      
+      // Fallback to manual CWA installation
+      showManualInstallInstructions('cwa');
+    }
+  };
+
+  // Show manual installation instructions
+  const showManualInstallInstructions = (type) => {
+    const instructions = type === 'cwa' 
+      ? `
+        To install CWA manually:
+        1. Click ⋮ (Menu) in your browser
+        2. Select "Add to Home Screen" or "Install App"
+        3. For school Chromebooks, you may need to:
+           - Enable developer mode
+           - Use "Add to desktop" instead
+           - Visit https://modz3-0.vercel.app/?cwa=1 first
+      `
+      : `
+        To install PWA manually:
+        1. Click ⋮ (Menu) in your browser
+        2. Look for "Install Modz Quantum" option
+        3. Or click "Add to Home Screen"
+        4. Some browsers may show an install icon in the address bar
+      `;
     
-    // Trigger quantum installation event
-    quantumInstallation.triggerQuantumEvent('INSTALLATION_INITIATED', {
-      timestamp: Date.now(),
-      chaosLevel: chaosLevel
+    const modal = document.createElement('div');
+    modal.className = 'quantum-instruction-modal';
+    modal.innerHTML = `
+      <div class="instruction-content">
+        <h3>${type === 'cwa' ? '⚡ CWA Installation' : '📱 PWA Installation'}</h3>
+        <pre>${instructions}</pre>
+        <div class="instruction-actions">
+          <button class="btn-instruction-close">Close</button>
+          ${type === 'cwa' ? '<button class="btn-instruction-retry">Retry CWA</button>' : ''}
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Add styles
+    const styles = document.createElement('style');
+    styles.textContent = `
+      .quantum-instruction-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(10px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10001;
+      }
+      .instruction-content {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border: 1px solid #6c5ce7;
+        border-radius: 15px;
+        padding: 30px;
+        max-width: 500px;
+        color: white;
+      }
+      .instruction-content h3 {
+        color: #6c5ce7;
+        margin-bottom: 20px;
+      }
+      .instruction-content pre {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 15px;
+        border-radius: 10px;
+        font-size: 14px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+      }
+      .instruction-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+      }
+      .btn-instruction-close, .btn-instruction-retry {
+        padding: 10px 20px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      .btn-instruction-close {
+        background: #666;
+        color: white;
+      }
+      .btn-instruction-retry {
+        background: #6c5ce7;
+        color: white;
+      }
+    `;
+    document.head.appendChild(styles);
+    
+    // Add event listeners
+    modal.querySelector('.btn-instruction-close').addEventListener('click', () => {
+      modal.remove();
+      styles.remove();
     });
+    
+    if (type === 'cwa') {
+      modal.querySelector('.btn-instruction-retry').addEventListener('click', () => {
+        modal.remove();
+        styles.remove();
+        handleCWAInstall();
+      });
+    }
   };
 
   // Dismiss quantum installer
   const dismissQuantumInstaller = () => {
     setShowQuantumInstaller(false);
     localStorage.setItem('quantum_installer_dismissed', 'true');
-    addNotification('Quantum installer dismissed. Reality field remains stable.', 'info');
+    addNotification('Quantum installer dismissed. You can install later from the status bar.', 'info');
   };
 
   // Toggle quantum editor
@@ -1661,14 +1890,109 @@ function AppContent() {
         </div>
       </div>
 
-      {/* Quantum Installer Component */}
+      {/* ========== FIXED: Quantum Installer Component - Now Actually Works ========== */}
       {showQuantumInstaller && (
-        <QuantumPWAInstaller 
-          addNotification={addNotification}
-          onInstall={handleQuantumInstall}
-          onDismiss={dismissQuantumInstaller}
-          quantumState={quantumState}
-        />
+        <div className="quantum-installer-modal">
+          <div className="quantum-installer-content">
+            <div className="installer-header">
+              <div className="installer-quantum-icon">
+                <i className="fas fa-atom fa-spin"></i>
+              </div>
+              <h2>🚀 Install Modz Quantum</h2>
+              <p>Choose your installation method:</p>
+              <button 
+                className="installer-close-btn"
+                onClick={dismissQuantumInstaller}
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="installer-options">
+              {/* Option 1: Standard PWA - Now with real installation */}
+              <div className="installer-option installer-option-pwa">
+                <div className="option-icon">
+                  <i className="fas fa-mobile-alt"></i>
+                </div>
+                <div className="option-content">
+                  <h3>Standard PWA</h3>
+                  <p>Basic Progressive Web App installation</p>
+                  <div className="option-features">
+                    <span><i className="fas fa-check"></i> Works everywhere</span>
+                    <span><i className="fas fa-check"></i> Offline support</span>
+                    <span><i className="fas fa-check"></i> Auto-updates</span>
+                  </div>
+                  {deferredPrompt && (
+                    <div className="option-available">
+                      <i className="fas fa-bell"></i> Installation available
+                    </div>
+                  )}
+                </div>
+                <button 
+                  className="option-btn btn-pwa"
+                  onClick={handlePWAInstall}
+                  disabled={!deferredPrompt}
+                >
+                  {deferredPrompt ? 'Install PWA Now' : 'Manual Install'}
+                </button>
+              </div>
+              
+              {/* Option 2: Advanced CWA - Now with real installation */}
+              <div className="installer-option installer-option-cwa">
+                <div className="option-icon">
+                  <i className="fas fa-bolt"></i>
+                </div>
+                <div className="option-content">
+                  <h3>Advanced CWA <span className="cwa-badge">⚡ NEW</span></h3>
+                  <p>ChromeBook Web App with advanced optimizations</p>
+                  <div className="option-features">
+                    <span><i className="fas fa-check"></i> 40FPS Performance</span>
+                    <span><i className="fas fa-check"></i> School Bypass</span>
+                    <span><i className="fas fa-check"></i> Stealth Mode</span>
+                    <span><i className="fas fa-check"></i> Memory Optimized</span>
+                  </div>
+                  {(() => {
+                    const ua = navigator.userAgent.toLowerCase();
+                    const isChromeOS = ua.includes('cros');
+                    const isManaged = navigator.managed !== undefined;
+                    
+                    if (isChromeOS || isManaged) {
+                      return (
+                        <div className="cwa-school-note">
+                          <i className="fas fa-school"></i> School device detected - Stealth mode recommended
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+                <button 
+                  className="option-btn btn-cwa"
+                  onClick={handleCWAInstall}
+                >
+                  Install CWA
+                </button>
+              </div>
+            </div>
+            
+            <div className="installer-footer">
+              <p className="installer-tip">
+                <i className="fas fa-lightbulb"></i> 
+                <strong>Tip:</strong> CWA is recommended for school Chromebooks & better performance
+              </p>
+              <div className="installer-stats">
+                <div className="stat">
+                  <span className="stat-label">Reality Coeff:</span>
+                  <span className="stat-value">{realityCoefficient.toFixed(2)}</span>
+                </div>
+                <div className="stat">
+                  <span className="stat-label">Chaos Level:</span>
+                  <span className="stat-value">{Math.round(chaosLevel)}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Quantum Notifications */}
