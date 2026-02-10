@@ -1,583 +1,376 @@
 'use client';
-import { useEffect, useState, useRef, Suspense } from 'react';
-import dynamic from 'next/dynamic';
-import { useRouter, useSearchParams } from 'next/navigation';
-import CryptoJS from 'crypto-js';
-import './globals.css';
+import { useState, useEffect } from 'react';
 
-// Dynamically import components for better performance
-const ThreeWorld = dynamic(() => import('../components/ThreeWorld'), { ssr: false });
-const CodeEditor = dynamic(() => import('../components/CodeEditor'), { ssr: false });
-const ModManager = dynamic(() => import('../components/ModManager'), { ssr: false });
-const Community = dynamic(() => import('../components/Community'), { ssr: false });
-const Profile = dynamic(() => import('../components/Profile'), { ssr: false });
-const PWAInstaller = dynamic(() => import('../components/PWAInstaller'), { ssr: false });
+export default function PWAInstaller({ addNotification }) {
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
 
-// Encryption key (in production, store in environment variables)
-const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || 'modz3-secret-key-2024';
-
-// Function to encrypt URL parameters
-const encryptData = (data) => {
-  try {
-    const encrypted = CryptoJS.AES.encrypt(JSON.stringify(data), ENCRYPTION_KEY).toString();
-    return encodeURIComponent(encrypted);
-  } catch (error) {
-    console.error('Encryption error:', error);
-    return null;
-  }
-};
-
-// Function to decrypt URL parameters
-const decryptData = (encrypted) => {
-  try {
-    const decrypted = CryptoJS.AES.decrypt(decodeURIComponent(encrypted), ENCRYPTION_KEY);
-    return JSON.parse(decrypted.toString(CryptoJS.enc.Utf8));
-  } catch (error) {
-    console.error('Decryption error:', error);
-    return null;
-  }
-};
-
-// Main component wrapper that handles routing
-function AppContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState('world');
-  const [showEditor, setShowEditor] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [worldName, setWorldName] = useState('Untitled Metaverse');
-  const [encryptedParams, setEncryptedParams] = useState({});
-  const cursorRef = useRef(null);
-  const cursorTracerRef = useRef(null);
-  const [showPWAInstaller, setShowPWAInstaller] = useState(true);
-
-  // Decrypt URL parameters on load
   useEffect(() => {
-    const encrypted = searchParams.get('e');
-    if (encrypted) {
-      const decrypted = decryptData(encrypted);
-      if (decrypted) {
-        setEncryptedParams(decrypted);
-        
-        // Handle decrypted parameters
-        if (decrypted.tab) {
-          setActiveTab(decrypted.tab);
-        }
-        if (decrypted.world) {
-          setWorldName(decrypted.world);
-        }
-        if (decrypted.showEditor) {
-          setShowEditor(true);
-        }
-        
-        // Add notification about encrypted session
-        if (decrypted.source === 'shared') {
-          addNotification(`Loaded encrypted session from ${decrypted.owner || 'community'}`, 'info');
-        }
-      }
-    }
-  }, [searchParams]);
-
-  // Update URL when active tab changes (with encryption)
-  useEffect(() => {
-    const data = {
-      tab: activeTab,
-      world: worldName,
-      timestamp: Date.now(),
-      session: Math.random().toString(36).substring(7)
+    // Check if app is already installed
+    const checkInstalled = () => {
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+      const isInWebApp = window.navigator.standalone;
+      setIsInstalled(isStandalone || isInWebApp);
     };
-    
-    const encrypted = encryptData(data);
-    if (encrypted) {
-      // Use replaceState to update URL without refresh
-      window.history.replaceState({}, '', `?e=${encrypted}`);
-    }
-  }, [activeTab, worldName]);
 
-  // Particle effects
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
+    checkInstalled();
 
-    const createParticles = () => {
-      const particleCount = 50;
-      const particlesContainer = document.getElementById('particles');
-      if (!particlesContainer) return;
+    // Listen for beforeinstallprompt event
+    const handleBeforeInstallPrompt = (e) => {
+      console.log('🎯 PWA install prompt available');
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
       
-      for (let i = 0; i < particleCount; i++) {
-        const particle = document.createElement('div');
-        particle.className = 'particle';
-        particle.style.left = Math.random() * 100 + 'vw';
-        particle.style.animationDelay = Math.random() * 20 + 's';
-        particle.style.width = particle.style.height = Math.random() * 6 + 2 + 'px';
-        particle.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 70%)`;
-        particlesContainer.appendChild(particle);
+      // Store the event for later use
+      window.deferredPrompt = e;
+    };
+
+    // Listen for app installed event
+    const handleAppInstalled = () => {
+      console.log('✅ PWA installed successfully');
+      setIsInstallable(false);
+      setIsInstalled(true);
+      if (addNotification) {
+        addNotification('Modz installed successfully! Launch from your app drawer.', 'success');
       }
     };
 
-    createParticles();
+    // Listen for display mode changes
+    const handleDisplayMode = (e) => {
+      setIsInstalled(e.matches);
+    };
+
+    // Add event listeners
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
     
-    setTimeout(() => {
-      addNotification('Welcome to Modz3.0! Drag & drop files to upload mods.', 'info');
-    }, 1000);
-  }, []);
+    const displayModeMediaQuery = window.matchMedia('(display-mode: standalone)');
+    displayModeMediaQuery.addEventListener('change', handleDisplayMode);
 
-  // 3D Cursor Effect
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const cursor = cursorRef.current;
-    const cursorTracer = cursorTracerRef.current;
-    let cursorTrail = [];
-    const MAX_TRAIL = 10;
-
-    const handleMouseMove = (e) => {
-      if (cursor) {
-        cursor.style.left = `${e.clientX - 16}px`;
-        cursor.style.top = `${e.clientY - 16}px`;
-      }
-
-      if (cursorTracer) {
-        const tracer = cursorTracer.cloneNode(true);
-        tracer.style.left = `${e.clientX}px`;
-        tracer.style.top = `${e.clientY}px`;
-        tracer.style.opacity = '0.7';
-        document.body.appendChild(tracer);
-
-        cursorTrail.push(tracer);
-        if (cursorTrail.length > MAX_TRAIL) {
-          const oldTracer = cursorTrail.shift();
-          if (oldTracer.parentNode) {
-            oldTracer.style.opacity = '0';
-            setTimeout(() => oldTracer.remove(), 300);
-          }
-        }
-
-        cursorTrail.forEach((t, i) => {
-          if (t.style.opacity > 0) {
-            t.style.opacity = (0.7 * (i / cursorTrail.length)).toString();
-            t.style.transform = `scale(${0.5 + (i / cursorTrail.length)})`;
-          }
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then(registration => {
+          console.log('✅ Service Worker registered:', registration);
+        })
+        .catch(error => {
+          console.error('❌ Service Worker registration failed:', error);
         });
-      }
+    }
+
+    // Check install criteria
+    const checkInstallCriteria = () => {
+      const criteria = [
+        'BeforeInstallPromptEvent' in window,
+        window.matchMedia('(display-mode: standalone)').matches === false,
+        navigator.standalone === false
+      ];
+      
+      const canInstall = criteria.every(c => c === true);
+      setIsInstallable(canInstall);
     };
 
-    const interactiveElements = document.querySelectorAll('.nav-link, .btn, .mod-item, .upload-area, .avatar-3d');
-    
-    const handleMouseEnter = () => {
-      if (cursor) {
-        cursor.style.transform = 'scale(1.8)';
-        cursor.style.filter = 'drop-shadow(0 0 30px var(--accent))';
-      }
-    };
-    
-    const handleMouseLeave = () => {
-      if (cursor) {
-        cursor.style.transform = 'scale(1)';
-        cursor.style.filter = 'drop-shadow(0 0 15px var(--primary))';
-      }
-    };
-
-    interactiveElements.forEach(el => {
-      el.addEventListener('mouseenter', handleMouseEnter);
-      el.addEventListener('mouseleave', handleMouseLeave);
-    });
-
-    window.addEventListener('mousemove', handleMouseMove);
+    checkInstallCriteria();
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      interactiveElements.forEach(el => {
-        el.removeEventListener('mouseenter', handleMouseEnter);
-        el.removeEventListener('mouseleave', handleMouseLeave);
-      });
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+      displayModeMediaQuery.removeEventListener('change', handleDisplayMode);
     };
-  }, []);
+  }, [addNotification]);
 
-  // Add notification
-  const addNotification = (message, type = 'info') => {
-    const id = Date.now();
-    setNotifications(prev => [...prev, { id, message, type }]);
-    
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== id));
-    }, 3000);
-  };
-
-  // Navigation functions with encrypted URLs
-  const navigateToTab = (tab) => {
-    setActiveTab(tab);
-    
-    // Create encrypted shareable URL
-    const data = {
-      tab,
-      world: worldName,
-      timestamp: Date.now(),
-      session: Math.random().toString(36).substring(7)
-    };
-    
-    const encrypted = encryptData(data);
-    if (encrypted) {
-      const url = `${window.location.origin}${window.location.pathname}?e=${encrypted}`;
-      console.log('Encrypted URL:', url); // For debugging
-      // In production, you might want to copy this to clipboard or show it
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) {
+      if (addNotification) {
+        addNotification('Install feature not available on this browser', 'warning');
+      }
+      return;
     }
-  };
 
-  const navigateToProfile = () => {
-    const data = {
-      tab: 'profile',
-      timestamp: Date.now(),
-      session: Math.random().toString(36).substring(7),
-      secure: true
-    };
-    
-    const encrypted = encryptData(data);
-    if (encrypted) {
-      window.location.href = `/profile?e=${encrypted}`;
-    }
-  };
-
-  const navigateToCommunity = () => {
-    setActiveTab('community');
-  };
-
-  const generateShareLink = () => {
-    const data = {
-      tab: activeTab,
-      world: worldName,
-      timestamp: Date.now(),
-      source: 'shared',
-      owner: 'You',
-      secure: true
-    };
-    
-    const encrypted = encryptData(data);
-    if (encrypted) {
-      const shareUrl = `${window.location.origin}${window.location.pathname}?e=${encrypted}`;
+    try {
+      // Show the install prompt
+      deferredPrompt.prompt();
       
-      // Copy to clipboard
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        addNotification('Encrypted share link copied to clipboard!', 'success');
-      }).catch(() => {
-        // Fallback: show in prompt
-        prompt('Share this encrypted URL:', shareUrl);
-      });
+      // Wait for the user to respond to the prompt
+      const { outcome } = await deferredPrompt.userChoice;
       
-      return shareUrl;
+      console.log(`User response to install prompt: ${outcome}`);
+      
+      if (outcome === 'accepted') {
+        if (addNotification) {
+          addNotification('Installing Modz...', 'success');
+        }
+      } else {
+        if (addNotification) {
+          addNotification('Installation cancelled', 'info');
+        }
+      }
+      
+      // Clear the saved prompt since it can't be used again
+      setDeferredPrompt(null);
+      setIsInstallable(false);
+      
+    } catch (error) {
+      console.error('Install error:', error);
+      if (addNotification) {
+        addNotification('Installation failed. Please try again.', 'error');
+      }
     }
+  };
+
+  const handleAdvancedInstall = () => {
+    // Show advanced installation options
+    const advancedOptions = {
+      offline: true,
+      backgroundSync: true,
+      pushNotifications: true,
+      fileHandling: true,
+      protocolHandling: true
+    };
+
+    localStorage.setItem('modz_pwa_config', JSON.stringify(advancedOptions));
+    
+    if (addNotification) {
+      addNotification('Advanced features enabled. Full PWA capabilities activated.', 'success');
+    }
+  };
+
+  const checkPWAFeatures = () => {
+    const features = {
+      offline: 'serviceWorker' in navigator,
+      install: 'BeforeInstallPromptEvent' in window,
+      notifications: 'Notification' in window && 'PushManager' in window,
+      backgroundSync: 'SyncManager' in window,
+      fileHandling: 'launchQueue' in window && 'files' in window.launchQueue,
+      protocolHandling: 'registerProtocolHandler' in navigator,
+      storage: 'storage' in navigator && 'estimate' in navigator.storage,
+      share: 'share' in navigator,
+      clipboard: 'clipboard' in navigator
+    };
+
+    console.log('PWA Features:', features);
+    return features;
+  };
+
+  // Don't show installer if already installed
+  if (isInstalled) {
     return null;
-  };
+  }
 
-  // Handle world actions
-  const handleNewWorld = () => {
-    const name = prompt('Enter world name:', 'My Awesome World');
-    if (name) {
-      setWorldName(name);
-      addNotification(`Created new world: ${name}`, 'success');
-      
-      // Update URL with new world name
-      const data = {
-        tab: activeTab,
-        world: name,
-        timestamp: Date.now(),
-        action: 'world_created'
-      };
-      
-      const encrypted = encryptData(data);
-      if (encrypted) {
-        window.history.replaceState({}, '', `?e=${encrypted}`);
-      }
-    }
-  };
-
-  const handleClearWorld = () => {
-    if (confirm('Clear the entire world?')) {
-      window.dispatchEvent(new CustomEvent('clear-world'));
-      addNotification('World cleared', 'success');
-    }
-  };
-
-  const handleImportWorld = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.modz3,.zip,.json';
-    input.onchange = (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        addNotification(`Importing ${file.name}...`, 'info');
-        window.dispatchEvent(new CustomEvent('import-world', { detail: file }));
-      }
-    };
-    input.click();
-  };
-
-  const handleExportWorld = () => {
-    addNotification('Exporting world...', 'info');
-    window.dispatchEvent(new CustomEvent('export-world'));
-  };
-
-  const handleShareWorld = () => {
-    const shareLink = generateShareLink();
-    if (shareLink) {
-      // Show share dialog
-      if (navigator.share) {
-        navigator.share({
-          title: `Check out my Modz3.0 world: ${worldName}`,
-          text: `I created a 3D world in Modz3.0 called "${worldName}". Check it out!`,
-          url: shareLink
-        });
-      }
-    }
-  };
-
-  // Handle PWA installation
-  const handlePWAInstall = () => {
-    // This will be called from PWAInstaller component
-    addNotification('PWA installation initiated', 'info');
-  };
-
-  // Dismiss PWA installer
-  const dismissPWAInstaller = () => {
-    setShowPWAInstaller(false);
-    localStorage.setItem('pwa_installer_dismissed', 'true');
-  };
-
-  // Render active tab content
-  const renderActiveTab = () => {
-    switch (activeTab) {
-      case 'world':
-        return <ThreeWorld addNotification={addNotification} worldName={worldName} />;
-      case 'community':
-        return <Community addNotification={addNotification} encryptedParams={encryptedParams} />;
-      case 'profile':
-        return <Profile addNotification={addNotification} />;
-      default:
-        return <ThreeWorld addNotification={addNotification} worldName={worldName} />;
-    }
-  };
+  // Only show on supported browsers
+  if (!isInstallable) {
+    return null;
+  }
 
   return (
-    <div className="app-container" suppressHydrationWarning>
-      {/* Custom 3D Cursor */}
-      <div className="custom-cursor" id="customCursor" ref={cursorRef}>
-        <div className="cursor-inner"></div>
-        <div className="cursor-outer"></div>
-      </div>
-      <div className="cursor-tracer" id="cursorTracer" ref={cursorTracerRef}></div>
-
-      {/* Visual Effects */}
-      <div className="scan-line"></div>
-      <div className="hologram-effect"></div>
-      <div id="particles"></div>
-
-      {/* Header */}
-      <header>
-        <div className="logo">
-          <i className="fas fa-cube logo-icon"></i>
-          <h1>Modz</h1>
+    <div className="pwa-installer">
+      <div className="installer-card">
+        <div className="installer-header">
+          <i className="fas fa-rocket"></i>
+          <h3>Install Modz App</h3>
+          <span className="badge">PWA</span>
         </div>
         
-        <nav className="nav-links">
-          <button 
-            className={`nav-link ${activeTab === 'world' ? 'active' : ''}`}
-            onClick={() => navigateToTab('world')}
-            id="navWorld"
-          >
-            <i className="fas fa-globe"></i>
-            <span>3D World</span>
-          </button>
-          <button 
-            className="nav-link"
-            onClick={() => setShowEditor(true)}
-            id="editorToggle"
-          >
-            <i className="fas fa-code"></i>
-            <span>AI Editor</span>
-          </button>
-          <button 
-            className={`nav-link ${activeTab === 'community' ? 'active' : ''}`}
-            onClick={() => navigateToTab('community')}
-            id="navCommunity"
-          >
-            <i className="fas fa-share-alt"></i>
-            <span>Community</span>
-          </button>
-          <button 
-            className={`nav-link ${activeTab === 'profile' ? 'active' : ''}`}
-            onClick={() => navigateToTab('profile')}
-            id="navProfile"
-          >
-            <i className="fas fa-user"></i>
-            <span>Profile</span>
-          </button>
-        </nav>
-        
-        <div className="user-section">
-          <div className="world-actions">
-            <button className="btn btn-secondary" onClick={handleImportWorld} id="importWorld">
-              <i className="fas fa-folder-open"></i>
-              <span>Import</span>
-            </button>
-            <button className="btn btn-primary" onClick={handleExportWorld} id="exportWorld">
-              <i className="fas fa-download"></i>
-              <span>Export</span>
-            </button>
-            <button className="btn btn-accent" onClick={handleShareWorld} id="shareWorld">
-              <i className="fas fa-share"></i>
-              <span>Share</span>
-            </button>
+        <div className="installer-features">
+          <div className="feature">
+            <i className="fas fa-bolt"></i>
+            <span>Fast Loading</span>
           </div>
-          <div className="avatar-container">
-            <div className="avatar-glow"></div>
-            <div className="avatar-3d" title="Profile Settings" id="userAvatar" onClick={navigateToProfile}>
-              <i className="fas fa-robot"></i>
-            </div>
+          <div className="feature">
+            <i className="fas fa-wifi-slash"></i>
+            <span>Offline Mode</span>
+          </div>
+          <div className="feature">
+            <i className="fas fa-desktop"></i>
+            <span>Desktop App</span>
+          </div>
+          <div className="feature">
+            <i className="fas fa-bell"></i>
+            <span>Notifications</span>
           </div>
         </div>
-      </header>
 
-      {/* Main Container */}
-      <div className="main-container">
-        {/* Sidebar - Only show in world tab */}
-        {activeTab === 'world' && (
-          <div className="sidebar">
-            <ModManager addNotification={addNotification} />
-          </div>
-        )}
-
-        {/* Main Content Area */}
-        <div className={`content-area ${activeTab !== 'world' ? 'full-width' : ''}`}>
-          {activeTab === 'world' ? (
-            <>
-              <div className="world-wrapper">
-                <div className="world-header">
-                  <h2 className="world-title" id="worldTitle">
-                    Metaverse: {worldName}
-                    {encryptedParams.source === 'shared' && (
-                      <span className="shared-badge" title="Shared via encrypted link">
-                        <i className="fas fa-lock"></i> Shared
-                      </span>
-                    )}
-                  </h2>
-                  <div className="world-actions">
-                    <button className="btn btn-secondary" id="toggleGrid" onClick={() => addNotification('Toggle Grid - Coming soon', 'info')}>
-                      <i className="fas fa-th"></i>
-                      <span>Grid</span>
-                    </button>
-                    <button className="btn btn-danger" id="clearWorld" onClick={handleClearWorld}>
-                      <i className="fas fa-trash"></i>
-                      <span>Clear</span>
-                    </button>
-                    <button className="btn btn-success" id="newWorld" onClick={handleNewWorld}>
-                      <i className="fas fa-plus"></i>
-                      <span>New World</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="world-overlay"></div>
-                {renderActiveTab()}
-                <div className="drop-zone" id="dropZone"></div>
-              </div>
-
-              {/* Advanced Code Editor */}
-              {showEditor && (
-                <div className="editor-panel active">
-                  <CodeEditor 
-                    onClose={() => setShowEditor(false)}
-                    addNotification={addNotification}
-                  />
-                </div>
-              )}
-            </>
-          ) : (
-            <div className={`tab-content ${activeTab}-tab`}>
-              <div className="tab-header">
-                <h2>
-                  {activeTab === 'community' && 'Community Hub'}
-                  {activeTab === 'profile' && 'Your Profile'}
-                </h2>
-                {activeTab === 'community' && (
-                  <button className="btn btn-accent" onClick={handleShareWorld}>
-                    <i className="fas fa-share"></i> Share Your World
-                  </button>
-                )}
-              </div>
-              <div className="tab-inner">
-                {renderActiveTab()}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* PWA Installer Component */}
-      {showPWAInstaller && (
-        <PWAInstaller 
-          addNotification={addNotification}
-          onInstall={handlePWAInstall}
-          onDismiss={dismissPWAInstaller}
-        />
-      )}
-
-      {/* Notifications Container */}
-      <div className="notification-container" id="notificationContainer">
-        {notifications.map((notification) => (
-          <div key={notification.id} className={`notification show ${notification.type}`}>
-            <div className="notification-header">
-              <i className={`fas fa-${
-                notification.type === 'success' ? 'check-circle' :
-                notification.type === 'error' ? 'times-circle' :
-                notification.type === 'warning' ? 'exclamation-triangle' : 'info-circle'
-              } notification-icon`}></i>
-              <div className="notification-title">
-                {notification.type.charAt(0).toUpperCase() + notification.type.slice(1)}
-              </div>
-            </div>
-            <div className="notification-message">{notification.message}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Encrypted Session Indicator */}
-      {encryptedParams.source === 'shared' && (
-        <div className="encrypted-session-indicator">
-          <i className="fas fa-lock"></i>
-          <span>Encrypted Session Loaded</span>
-          <button onClick={() => window.location.href = window.location.pathname}>
-            <i className="fas fa-times"></i>
-          </button>
-        </div>
-      )}
-
-      {/* PWA Install Button (Mobile) */}
-      {typeof window !== 'undefined' && 
-       !window.matchMedia('(display-mode: standalone)').matches &&
-       'serviceWorker' in navigator && (
-        <div className="pwa-install-button">
+        <div className="installer-actions">
           <button 
-            className="btn btn-primary btn-pwa-install"
-            onClick={() => setShowPWAInstaller(true)}
+            className="btn btn-primary install-btn"
+            onClick={handleInstallClick}
           >
             <i className="fas fa-download"></i>
-            Install App
+            Install Modz
+          </button>
+          
+          <button 
+            className="btn btn-secondary advanced-btn"
+            onClick={handleAdvancedInstall}
+          >
+            <i className="fas fa-cog"></i>
+            Advanced Options
+          </button>
+          
+          <button 
+            className="btn btn-text help-btn"
+            onClick={() => addNotification('PWA allows installing web apps like native apps', 'info')}
+          >
+            <i className="fas fa-question-circle"></i>
+            What is this?
           </button>
         </div>
-      )}
-    </div>
-  );
-}
 
-// Main export with Suspense boundary
-export default function Home() {
-  return (
-    <Suspense fallback={
-      <div className="loading-screen">
-        <div className="loading-spinner"></div>
-        <p>Loading Modz3.0...</p>
+        <div className="installer-info">
+          <p>
+            <i className="fas fa-info-circle"></i>
+            Install to launch from desktop, get notifications, and work offline
+          </p>
+        </div>
       </div>
-    }>
-      <AppContent />
-    </Suspense>
+
+      <style jsx>{`
+        .pwa-installer {
+          position: fixed;
+          bottom: 30px;
+          right: 30px;
+          z-index: 9999;
+          animation: slideInUp 0.5s ease-out;
+        }
+        
+        .installer-card {
+          background: linear-gradient(135deg, 
+            rgba(15, 20, 25, 0.95) 0%,
+            rgba(10, 15, 20, 0.9) 100%);
+          backdrop-filter: blur(20px);
+          border-radius: 20px;
+          padding: 25px;
+          border: 1px solid rgba(108, 92, 231, 0.4);
+          box-shadow: 
+            0 20px 60px rgba(0, 0, 0, 0.7),
+            0 0 50px rgba(108, 92, 231, 0.3);
+          max-width: 400px;
+          transform-style: preserve-3d;
+        }
+        
+        .installer-header {
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          margin-bottom: 20px;
+        }
+        
+        .installer-header i {
+          font-size: 32px;
+          color: var(--primary);
+          filter: drop-shadow(0 0 10px var(--primary));
+        }
+        
+        .installer-header h3 {
+          margin: 0;
+          font-size: 22px;
+          background: linear-gradient(45deg, var(--secondary), var(--primary-light));
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+        }
+        
+        .badge {
+          background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+          color: white;
+          padding: 4px 12px;
+          border-radius: 15px;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.5px;
+        }
+        
+        .installer-features {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 15px;
+          margin: 25px 0;
+          padding: 20px;
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 15px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .feature {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          color: var(--gray-light);
+          font-size: 14px;
+        }
+        
+        .feature i {
+          color: var(--secondary);
+          font-size: 16px;
+        }
+        
+        .installer-actions {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          margin: 25px 0;
+        }
+        
+        .install-btn, .advanced-btn, .help-btn {
+          width: 100%;
+          justify-content: center;
+          padding: 15px;
+          border-radius: 12px;
+          font-weight: 700;
+          transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        .install-btn:hover {
+          transform: translateY(-3px);
+          box-shadow: 
+            0 15px 35px rgba(108, 92, 231, 0.4),
+            0 0 40px rgba(108, 92, 231, 0.3);
+        }
+        
+        .advanced-btn {
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .advanced-btn:hover {
+          background: rgba(255, 255, 255, 0.15);
+          transform: translateY(-2px);
+        }
+        
+        .help-btn {
+          background: transparent;
+          color: var(--gray-light);
+          opacity: 0.8;
+        }
+        
+        .installer-info {
+          padding-top: 15px;
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+          color: var(--gray-light);
+          font-size: 13px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        
+        .installer-info i {
+          color: var(--secondary);
+        }
+        
+        @keyframes slideInUp {
+          from {
+            opacity: 0;
+            transform: translateY(100px) scale(0.9);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+      `}</style>
+    </div>
   );
 }
