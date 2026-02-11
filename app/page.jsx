@@ -33,7 +33,7 @@ const ModManager = dynamic(() => import('@/ModManager'), { ssr: false });
 const Community = dynamic(() => import('@/Community'), { ssr: false });
 const Profile = dynamic(() => import('@/Profile'), { ssr: false });
 
-// Import installers
+
 import CWAInstaller from '@/components/CWAInstaller';
 import QuantumPWAInstaller from '@/components/PWAInstaller';
 
