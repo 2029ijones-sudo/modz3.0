@@ -3050,146 +3050,147 @@ Version 3, 29 June 2007`,
           ) : null}
         </div>
       </div>
-    </div>
-  );
-};
 
-        {/* Statistics Panel */}
-        <AnimatePresence>
-          {showStats && (
-            <motion.div 
-              className="stats-panel"
-              initial={{ opacity: 0, x: 300 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 300 }}
-            >
-              <div className="stats-header">
-                <h3>Repository Statistics</h3>
-                <button className="close-btn" onClick={() => setShowStats(false)}>
-                  <X size={16} />
-                </button>
+      {/* Statistics Panel */}
+      <AnimatePresence>
+        {showStats && (
+          <motion.div 
+            className="stats-panel"
+            initial={{ opacity: 0, x: 300 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 300 }}
+          >
+            <div className="stats-header">
+              <h3>Repository Statistics</h3>
+              <button className="close-btn" onClick={() => setShowStats(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <GitCommit size={20} />
+                </div>
+                <div className="stat-info">
+                  <span className="stat-value">{repoStats.commits}</span>
+                  <span className="stat-label">Commits</span>
+                </div>
               </div>
               
-              <div className="stats-grid">
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    <GitCommit size={20} />
-                  </div>
-                  <div className="stat-info">
-                    <span className="stat-value">{repoStats.commits}</span>
-                    <span className="stat-label">Commits</span>
-                  </div>
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <GitBranch size={20} />
                 </div>
-                
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    <GitBranch size={20} />
-                  </div>
-                  <div className="stat-info">
-                    <span className="stat-value">{repoStats.branches}</span>
-                    <span className="stat-label">Branches</span>
-                  </div>
-                </div>
-                
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    <Users size={20} />
-                  </div>
-                  <div className="stat-info">
-                    <span className="stat-value">{repoStats.contributors}</span>
-                    <span className="stat-label">Contributors</span>
-                  </div>
-                </div>
-                
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    <Tag size={20} />
-                  </div>
-                  <div className="stat-info">
-                    <span className="stat-value">{repoStats.releases}</span>
-                    <span className="stat-label">Releases</span>
-                  </div>
-                </div>
-                
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    <Database size={20} />
-                  </div>
-                  <div className="stat-info">
-                    <span className="stat-value">{repoStats.size} KB</span>
-                    <span className="stat-label">Size</span>
-                  </div>
-                </div>
-                
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    <Code size={20} />
-                  </div>
-                  <div className="stat-info">
-                    <span className="stat-value">{repoStats.lines}</span>
-                    <span className="stat-label">Lines of Code</span>
-                  </div>
+                <div className="stat-info">
+                  <span className="stat-value">{repoStats.branches}</span>
+                  <span className="stat-label">Branches</span>
                 </div>
               </div>
-
-              <div className="stats-chart">
-                <h4>Activity (Last 30 Days)</h4>
-                <ResponsiveContainer width="100%" height={200}>
-                  <AreaChart data={activity}>
-                    <defs>
-                      <linearGradient id="colorActivity" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#6c5ce7" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#6c5ce7" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis 
-                      dataKey="date" 
-                      stroke="#ccc"
-                      tick={{ fill: '#ccc', fontSize: 10 }}
-                    />
-                    <YAxis 
-                      stroke="#ccc"
-                      tick={{ fill: '#ccc', fontSize: 10 }}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        background: '#1e1e1e', 
-                        border: '1px solid #6c5ce7',
-                        borderRadius: '8px'
-                      }}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="count" 
-                      stroke="#6c5ce7" 
-                      fillOpacity={1} 
-                      fill="url(#colorActivity)" 
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+              
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <Users size={20} />
+                </div>
+                <div className="stat-info">
+                  <span className="stat-value">{repoStats.contributors}</span>
+                  <span className="stat-label">Contributors</span>
+                </div>
               </div>
+              
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <Tag size={20} />
+                </div>
+                <div className="stat-info">
+                  <span className="stat-value">{repoStats.releases}</span>
+                  <span className="stat-label">Releases</span>
+                </div>
+              </div>
+              
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <Database size={20} />
+                </div>
+                <div className="stat-info">
+                  <span className="stat-value">{repoStats.size} KB</span>
+                  <span className="stat-label">Size</span>
+                </div>
+              </div>
+              
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <Code size={20} />
+                </div>
+                <div className="stat-info">
+                  <span className="stat-value">{repoStats.lines}</span>
+                  <span className="stat-label">Lines of Code</span>
+                </div>
+              </div>
+            </div>
 
-              <div className="stats-contributors">
-                <h4>Top Contributors</h4>
-                <div className="contributors-list">
-                  {contributors.slice(0, 5).map((contributor, i) => (
-                    <div key={i} className="contributor-item">
-                      <div className="contributor-avatar">
-                        {contributor.author_name?.[0] || 'U'}
-                      </div>
-                      <div className="contributor-info">
-                        <span className="contributor-name">{contributor.author_name}</span>
-                        <span className="contributor-commits">{contributor.count} commits</span>
-                      </div>
+            <div className="stats-chart">
+              <h4>Activity (Last 30 Days)</h4>
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={activity}>
+                  <defs>
+                    <linearGradient id="colorActivity" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6c5ce7" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#6c5ce7" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis 
+                    dataKey="date" 
+                    stroke="#ccc"
+                    tick={{ fill: '#ccc', fontSize: 10 }}
+                  />
+                  <YAxis 
+                    stroke="#ccc"
+                    tick={{ fill: '#ccc', fontSize: 10 }}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      background: '#1e1e1e', 
+                      border: '1px solid #6c5ce7',
+                      borderRadius: '8px'
+                    }}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="count" 
+                    stroke="#6c5ce7" 
+                    fillOpacity={1} 
+                    fill="url(#colorActivity)" 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="stats-contributors">
+              <h4>Top Contributors</h4>
+              <div className="contributors-list">
+                {contributors.slice(0, 5).map((contributor, i) => (
+                  <div key={i} className="contributor-item">
+                    <div className="contributor-avatar">
+                      {contributor.author_name?.[0] || 'U'}
                     </div>
-                  ))}
-                </div>
+                    <div className="contributor-info">
+                      <span className="contributor-name">{contributor.author_name}</span>
+                      <span className="contributor-commits">{contributor.count} commits</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+        </div>
+    </div>
+  );
+};    
+       
         <style jsx>{`
           .quantum-repository-view {
             display: flex;
