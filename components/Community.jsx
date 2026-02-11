@@ -35,7 +35,6 @@ import {
   FileCode, FileText, FileJson, FileImage, Type, Box,
   Grid, List, RefreshCw, Server, Wifi, Power, ChevronLeft, Tag
 } from 'lucide-react';
-
 // Encryption key
 const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || 'quantum-mods-secret-key-2024';
 
