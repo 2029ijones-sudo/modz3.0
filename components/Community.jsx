@@ -2786,270 +2786,273 @@ Version 3, 29 June 2007`,
     );
   };
 
-  const renderRepositoryView = () => {
-    if (!selectedRepo || !repoContent) return null;
+ const renderRepositoryView = () => {
+  if (!selectedRepo || !repoContent) return null;
 
-    return (
-      <div className="quantum-repository-view">
-        <div className="repo-view-sidebar">
-          {renderFileExplorer()}
+  return (
+    <div className="quantum-repository-view">
+      <div className="repo-view-sidebar">
+        {renderFileExplorer()}
+      </div>
+      
+      <div className="repo-view-main">
+        <div className="repo-view-header">
+          <div className="repo-header-left">
+            <button type="button" className="back-btn" onClick={() => setSelectedRepo(null)}>
+              <ArrowLeft size={16} />
+              Back to repositories
+            </button>
+            
+            <div className="repo-header-info">
+              <h2>{selectedRepo.name}</h2>
+              <span className="repo-header-visibility">
+                {selectedRepo.is_public ? 'Public' : 'Private'}
+              </span>
+            </div>
+          </div>
+
+          <div className="repo-header-actions">
+            <Tooltip.Provider>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button type="button" className="header-btn" onClick={exportRepository}>
+                    <Download size={16} />
+                  </button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>Download repository</Tooltip.Content>
+              </Tooltip.Root>
+
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button type="button" className="header-btn" onClick={() => setShowStats(!showStats)}>
+                    <Activity size={16} />
+                  </button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>Repository statistics</Tooltip.Content>
+              </Tooltip.Root>
+
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button type="button" className="header-btn" onClick={() => setShowGraph(!showGraph)}>
+                    <Layers size={16} />
+                  </button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>Contribution graph</Tooltip.Content>
+              </Tooltip.Root>
+            </Tooltip.Provider>
+          </div>
         </div>
-        
-        <div className="repo-view-main">
-          <div className="repo-view-header">
-            <div className="repo-header-left">
-              <button className="back-btn" onClick={() => setSelectedRepo(null)}>
-                <ArrowLeft size={16} />
-                Back to repositories
-              </button>
+
+        <div className="repo-view-tabs">
+          <button type="button" className={`repo-tab ${activeTab === 'code' ? 'active' : ''}`} onClick={() => setActiveTab('code')}>
+            <Code size={14} /> Code
+          </button>
+          <button type="button" className={`repo-tab ${activeTab === 'issues' ? 'active' : ''}`} onClick={() => setActiveTab('issues')}>
+            <Bug size={14} /> Issues {issues.length > 0 && <span className="tab-badge">{issues.length}</span>}
+          </button>
+          <button type="button" className={`repo-tab ${activeTab === 'pull-requests' ? 'active' : ''}`} onClick={() => setActiveTab('pull-requests')}>
+            <GitPullRequest size={14} /> Pull Requests {pullRequests.length > 0 && <span className="tab-badge">{pullRequests.length}</span>}
+          </button>
+          <button type="button" className={`repo-tab ${activeTab === 'branches' ? 'active' : ''}`} onClick={() => setActiveTab('branches')}>
+            <GitBranch size={14} /> Branches {branches.length > 0 && <span className="tab-badge">{branches.length}</span>}
+          </button>
+          <button type="button" className={`repo-tab ${activeTab === 'releases' ? 'active' : ''}`} onClick={() => setActiveTab('releases')}>
+            <Tag size={14} /> Releases {releases.length > 0 && <span className="tab-badge">{releases.length}</span>}
+          </button>
+        </div>
+
+        <div className="repo-view-content">
+          {editingFile ? (
+            <QuantumCodeEditor
+              file={editingFile}
+              onSave={saveFile}
+              onClose={() => setEditingFile(null)}
+              repository={selectedRepo}
+              user={user}
+              addNotification={addNotification}
+              quantumEffects={{ chaosLevel: 0 }}
+            />
+          ) : activeTab === 'code' ? (
+            <div className="code-view">
+              {readme && (
+                <div className="readme-section">
+                  <div className="readme-header">
+                    <BookOpen size={16} />
+                    <h3>README.md</h3>
+                  </div>
+                  <div className="readme-content markdown-body">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {readme}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+              )}
               
-              <div className="repo-header-info">
-                <h2>{selectedRepo.name}</h2>
-                <span className="repo-header-visibility">
-                  {selectedRepo.is_public ? 'Public' : 'Private'}
-                </span>
-              </div>
-            </div>
-
-            <div className="repo-header-actions">
-              <Tooltip.Provider>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <button className="header-btn" onClick={exportRepository}>
-                      <Download size={16} />
-                    </button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>Download repository</Tooltip.Content>
-                </Tooltip.Root>
-
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <button className="header-btn" onClick={() => setShowStats(!showStats)}>
-                      <Activity size={16} />
-                    </button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>Repository statistics</Tooltip.Content>
-                </Tooltip.Root>
-
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <button className="header-btn" onClick={() => setShowGraph(!showGraph)}>
-                      <Layers size={16} />
-                    </button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>Contribution graph</Tooltip.Content>
-                </Tooltip.Root>
-              </Tooltip.Provider>
-            </div>
-          </div>
-
-          <div className="repo-view-tabs">
-            <button className={`repo-tab ${activeTab === 'code' ? 'active' : ''}`} onClick={() => setActiveTab('code')}>
-              <Code size={14} /> Code
-            </button>
-            <button className={`repo-tab ${activeTab === 'issues' ? 'active' : ''}`} onClick={() => setActiveTab('issues')}>
-              <Bug size={14} /> Issues {issues.length > 0 && <span className="tab-badge">{issues.length}</span>}
-            </button>
-            <button className={`repo-tab ${activeTab === 'pull-requests' ? 'active' : ''}`} onClick={() => setActiveTab('pull-requests')}>
-              <GitPullRequest size={14} /> Pull Requests {pullRequests.length > 0 && <span className="tab-badge">{pullRequests.length}</span>}
-            </button>
-            <button className={`repo-tab ${activeTab === 'branches' ? 'active' : ''}`} onClick={() => setActiveTab('branches')}>
-              <GitBranch size={14} /> Branches {branches.length > 0 && <span className="tab-badge">{branches.length}</span>}
-            </button>
-            <button className={`repo-tab ${activeTab === 'releases' ? 'active' : ''}`} onClick={() => setActiveTab('releases')}>
-              <Tag size={14} /> Releases {releases.length > 0 && <span className="tab-badge">{releases.length}</span>}
-            </button>
-          </div>
-
-          <div className="repo-view-content">
-            {editingFile ? (
-              <QuantumCodeEditor
-                file={editingFile}
-                onSave={saveFile}
-                onClose={() => setEditingFile(null)}
-                repository={selectedRepo}
-                user={user}
-                addNotification={addNotification}
-                quantumEffects={{ chaosLevel: 0 }}
-              />
-            ) : activeTab === 'code' ? (
-              <div className="code-view">
-                {readme && (
-                  <div className="readme-section">
-                    <div className="readme-header">
-                      <BookOpen size={16} />
-                      <h3>README.md</h3>
-                    </div>
-                    <div className="readme-content markdown-body">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {readme}
-                      </ReactMarkdown>
-                    </div>
-                  </div>
-                )}
+              <div className="files-section">
+                <div className="files-header">
+                  <h4>Files</h4>
+                  <span className="files-count">{repoContent.files?.length || 0} files</span>
+                </div>
                 
-                <div className="files-section">
-                  <div className="files-header">
-                    <h4>Files</h4>
-                    <span className="files-count">{repoContent.files?.length || 0} files</span>
-                  </div>
-                  
-                  <div className="files-grid">
-                    {repoContent.files?.map((file, index) => (
-                      <div 
-                        key={index} 
-                        className="file-item"
-                        onClick={() => setEditingFile(file)}
-                      >
-                        <div className="file-icon">
-                          {getFileIcon(file.name)}
-                        </div>
-                        <div className="file-details">
-                          <span className="file-name">{file.name}</span>
-                          <span className="file-meta">
-                            {file.language} • {file.size} bytes
-                          </span>
-                        </div>
+                <div className="files-grid">
+                  {repoContent.files?.map((file, index) => (
+                    <div 
+                      key={index} 
+                      className="file-item"
+                      onClick={() => setEditingFile(file)}
+                    >
+                      <div className="file-icon">
+                        {getFileIcon(file.name)}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : activeTab === 'issues' ? (
-              <div className="issues-view">
-                <div className="issues-header">
-                  <h3>Issues</h3>
-                  <button className="create-issue-btn">
-                    <Plus size={14} /> New Issue
-                  </button>
-                </div>
-                
-                {issues.length === 0 ? (
-                  <div className="empty-issues">
-                    <Bug size={48} />
-                    <p>No open issues</p>
-                  </div>
-                ) : (
-                  <div className="issues-list">
-                    {issues.map(issue => (
-                      <div key={issue.id} className="issue-item">
-                        <div className="issue-icon">
-                          <Bug size={16} />
-                        </div>
-                        <div className="issue-content">
-                          <h4>{issue.title}</h4>
-                          <p className="issue-meta">
-                            #{issue.id} opened {formatDistanceToNow(new Date(issue.created_at))} ago by {issue.user_id}
-                          </p>
-                        </div>
-                        <span className={`issue-status ${issue.status}`}>
-                          {issue.status}
+                      <div className="file-details">
+                        <span className="file-name">{file.name}</span>
+                        <span className="file-meta">
+                          {file.language} • {file.size} bytes
                         </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : activeTab === 'pull-requests' ? (
-              <div className="prs-view">
-                <div className="prs-header">
-                  <h3>Pull Requests</h3>
-                  <button className="create-pr-btn">
-                    <GitPullRequest size={14} /> New Pull Request
-                  </button>
-                </div>
-                
-                {pullRequests.length === 0 ? (
-                  <div className="empty-prs">
-                    <GitPullRequest size={48} />
-                    <p>No pull requests</p>
-                  </div>
-                ) : (
-                  <div className="prs-list">
-                    {pullRequests.map(pr => (
-                      <div key={pr.id} className="pr-item">
-                        <div className="pr-icon">
-                          <GitPullRequest size={16} />
-                        </div>
-                        <div className="pr-content">
-                          <h4>{pr.title}</h4>
-                          <p className="pr-meta">
-                            #{pr.id} wants to merge {pr.commits} commits into {pr.base_branch} from {pr.head_branch}
-                          </p>
-                        </div>
-                        <span className={`pr-status ${pr.status}`}>
-                          {pr.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : activeTab === 'branches' ? (
-              <div className="branches-view">
-                <div className="branches-header">
-                  <h3>Branches</h3>
-                  <button className="create-branch-btn">
-                    <GitBranch size={14} /> New Branch
-                  </button>
-                </div>
-                
-                <div className="branches-list">
-                  {branches.map(branch => (
-                    <div key={branch.name} className="branch-item">
-                      <div className="branch-icon">
-                        <GitBranch size={16} />
-                      </div>
-                      <div className="branch-content">
-                        <h4>
-                          {branch.name}
-                          {branch.default && <span className="default-badge">default</span>}
-                        </h4>
-                        <p className="branch-meta">
-                          Updated {formatDistanceToNow(new Date(branch.updated_at || Date.now()))} ago
-                        </p>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            ) : activeTab === 'releases' ? (
-              <div className="releases-view">
-                <div className="releases-header">
-                  <h3>Releases</h3>
-                  <button className="create-release-btn">
-                    <Tag size={14} /> New Release
-                  </button>
-                </div>
-                
-                {releases.length === 0 ? (
-                  <div className="empty-releases">
-                    <Tag size={48} />
-                    <p>No releases yet</p>
-                  </div>
-                ) : (
-                  <div className="releases-list">
-                    {releases.map(release => (
-                      <div key={release.id} className="release-item">
-                        <div className="release-icon">
-                          <Tag size={16} />
-                        </div>
-                        <div className="release-content">
-                          <h4>{release.tag_name}</h4>
-                          <p className="release-title">{release.title}</p>
-                          <p className="release-meta">
-                            {release.prerelease ? 'Pre-release' : 'Latest'} • 
-                            Released {formatDistanceToNow(new Date(release.created_at))} ago
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            </div>
+          ) : activeTab === 'issues' ? (
+            <div className="issues-view">
+              <div className="issues-header">
+                <h3>Issues</h3>
+                <button type="button" className="create-issue-btn">
+                  <Plus size={14} /> New Issue
+                </button>
               </div>
-            ) : null}
-          </div>
+              
+              {issues.length === 0 ? (
+                <div className="empty-issues">
+                  <Bug size={48} />
+                  <p>No open issues</p>
+                </div>
+              ) : (
+                <div className="issues-list">
+                  {issues.map(issue => (
+                    <div key={issue.id} className="issue-item">
+                      <div className="issue-icon">
+                        <Bug size={16} />
+                      </div>
+                      <div className="issue-content">
+                        <h4>{issue.title}</h4>
+                        <p className="issue-meta">
+                          #{issue.id} opened {formatDistanceToNow(new Date(issue.created_at))} ago by {issue.user_id}
+                        </p>
+                      </div>
+                      <span className={`issue-status ${issue.status}`}>
+                        {issue.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : activeTab === 'pull-requests' ? (
+            <div className="prs-view">
+              <div className="prs-header">
+                <h3>Pull Requests</h3>
+                <button type="button" className="create-pr-btn">
+                  <GitPullRequest size={14} /> New Pull Request
+                </button>
+              </div>
+              
+              {pullRequests.length === 0 ? (
+                <div className="empty-prs">
+                  <GitPullRequest size={48} />
+                  <p>No pull requests</p>
+                </div>
+              ) : (
+                <div className="prs-list">
+                  {pullRequests.map(pr => (
+                    <div key={pr.id} className="pr-item">
+                      <div className="pr-icon">
+                        <GitPullRequest size={16} />
+                      </div>
+                      <div className="pr-content">
+                        <h4>{pr.title}</h4>
+                        <p className="pr-meta">
+                          #{pr.id} wants to merge {pr.commits} commits into {pr.base_branch} from {pr.head_branch}
+                        </p>
+                      </div>
+                      <span className={`pr-status ${pr.status}`}>
+                        {pr.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : activeTab === 'branches' ? (
+            <div className="branches-view">
+              <div className="branches-header">
+                <h3>Branches</h3>
+                <button type="button" className="create-branch-btn">
+                  <GitBranch size={14} /> New Branch
+                </button>
+              </div>
+              
+              <div className="branches-list">
+                {branches.map(branch => (
+                  <div key={branch.name} className="branch-item">
+                    <div className="branch-icon">
+                      <GitBranch size={16} />
+                    </div>
+                    <div className="branch-content">
+                      <h4>
+                        {branch.name}
+                        {branch.default && <span className="default-badge">default</span>}
+                      </h4>
+                      <p className="branch-meta">
+                        Updated {formatDistanceToNow(new Date(branch.updated_at || Date.now()))} ago
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : activeTab === 'releases' ? (
+            <div className="releases-view">
+              <div className="releases-header">
+                <h3>Releases</h3>
+                <button type="button" className="create-release-btn">
+                  <Tag size={14} /> New Release
+                </button>
+              </div>
+              
+              {releases.length === 0 ? (
+                <div className="empty-releases">
+                  <Tag size={48} />
+                  <p>No releases yet</p>
+                </div>
+              ) : (
+                <div className="releases-list">
+                  {releases.map(release => (
+                    <div key={release.id} className="release-item">
+                      <div className="release-icon">
+                        <Tag size={16} />
+                      </div>
+                      <div className="release-content">
+                        <h4>{release.tag_name}</h4>
+                        <p className="release-title">{release.title}</p>
+                        <p className="release-meta">
+                          {release.prerelease ? 'Pre-release' : 'Latest'} • 
+                          Released {formatDistanceToNow(new Date(release.created_at))} ago
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
+      </div>
+    </div>
+  );
+};
 
         {/* Statistics Panel */}
         <AnimatePresence>
