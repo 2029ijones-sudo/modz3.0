@@ -33,6 +33,9 @@ export default function CWAInstaller() {
     lastChecked: null
   });
   
+  // ADD THIS LINE - missing showModal state
+  const [showModal, setShowModal] = useState(false);
+  
   // Device and environment state
   const [deviceProfile, setDeviceProfile] = useState({
     isSchoolDevice: false,
