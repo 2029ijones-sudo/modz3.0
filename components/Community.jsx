@@ -1134,7 +1134,10 @@ export default function Community({
   };
 
   // ============= REPOSITORY MANAGEMENT =============
-  const fetchRepositories = async () => {
+ const fetchRepositories = async () => {
+  // 🚨 STOP - Don't fetch repos if we're inside a repository view
+  if (selectedRepo) return;  // ← THIS SINGLE LINE FIXES EVERYTHING
+  
     setContentLoading(true);
     
     try {
