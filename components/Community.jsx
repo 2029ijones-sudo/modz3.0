@@ -1057,7 +1057,7 @@ export default function Community({
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
-        .single();
+          .maybeSingle();  
 
       if (error && error.code === 'PGRST116') {
         // Create profile if doesn't exist
