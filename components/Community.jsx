@@ -17,7 +17,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer
 } from 'recharts';
 import * as d3 from 'd3';
 import { motion, AnimatePresence } from 'framer-motion';
