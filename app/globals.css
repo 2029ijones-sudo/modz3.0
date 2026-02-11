@@ -4617,19 +4617,14 @@ body {
     left: 20px;
   }
 }
-/* ===== CURSOR FIXES - ENHANCED FOR JS CONTROL ===== */
+/* ===== CURSOR FIX - CSS ONLY SOLUTION ===== */
 
-/* Base body cursor none to hide default cursor */
+/* Keep body with cursor: none to hide default cursor */
 body {
   cursor: none;
 }
 
-/* Class for when JS hides custom cursor and shows default cursor */
-body.cursor-hide {
-  cursor: auto !important;
-}
-
-/* Show pointer cursor on ALL interactive elements */
+/* FORCE pointer cursor on ALL interactive elements */
 .btn,
 .quantum-nav-link,
 .quantum-avatar-container,
@@ -4640,57 +4635,24 @@ select,
 textarea,
 [role="button"],
 [tabindex],
-[onclick] {
+[onclick],
+[data-quantum],
+.quantum-world-actions *,
+.status-actions *,
+.installer-actions *,
+.quantum-nav-links *,
+.quantum-user-section *,
+.btn *,
+.quantum-nav-link *,
+.quantum-logo,
+.logo-quantum-animation,
+.quantum-logo-text,
+.logo-text-modz,
+.logo-text-quantum {
   cursor: pointer !important;
 }
 
-/* Ensure interactive elements show correct cursor when custom cursor is hidden */
-body.cursor-hide .btn,
-body.cursor-hide .quantum-nav-link,
-body.cursor-hide .quantum-avatar-container,
-body.cursor-hide button,
-body.cursor-hide a,
-body.cursor-hide [role="button"],
-body.cursor-hide [tabindex],
-body.cursor-hide [onclick] {
-  cursor: pointer !important;
-}
-
-/* Specifically for regular links and buttons */
-a:not(.quantum-nav-link):not(.btn),
-button:not(.btn):not(.quantum-nav-link) {
-  cursor: pointer;
-}
-
-body.cursor-hide a:not(.quantum-nav-link):not(.btn),
-body.cursor-hide button:not(.btn):not(.quantum-nav-link) {
-  cursor: pointer !important;
-}
-
-/* When custom cursor is hidden (on hover), show default pointer */
-.btn:hover,
-.quantum-nav-link:hover,
-button:hover,
-a:hover,
-[role="button"]:hover {
-  cursor: pointer;
-}
-
-/* Enhanced: Hide custom cursor when hovering over interactive elements */
-/* This works with both CSS and JS control */
-.btn:hover ~ .quantum-cursor,
-.quantum-nav-link:hover ~ .quantum-cursor,
-button:hover ~ .quantum-cursor,
-a:hover ~ .quantum-cursor,
-.quantum-avatar-container:hover ~ .quantum-cursor,
-.quantum-cursor.hidden {
-  opacity: 0 !important;
-  visibility: hidden !important;
-  transform: scale(0) !important;
-  pointer-events: none !important;
-}
-
-/* Text inputs and textareas should show text cursor */
+/* Specifically target text inputs */
 input[type="text"],
 input[type="email"],
 input[type="password"],
@@ -4699,31 +4661,10 @@ input[type="tel"],
 input[type="url"],
 input[type="number"],
 textarea {
-  cursor: text;
-}
-
-/* Ensure text cursor shows when custom cursor is hidden */
-body.cursor-hide input[type="text"],
-body.cursor-hide input[type="email"],
-body.cursor-hide input[type="password"],
-body.cursor-hide input[type="search"],
-body.cursor-hide input[type="tel"],
-body.cursor-hide input[type="url"],
-body.cursor-hide input[type="number"],
-body.cursor-hide textarea {
   cursor: text !important;
 }
 
-/* Select elements */
-select {
-  cursor: default;
-}
-
-body.cursor-hide select {
-  cursor: default !important;
-}
-
-/* Add specific cursor for disabled elements */
+/* Disabled elements */
 .btn:disabled,
 button:disabled,
 .quantum-nav-link:disabled,
@@ -4731,120 +4672,77 @@ button:disabled,
   cursor: not-allowed !important;
 }
 
-body.cursor-hide .btn:disabled,
-body.cursor-hide button:disabled,
-body.cursor-hide .quantum-nav-link:disabled,
-body.cursor-hide [disabled] {
-  cursor: not-allowed !important;
-}
-
-/* Optional: Add a visual cue when cursor is over interactive elements */
+/* Target the hover states too - ensure they stay as pointer */
 .btn:hover,
 .quantum-nav-link:hover,
 button:hover,
-a:hover {
-  position: relative;
+a:hover,
+.quantum-avatar-container:hover,
+.btn:hover *,
+.quantum-nav-link:hover *,
+button:hover *,
+a:hover * {
+  cursor: pointer !important;
 }
 
-.btn:hover::after,
-.quantum-nav-link:hover::after,
-button:hover::after,
-a:hover::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 8px;
-  height: 8px;
-  background: rgba(108, 92, 231, 0.5);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  animation: clickIndicator 0.5s ease-out;
-  z-index: 10001;
-  pointer-events: none;
+/* Hide custom cursor when hovering over ANY interactive element */
+/* This uses more specific targeting */
+body:hover .btn:hover ~ .quantum-cursor,
+body:hover .quantum-nav-link:hover ~ .quantum-cursor,
+body:hover button:hover ~ .quantum-cursor,
+body:hover a:hover ~ .quantum-cursor,
+body:hover .quantum-avatar-container:hover ~ .quantum-cursor,
+body:hover .btn:hover ~ .quantum-cursor-tracer,
+body:hover .quantum-nav-link:hover ~ .quantum-cursor-tracer,
+body:hover button:hover ~ .quantum-cursor-tracer,
+body:hover a:hover ~ .quantum-cursor-tracer,
+body:hover .quantum-avatar-container:hover ~ .quantum-cursor-tracer,
+/* Add more specific selectors */
+.quantum-world-actions:hover ~ .quantum-cursor,
+.quantum-world-actions:hover ~ .quantum-cursor-tracer,
+.status-actions:hover ~ .quantum-cursor,
+.status-actions:hover ~ .quantum-cursor-tracer,
+.installer-actions:hover ~ .quantum-cursor,
+.installer-actions:hover ~ .quantum-cursor-tracer,
+.quantum-nav-links:hover ~ .quantum-cursor,
+.quantum-nav-links:hover ~ .quantum-cursor-tracer,
+.quantum-user-section:hover ~ .quantum-cursor,
+.quantum-user-section:hover ~ .quantum-cursor-tracer {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  transform: scale(0) !important;
+  pointer-events: none !important;
 }
 
-@keyframes clickIndicator {
-  0% {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 0.8;
-  }
-  100% {
-    transform: translate(-50%, -50%) scale(3);
-    opacity: 0;
-  }
+/* Quick fix: Hide cursor when any interactive container is hovered */
+.quantum-header:hover .quantum-cursor,
+.quantum-header:hover .quantum-cursor-tracer,
+.quantum-sidebar:hover .quantum-cursor,
+.quantum-sidebar:hover .quantum-cursor-tracer,
+.quantum-status-bar:hover .quantum-cursor,
+.quantum-status-bar:hover .quantum-cursor-tracer,
+.quantum-installer-modal:hover .quantum-cursor,
+.quantum-installer-modal:hover .quantum-cursor-tracer,
+.quantum-notification-container:hover .quantum-cursor,
+.quantum-notification-container:hover .quantum-cursor-tracer {
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
-/* Enhanced cursor system for JS control */
+/* Force the cursor to be visible when not over interactive areas */
+body:not(:hover) .quantum-cursor,
+body:not(:hover) .quantum-cursor-tracer {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Make sure quantum cursor has proper stacking and no pointer events */
 .quantum-cursor {
   pointer-events: none !important;
   z-index: 99999 !important;
-  transition: 
-    opacity 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
-    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
-    visibility 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .quantum-cursor-tracer {
   pointer-events: none !important;
   z-index: 99998 !important;
-}
-
-/* Additional styles for cursor trail elements */
-.quantum-entanglement-line {
-  pointer-events: none !important;
-  z-index: 99997 !important;
-}
-
-/* Fix for cursor positioning */
-.quantum-cursor {
-  position: fixed;
-  top: 0;
-  left: 0;
-  transform: translate(-50%, -50%);
-}
-
-/* Ensure cursor is properly layered over everything */
-.quantum-cursor,
-.quantum-cursor-tracer,
-.quantum-entanglement-line {
-  mix-blend-mode: screen !important;
-}
-
-/* Hide cursor during drag operations */
-body.dragging .quantum-cursor,
-body.dragging .quantum-cursor-tracer {
-  opacity: 0 !important;
-  visibility: hidden !important;
-}
-
-/* Touch device support - hide custom cursor entirely */
-@media (hover: none) and (pointer: coarse) {
-  .quantum-cursor,
-  .quantum-cursor-tracer,
-  .quantum-entanglement-line {
-    display: none !important;
-  }
-  
-  body {
-    cursor: auto !important;
-  }
-  
-  body.cursor-hide {
-    cursor: auto !important;
-  }
-}
-
-/* Performance optimization for cursor animations */
-@media (prefers-reduced-motion: reduce) {
-  .quantum-cursor {
-    transition: none !important;
-  }
-  
-  .btn:hover::after,
-  .quantum-nav-link:hover::after,
-  button:hover::after,
-  a:hover::after {
-    animation: none !important;
-  }
 }
