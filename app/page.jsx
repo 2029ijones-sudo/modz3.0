@@ -1667,3 +1667,236 @@ export default function Home() {
     </Suspense>
   );
 }
+{/* Add these elements to your JSX return statement */}
+<div className="performance-indicator">
+  <i className="fas fa-tachometer-alt"></i>
+  <span>Performance Mode: <span id="performance-level">Normal</span></span>
+</div>
+
+<div className="performance-stats">
+  <div className="stat">
+    <span className="stat-label">FPS:</span>
+    <span className="stat-value" id="fps-counter">60</span>
+  </div>
+  <div className="stat">
+    <span className="stat-label">Memory:</span>
+    <span className="stat-value" id="memory-usage">--</span>
+  </div>
+  <div className="stat">
+    <span className="stat-label">GPU:</span>
+    <span className="stat-value" id="gpu-info">--</span>
+  </div>
+</div>
+
+<button className="performance-toggle" id="performanceToggle">
+  <i className="fas fa-cog"></i>
+  <span>Performance</span>
+</button>
+
+<div className="fps-counter" id="fpsDisplay">60 FPS</div>
+
+<div className="memory-warning" id="memoryWarning">
+  <h3>⚠️ Low Memory Detected</h3>
+  <p>Your device has limited memory (<span id="detected-memory">--</span>GB).</p>
+  <p>Enabling Extreme Performance Mode to prevent crashes...</p>
+  <div className="memory-warning-buttons">
+    <button className="btn btn-quantum" onClick={window.enableExtremePerformance}>
+      Enable Extreme Mode
+    </button>
+    <button 
+      className="btn btn-quantum-secondary" 
+      onClick={() => document.getElementById('memoryWarning').classList.remove('show')}
+    >
+      Continue Anyway
+    </button>
+  </div>
+</div>
+// ===== PERFORMANCE DETECTION & 40FPS OPTIMIZER =====
+
+// Performance Detection & 40FPS Optimizer
+(function() {
+  console.log('🔧 Performance Optimizer v1.0 - Scanning device...');
+  
+  let performanceLevel = 'high';
+  let detectedMemory = 8; // Default to 8GB
+  
+  // Detect device memory if available
+  if (navigator.deviceMemory) {
+    detectedMemory = navigator.deviceMemory;
+    console.log('💾 Detected memory:', detectedMemory + 'GB');
+  }
+  
+  // Detect CPU cores
+  const cpuCores = navigator.hardwareConcurrency || 4;
+  console.log('⚙️ CPU Cores:', cpuCores);
+  
+  // Detect WebGL capability
+  let webglScore = 1;
+  try {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    if (gl) {
+      const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+      if (debugInfo) {
+        const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+        webglScore = renderer.includes('NVIDIA') || renderer.includes('AMD') || 
+                     renderer.includes('RTX') || renderer.includes('Intel Iris') ? 2 : 1;
+      }
+    }
+  } catch (e) {}
+  
+  // Calculate performance score
+  const performanceScore = (detectedMemory * 0.4) + (cpuCores * 0.3) + (webglScore * 0.3);
+  console.log('📊 Performance Score:', performanceScore.toFixed(2));
+  
+  // Apply performance classes
+  if (performanceScore < 3) {
+    performanceLevel = 'extreme';
+    document.body.classList.add('extreme-performance-mode', 'low-performance');
+    console.log('🚨 EXTREME PERFORMANCE MODE ACTIVATED');
+  } else if (performanceScore < 6) {
+    performanceLevel = 'low';
+    document.body.classList.add('low-performance');
+    console.log('⚠️ LOW PERFORMANCE MODE ACTIVATED');
+  } else if (performanceScore < 9) {
+    performanceLevel = 'medium';
+    document.body.classList.add('medium-performance');
+    console.log('🔶 MEDIUM PERFORMANCE MODE ACTIVATED');
+  }
+  
+  // Update performance indicator
+  const indicator = document.querySelector('.performance-indicator');
+  if (indicator) {
+    document.getElementById('performance-level').textContent = 
+      performanceLevel.charAt(0).toUpperCase() + performanceLevel.slice(1);
+  }
+  
+  // FPS Counter
+  let frameCount = 0;
+  let lastTime = performance.now();
+  let fps = 60;
+  const fpsDisplay = document.getElementById('fpsDisplay');
+  const fpsCounter = document.getElementById('fps-counter');
+  
+  function updateFPS() {
+    frameCount++;
+    const currentTime = performance.now();
+    if (currentTime >= lastTime + 1000) {
+      fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+      frameCount = 0;
+      lastTime = currentTime;
+      
+      if (fpsDisplay) {
+        fpsDisplay.textContent = `${fps} FPS`;
+        fpsDisplay.classList.toggle('low', fps < 30);
+      }
+      if (fpsCounter) {
+        fpsCounter.textContent = fps;
+      }
+      
+      // Dynamic adjustment based on FPS
+      if (fps < 25 && !document.body.classList.contains('extreme-performance-mode')) {
+        document.body.classList.add('extreme-performance-mode');
+        console.log('📉 FPS dropped below 25, enabling extreme mode');
+      }
+    }
+    requestAnimationFrame(updateFPS);
+  }
+  
+  // Memory monitoring
+  if ('memory' in performance) {
+    setInterval(() => {
+      const memoryUsage = performance.memory.usedJSHeapSize / 1024 / 1024;
+      const memoryElement = document.getElementById('memory-usage');
+      if (memoryElement) {
+        memoryElement.textContent = `${memoryUsage.toFixed(1)} MB`;
+        
+        // Show warning if memory usage is high
+        if (memoryUsage > 500 && detectedMemory < 4) {
+          document.getElementById('memoryWarning').classList.add('show');
+          document.getElementById('detected-memory').textContent = detectedMemory;
+        }
+      }
+    }, 5000);
+  }
+  
+  // GPU detection
+  try {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    if (gl) {
+      const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+      if (debugInfo) {
+        const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+        const vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+        const gpuElement = document.getElementById('gpu-info');
+        if (gpuElement) {
+          // Shorten GPU name for display
+          const shortRenderer = renderer.length > 20 ? 
+            renderer.substring(0, 20) + '...' : renderer;
+          gpuElement.textContent = shortRenderer;
+          
+          // Detect integrated graphics
+          if (renderer.includes('Intel') && !renderer.includes('Iris')) {
+            document.body.classList.add('low-performance');
+            console.log('🖥️ Integrated GPU detected, enabling low performance mode');
+          }
+        }
+      }
+    }
+  } catch (e) {}
+  
+  // Performance toggle functionality
+  const performanceToggle = document.getElementById('performanceToggle');
+  if (performanceToggle) {
+    performanceToggle.addEventListener('click', function() {
+      const body = document.body;
+      const isExtreme = body.classList.contains('extreme-performance-mode');
+      const isLow = body.classList.contains('low-performance');
+      
+      if (isExtreme) {
+        body.classList.remove('extreme-performance-mode');
+        body.classList.add('low-performance');
+        console.log('⬆️ Switched to Low Performance Mode');
+      } else if (isLow) {
+        body.classList.remove('low-performance');
+        console.log('⬆️ Switched to Normal Mode');
+      } else {
+        body.classList.add('extreme-performance-mode');
+        console.log('⬇️ Switched to Extreme Performance Mode');
+      }
+      
+      // Show notification
+      if (window.addNotification) {
+        const mode = body.classList.contains('extreme-performance-mode') ? 'Extreme' :
+                    body.classList.contains('low-performance') ? 'Low' : 'Normal';
+        window.addNotification(`Performance mode: ${mode}`, 'info');
+      }
+    });
+  }
+  
+  // Start FPS counter
+  requestAnimationFrame(updateFPS);
+  
+  // Show performance stats on Ctrl+Shift+P
+  let statsVisible = false;
+  document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+      statsVisible = !statsVisible;
+      document.querySelector('.performance-stats').classList.toggle('show', statsVisible);
+    }
+  });
+  
+  console.log('✅ Performance optimization complete. Mode:', performanceLevel);
+  
+  // Export functions for manual control
+  window.enableExtremePerformance = function() {
+    document.body.classList.add('extreme-performance-mode');
+    if (document.getElementById('memoryWarning')) {
+      document.getElementById('memoryWarning').classList.remove('show');
+    }
+    if (window.addNotification) {
+      window.addNotification('Extreme performance mode enabled', 'info');
+    }
+  };
+})();
