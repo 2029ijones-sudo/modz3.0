@@ -4621,7 +4621,7 @@ body {
 
 /* Keep body with cursor: none to hide default cursor */
 body {
-  cursor: none;
+   cursor: pointer !important;
 }
 
 /* FORCE pointer cursor on ALL interactive elements */
