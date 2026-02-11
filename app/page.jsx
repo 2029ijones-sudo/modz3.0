@@ -5,17 +5,23 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import CryptoJS from 'crypto-js';
 import './globals.css';
 
-// Dynamically import components
+// Dynamically import components with accessibility
 const ThreeWorld = dynamic(() => import('@/ThreeWorld'), { 
   ssr: false,
   loading: () => (
-    <div className="quantum-loading">
-      <div className="quantum-spinner">
+    <div 
+      className="quantum-loading" 
+      role="status" 
+      aria-label="Initializing 3D quantum reality field"
+      aria-live="polite"
+    >
+      <div className="quantum-spinner" aria-hidden="true">
         <div className="quantum-particle"></div>
         <div className="quantum-particle"></div>
         <div className="quantum-particle"></div>
       </div>
       <p>Initializing Quantum Reality...</p>
+      <span className="sr-only">Loading 3D world, please wait</span>
     </div>
   )
 });
@@ -57,6 +63,29 @@ const decryptData = (encrypted) => {
   }
 };
 
+// ===== ACCESSIBILITY UTILITIES =====
+const announceToScreenReader = (message, priority = 'polite') => {
+  if (typeof window === 'undefined') return;
+  
+  const announcer = document.getElementById('quantum-announcer');
+  if (announcer) {
+    announcer.setAttribute('aria-live', priority);
+    announcer.textContent = message;
+    
+    // Clear after announcement
+    setTimeout(() => {
+      announcer.textContent = '';
+    }, 3000);
+  }
+};
+
+const handleKeyboardNavigation = (event, handler) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    handler();
+  }
+};
+
 // Main component wrapper
 function AppContent() {
   const router = useRouter();
@@ -83,6 +112,11 @@ function AppContent() {
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
   const particleSystemRef = useRef(null);
+  const mainRef = useRef(null);
+  const [isReducedMotion, setIsReducedMotion] = useState(false);
+  const [highContrast, setHighContrast] = useState(false);
+  const [fontSize, setFontSize] = useState('normal');
+  const [screenReaderMode, setScreenReaderMode] = useState(false);
 
   // Performance state
   const [fps, setFps] = useState(60);
@@ -91,6 +125,104 @@ function AppContent() {
   const [performanceLevel, setPerformanceLevel] = useState('high');
   const [showMemoryWarning, setShowMemoryWarning] = useState(false);
   const [detectedMemory, setDetectedMemory] = useState(8);
+
+  // ========== ACCESSIBILITY DETECTION ==========
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Detect reduced motion preference
+    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setIsReducedMotion(reducedMotionQuery.matches);
+    
+    const handleReducedMotionChange = (e) => setIsReducedMotion(e.matches);
+    reducedMotionQuery.addEventListener('change', handleReducedMotionChange);
+
+    // Detect high contrast mode
+    const highContrastQuery = window.matchMedia('(prefers-contrast: more)');
+    setHighContrast(highContrastQuery.matches);
+    
+    const handleHighContrastChange = (e) => setHighContrast(e.matches);
+    highContrastQuery.addEventListener('change', handleHighContrastChange);
+
+    // Detect screen reader (basic detection)
+    const detectScreenReader = () => {
+      // Check for common screen reader accessibility APIs
+      if (window.speechSynthesis || 
+          navigator.accessibility?.screenReader || 
+          navigator.userAgent.includes('TalkBack') ||
+          navigator.userAgent.includes('VoiceOver') ||
+          navigator.userAgent.includes('NVDA')) {
+        setScreenReaderMode(true);
+      }
+    };
+    detectScreenReader();
+
+    // Add accessibility attributes to body
+    document.body.setAttribute('data-reduced-motion', reducedMotionQuery.matches);
+    document.body.setAttribute('data-high-contrast', highContrastQuery.matches);
+    document.body.setAttribute('data-screen-reader', screenReaderMode);
+
+    return () => {
+      reducedMotionQuery.removeEventListener('change', handleReducedMotionChange);
+      highContrastQuery.removeEventListener('change', handleHighContrastChange);
+    };
+  }, [screenReaderMode]);
+
+  // ========== KEYBOARD SHORTCUTS ==========
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleKeyDown = (e) => {
+      // Skip if in input or textarea
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      // Global shortcuts
+      if (e.altKey && e.key === 'w') {
+        e.preventDefault();
+        navigateToTab('world');
+        announceToScreenReader('Navigated to Quantum World');
+      }
+      if (e.altKey && e.key === 'e') {
+        e.preventDefault();
+        toggleQuantumEditor();
+        announceToScreenReader(`Quantum Editor ${showEditor ? 'closed' : 'opened'}`);
+      }
+      if (e.altKey && e.key === 'c') {
+        e.preventDefault();
+        navigateToTab('community');
+        announceToScreenReader('Navigated to Quantum Community');
+      }
+      if (e.altKey && e.key === 'p') {
+        e.preventDefault();
+        navigateToTab('profile');
+        announceToScreenReader('Navigated to Quantum Profile');
+      }
+      if (e.altKey && e.key === 'n') {
+        e.preventDefault();
+        handleNewWorld();
+      }
+      if (e.altKey && e.key === 'i') {
+        e.preventDefault();
+        setShowQuantumInstaller(true);
+        announceToScreenReader('Quantum installer opened');
+      }
+      if (e.altKey && e.shiftKey && e.key === 'P') {
+        e.preventDefault();
+        togglePerformanceMode();
+      }
+      if (e.altKey && e.key === 'h') {
+        e.preventDefault();
+        announceToScreenReader(
+          'Keyboard shortcuts: Alt+W for World, Alt+E for Editor, ' +
+          'Alt+C for Community, Alt+P for Profile, Alt+N for New World, ' +
+          'Alt+I for Installer, Alt+Shift+P for Performance Mode'
+        );
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab, showEditor]);
 
   // ========== PERFORMANCE DETECTION ==========
   useEffect(() => {
@@ -187,7 +319,7 @@ function AppContent() {
       cancelAnimationFrame(fpsAnimationId);
       if (memoryInterval) clearInterval(memoryInterval);
     };
-  }, []);
+  }, [isReducedMotion]);
 
   // Performance toggle handler
   const togglePerformanceMode = useCallback(() => {
@@ -195,23 +327,28 @@ function AppContent() {
     const isExtreme = body.classList.contains('extreme-performance-mode');
     const isLow = body.classList.contains('low-performance');
     
+    let newMode;
     if (isExtreme) {
       body.classList.remove('extreme-performance-mode');
       body.classList.add('low-performance');
       setPerformanceLevel('low');
+      newMode = 'Low Performance';
       console.log('⬆️ Switched to Low Performance Mode');
     } else if (isLow) {
       body.classList.remove('low-performance');
       setPerformanceLevel('high');
+      newMode = 'Normal';
       console.log('⬆️ Switched to Normal Mode');
     } else {
       body.classList.add('extreme-performance-mode');
       setPerformanceLevel('extreme');
+      newMode = 'Extreme Performance';
       console.log('⬇️ Switched to Extreme Performance Mode');
     }
     
-    addNotification(`Performance mode: ${performanceLevel}`, 'info');
-  }, [performanceLevel]);
+    addNotification(`Performance mode: ${newMode}`, 'info');
+    announceToScreenReader(`Performance mode changed to ${newMode}`);
+  }, []);
 
   // Enable extreme performance
   const enableExtremePerformance = useCallback(() => {
@@ -219,6 +356,7 @@ function AppContent() {
     setShowMemoryWarning(false);
     setPerformanceLevel('extreme');
     addNotification('Extreme performance mode enabled', 'info');
+    announceToScreenReader('Extreme performance mode enabled for your device');
   }, []);
 
   // ========== QUANTUM SYSTEM ==========
@@ -252,15 +390,17 @@ function AppContent() {
           window.addEventListener(eventName, handleQuantumEvent);
         });
 
-        startQuantumVisualization();
-        initializeGlobalQuantumEffects();
+        if (!isReducedMotion) {
+          startQuantumVisualization();
+          initializeGlobalQuantumEffects();
+        }
 
         console.log('🌀 Quantum system initialized');
       } catch (error) {
         console.error('Quantum initialization failed:', error);
       }
     }
-  }, []);
+  }, [isReducedMotion]);
 
   const handleQuantumEvent = useCallback((event) => {
     const { detail } = event;
@@ -310,44 +450,57 @@ function AppContent() {
     };
     
     setQuantumEffects(prev => [...prev, newEffect]);
-    createQuantumVisualEffect(type, intensity);
+    
+    if (!isReducedMotion) {
+      createQuantumVisualEffect(type, intensity);
+    }
     
     setTimeout(() => {
       setQuantumEffects(prev => prev.filter(effect => effect.id !== effectId));
     }, 3000);
     
     addNotification(`Quantum ${type} effect triggered!`, 'info');
-  }, []);
+    announceToScreenReader(`Quantum ${type} effect triggered with ${intensity} percent intensity`);
+  }, [isReducedMotion]);
 
   const handleQuantumAnomaly = useCallback((detail) => {
     const { strength, position } = detail;
-    createAnomalyEffect(position, strength);
+    
+    if (!isReducedMotion) {
+      createAnomalyEffect(position, strength);
+    }
     
     if (strength > 0.7) {
       window.dispatchEvent(new CustomEvent('reality-distortion', {
         detail: { intensity: strength }
       }));
       addNotification('Reality anomaly detected! Reality coefficient fluctuating.', 'warning');
+      announceToScreenReader('Warning: Reality anomaly detected. Reality coefficient fluctuating.');
     }
-  }, []);
+  }, [isReducedMotion]);
 
   const handleQuantumVortex = useCallback((detail) => {
     const { type, strength, position } = detail;
-    createVortexEffect(type, position, strength);
+    
+    if (!isReducedMotion) {
+      createVortexEffect(type, position, strength);
+    }
     
     if (type.includes('temporal')) {
       window.dispatchEvent(new CustomEvent('time-dilation', {
         detail: { factor: 1 + strength * 0.5 }
       }));
       addNotification('Temporal vortex detected! Time dilation active.', 'info');
+      announceToScreenReader('Temporal vortex detected. Time dilation active.');
     }
-  }, []);
+  }, [isReducedMotion]);
 
   const initializeGlobalQuantumEffects = useCallback(() => {
+    if (isReducedMotion) return;
     createQuantumParticleField();
     createInterferencePatterns();
     startRealityCoefficientPulse();
-  }, []);
+  }, [isReducedMotion]);
 
   const createQuantumParticleField = useCallback(() => {
     const container = document.getElementById('quantum-particle-field');
@@ -405,7 +558,7 @@ function AppContent() {
   }, [realityCoefficient]);
 
   const startQuantumVisualization = useCallback(() => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current || isReducedMotion) return;
     
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -494,9 +647,11 @@ function AppContent() {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [chaosLevel, quantumField]);
+  }, [chaosLevel, quantumField, isReducedMotion]);
 
   const createQuantumVisualEffect = useCallback((type, intensity) => {
+    if (isReducedMotion) return;
+    
     const effect = document.createElement('div');
     effect.className = `quantum-effect quantum-effect-${type}`;
     effect.style.setProperty('--intensity', `${intensity}%`);
@@ -506,9 +661,11 @@ function AppContent() {
       effect.style.opacity = '0';
       setTimeout(() => effect.remove(), 1000);
     }, 2000);
-  }, []);
+  }, [isReducedMotion]);
 
   const createAnomalyEffect = useCallback((position, strength) => {
+    if (isReducedMotion) return;
+    
     const anomaly = document.createElement('div');
     anomaly.className = 'quantum-anomaly';
     anomaly.style.left = `${Math.random() * 80 + 10}%`;
@@ -521,9 +678,11 @@ function AppContent() {
       anomaly.style.opacity = '0';
       setTimeout(() => anomaly.remove(), 1000);
     }, 3000);
-  }, []);
+  }, [isReducedMotion]);
 
   const createVortexEffect = useCallback((type, position, strength) => {
+    if (isReducedMotion) return;
+    
     const vortex = document.createElement('div');
     vortex.className = `quantum-vortex quantum-vortex-${type}`;
     vortex.style.left = `${Math.random() * 70 + 15}%`;
@@ -531,7 +690,7 @@ function AppContent() {
     vortex.style.setProperty('--strength', strength.toString());
     document.body.appendChild(vortex);
     setTimeout(() => vortex.remove(), 5000);
-  }, []);
+  }, [isReducedMotion]);
 
   // ========== TAB NAVIGATION ==========
   const navigateToTab = useCallback((tab) => {
@@ -540,6 +699,18 @@ function AppContent() {
     setWebGLError(null);
     
     addNotification(`Quantum reality shifted to ${tab} dimension`, 'quantum');
+    announceToScreenReader(`Navigated to ${tab} tab`);
+    
+    // Announce tab content for screen readers
+    setTimeout(() => {
+      const tabContent = document.querySelector(`[data-quantum-tab="${tab}"]`);
+      if (tabContent) {
+        const heading = tabContent.querySelector('h2');
+        if (heading) {
+          announceToScreenReader(`Now viewing ${heading.textContent}`);
+        }
+      }
+    }, 100);
     
     const data = {
       tab,
@@ -565,6 +736,9 @@ function AppContent() {
     setShowEditor(!showEditor);
     if (!showEditor) {
       addNotification('Quantum code editor activated. Reality manipulation enabled.', 'info');
+      announceToScreenReader('Quantum code editor opened');
+    } else {
+      announceToScreenReader('Quantum code editor closed');
     }
   }, [showEditor]);
 
@@ -580,6 +754,13 @@ function AppContent() {
       timestamp: Date.now(),
       chaosLevel: chaosLevel 
     }]);
+    
+    // Announce to screen reader with appropriate priority
+    if (type === 'error' || type === 'warning') {
+      announceToScreenReader(`Warning: ${message}`, 'assertive');
+    } else {
+      announceToScreenReader(message, 'polite');
+    }
     
     quantumInstallation.triggerQuantumEvent('NOTIFICATION_ADDED', {
       message,
@@ -597,6 +778,7 @@ function AppContent() {
   const handleThreeWorldReady = useCallback(() => {
     setIsThreeWorldReady(true);
     addNotification('Quantum Reality Field stabilized. 3D World ready!', 'success');
+    announceToScreenReader('3D Quantum World is now ready');
     
     quantumInstallation.triggerQuantumEvent('WORLD_READY', {
       timestamp: Date.now(),
@@ -608,6 +790,7 @@ function AppContent() {
   const handleWebGLError = useCallback((errorMessage) => {
     setWebGLError(errorMessage);
     addNotification(`Quantum Rendering Error: ${errorMessage}`, 'error');
+    announceToScreenReader(`Error: ${errorMessage}. Please check WebGL support.`, 'assertive');
     
     quantumInstallation.triggerQuantumEvent('RENDERING_ERROR', {
       error: errorMessage,
@@ -619,6 +802,7 @@ function AppContent() {
   const handleModDragStart = useCallback((mod) => {
     setDraggedMod(mod);
     addNotification(`Quantum entanglement established with ${mod.name}`, 'info');
+    announceToScreenReader(`Dragging mod: ${mod.name}. Drop into quantum reality field to manifest.`);
     
     quantumInstallation.triggerQuantumEvent('MOD_DRAG_START', {
       mod: mod,
@@ -641,6 +825,7 @@ function AppContent() {
       }));
       
       addNotification(`Quantum manifestation: ${draggedMod.name} materialized in reality`, 'success');
+      announceToScreenReader(`Mod ${draggedMod.name} has been manifested into the quantum world`);
       
       quantumInstallation.triggerQuantumEvent('MOD_MANIFESTED', {
         mod: draggedMod,
@@ -666,6 +851,11 @@ function AppContent() {
         if (dropZone) {
           dropZone.classList.add('drag-active');
           dropZone.innerHTML = '<div class="drop-message"><i class="fas fa-atom"></i> Quantum entanglement in progress...</div>';
+          
+          // Announce for screen readers
+          if (screenReaderMode) {
+            announceToScreenReader('Drop zone active. Release to manifest mod.');
+          }
         }
       }
     };
@@ -704,7 +894,7 @@ function AppContent() {
       document.removeEventListener('dragleave', handleGlobalDragLeave);
       document.removeEventListener('drop', handleGlobalDrop);
     };
-  }, [activeTab]);
+  }, [activeTab, screenReaderMode]);
 
   // ========== WORLD ACTIONS ==========
   const handleNewWorld = useCallback(() => {
@@ -712,6 +902,7 @@ function AppContent() {
     if (name) {
       setWorldName(name);
       addNotification(`Quantum world "${name}" created. Reality field initialized.`, 'success');
+      announceToScreenReader(`New quantum world created: ${name}`);
       
       const data = {
         tab: activeTab,
@@ -737,6 +928,7 @@ function AppContent() {
     if (typeof window !== 'undefined' && confirm('Collapse quantum superposition? This will clear the entire reality field.')) {
       window.dispatchEvent(new CustomEvent('clear-world'));
       addNotification('Quantum reality field collapsed. World cleared.', 'success');
+      announceToScreenReader('Quantum world has been cleared');
       
       quantumInstallation.triggerQuantumEvent('WORLD_CLEARED', {
         timestamp: Date.now()
@@ -750,10 +942,12 @@ function AppContent() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.modz3,.zip,.json,.quantum';
+    input.setAttribute('aria-label', 'Import quantum world file');
     input.onchange = (e) => {
       const file = e.target.files?.[0];
       if (file) {
         addNotification(`Quantum import initiated: ${file.name}...`, 'info');
+        announceToScreenReader(`Importing world file: ${file.name}`);
         window.dispatchEvent(new CustomEvent('import-world', { 
           detail: { 
             file: file,
@@ -767,6 +961,7 @@ function AppContent() {
 
   const handleExportWorld = useCallback(() => {
     addNotification('Quantum reality export in progress...', 'info');
+    announceToScreenReader('Exporting quantum world');
     window.dispatchEvent(new CustomEvent('export-world', {
       detail: {
         quantumState: getQuantumStateSummary(),
@@ -806,6 +1001,7 @@ function AppContent() {
       }).catch(() => {
         navigator.clipboard.writeText(shareLink).then(() => {
           addNotification('Quantum share link copied to clipboard!', 'success');
+          announceToScreenReader('Share link copied to clipboard');
         }).catch(() => {
           prompt('Quantum Share Link (Encrypted):', shareLink);
         });
@@ -813,6 +1009,7 @@ function AppContent() {
     } else if (shareLink) {
       navigator.clipboard.writeText(shareLink).then(() => {
         addNotification('Quantum share link copied to clipboard!', 'success');
+        announceToScreenReader('Share link copied to clipboard');
       }).catch(() => {
         prompt('Quantum Share Link (Encrypted):', shareLink);
       });
@@ -828,11 +1025,13 @@ function AppContent() {
       setDeferredPrompt(e);
       console.log('PWA installation available');
       addNotification('PWA installation available. Click install button.', 'info');
+      announceToScreenReader('Quantum PWA installation is now available');
     };
 
     const handleAppInstalled = () => {
       console.log('PWA installed successfully');
       addNotification('Quantum Reality installed successfully!', 'success');
+      announceToScreenReader('Quantum Reality has been installed successfully');
       setDeferredPrompt(null);
     };
 
@@ -859,6 +1058,7 @@ function AppContent() {
             const status = await cwa.init();
             if (status.success) {
               addNotification('CWA Mode Activated. Advanced optimizations enabled.', 'success');
+              announceToScreenReader('Chrome Web App mode activated with advanced optimizations');
             }
           }
         }
@@ -878,17 +1078,21 @@ function AppContent() {
         
         if (outcome === 'accepted') {
           addNotification('Quantum PWA installation started!', 'success');
+          announceToScreenReader('PWA installation started');
         } else {
           addNotification('PWA installation cancelled', 'info');
+          announceToScreenReader('PWA installation cancelled');
         }
         
         setDeferredPrompt(null);
       } catch (error) {
         console.error('PWA installation failed:', error);
         addNotification('PWA installation failed. Please try manual installation.', 'error');
+        announceToScreenReader('PWA installation failed', 'assertive');
       }
     } else {
       addNotification('Manual PWA installation required. Use browser menu.', 'info');
+      announceToScreenReader('Manual PWA installation required. Use browser menu.');
       showManualInstallInstructions('pwa');
     }
   }, [deferredPrompt]);
@@ -902,12 +1106,14 @@ function AppContent() {
       }
       
       addNotification('Starting CWA installation...', 'info');
+      announceToScreenReader('Starting Chrome Web App installation');
       
       if (cwaInstaller) {
         const result = await cwaInstaller.installCWA();
         
         if (result.success) {
           addNotification('CWA installed successfully! Advanced features enabled.', 'success');
+          announceToScreenReader('Chrome Web App installed successfully');
           
           if (typeof window !== 'undefined') {
             setTimeout(() => {
@@ -923,6 +1129,7 @@ function AppContent() {
     } catch (error) {
       console.error('CWA installation failed:', error);
       addNotification(`CWA installation failed: ${error.message}`, 'error');
+      announceToScreenReader(`CWA installation failed: ${error.message}`, 'assertive');
       showManualInstallInstructions('cwa');
     }
   }, [cwaInstaller]);
@@ -946,86 +1153,30 @@ function AppContent() {
     
     const modal = document.createElement('div');
     modal.className = 'quantum-instruction-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'instruction-title');
+    
     modal.innerHTML = `
       <div class="instruction-content">
-        <h3>${type === 'cwa' ? '⚡ CWA Installation' : '📱 PWA Installation'}</h3>
+        <h2 id="instruction-title">${type === 'cwa' ? '⚡ CWA Installation' : '📱 PWA Installation'}</h2>
         <pre>${instructions}</pre>
         <div class="instruction-actions">
-          <button class="btn-instruction-close">Close</button>
-          ${type === 'cwa' ? '<button class="btn-instruction-retry">Retry CWA</button>' : ''}
+          <button class="btn-instruction-close" aria-label="Close instructions">Close</button>
+          ${type === 'cwa' ? '<button class="btn-instruction-retry" aria-label="Retry CWA installation">Retry CWA</button>' : ''}
         </div>
       </div>
     `;
     
     document.body.appendChild(modal);
     
-    const styles = document.createElement('style');
-    styles.textContent = `
-      .quantum-instruction-modal {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.8);
-        backdrop-filter: blur(10px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 10001;
-      }
-      .instruction-content {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        border: 1px solid #6c5ce7;
-        border-radius: 15px;
-        padding: 30px;
-        max-width: 500px;
-        color: white;
-      }
-      .instruction-content h3 {
-        color: #6c5ce7;
-        margin-bottom: 20px;
-      }
-      .instruction-content pre {
-        background: rgba(0, 0, 0, 0.3);
-        padding: 15px;
-        border-radius: 10px;
-        font-size: 14px;
-        line-height: 1.5;
-        white-space: pre-wrap;
-      }
-      .instruction-actions {
-        display: flex;
-        gap: 10px;
-        margin-top: 20px;
-      }
-      .btn-instruction-close, .btn-instruction-retry {
-        padding: 10px 20px;
-        border-radius: 8px;
-        border: none;
-        cursor: pointer;
-        font-weight: bold;
-      }
-      .btn-instruction-close {
-        background: #666;
-        color: white;
-      }
-      .btn-instruction-retry {
-        background: #6c5ce7;
-        color: white;
-      }
-    `;
-    document.head.appendChild(styles);
-    
-    modal.querySelector('.btn-instruction-close').addEventListener('click', () => {
-      modal.remove();
-      styles.remove();
-    });
+    const closeBtn = modal.querySelector('.btn-instruction-close');
+    closeBtn.addEventListener('click', () => modal.remove());
+    closeBtn.focus();
     
     if (type === 'cwa') {
       modal.querySelector('.btn-instruction-retry').addEventListener('click', () => {
         modal.remove();
-        styles.remove();
         handleCWAInstall();
       });
     }
@@ -1037,11 +1188,28 @@ function AppContent() {
       localStorage.setItem('quantum_installer_dismissed', 'true');
     }
     addNotification('Quantum installer dismissed. You can install later from the status bar.', 'info');
+    announceToScreenReader('Quantum installer dismissed');
   }, []);
 
   // ========== INITIALIZATION ==========
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    // Create screen reader announcer
+    const announcer = document.createElement('div');
+    announcer.id = 'quantum-announcer';
+    announcer.setAttribute('aria-live', 'polite');
+    announcer.setAttribute('aria-atomic', 'true');
+    announcer.style.position = 'absolute';
+    announcer.style.width = '1px';
+    announcer.style.height = '1px';
+    announcer.style.padding = '0';
+    announcer.style.margin = '-1px';
+    announcer.style.overflow = 'hidden';
+    announcer.style.clip = 'rect(0, 0, 0, 0)';
+    announcer.style.whiteSpace = 'nowrap';
+    announcer.style.border = '0';
+    document.body.appendChild(announcer);
 
     const encrypted = searchParams.get('e');
     if (encrypted) {
@@ -1090,6 +1258,8 @@ function AppContent() {
     }
 
     const createGlobalParticles = () => {
+      if (isReducedMotion) return;
+      
       const particleCount = 100;
       const particlesContainer = document.getElementById('quantum-global-particles');
       if (!particlesContainer) return;
@@ -1114,6 +1284,7 @@ function AppContent() {
     
     setTimeout(() => {
       addNotification('Welcome to Quantum Modz3.0! Reality coefficient stabilized.', 'info');
+      announceToScreenReader('Welcome to Quantum Modz3.0');
       
       quantumInstallation.triggerQuantumEvent('SYSTEM_INITIALIZED', {
         timestamp: Date.now(),
@@ -1127,8 +1298,11 @@ function AppContent() {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
+      if (announcer) {
+        announcer.remove();
+      }
     };
-  }, [searchParams, initializeQuantumSystem, handleWebGLError]);
+  }, [searchParams, initializeQuantumSystem, handleWebGLError, isReducedMotion]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1153,23 +1327,6 @@ function AppContent() {
     }
   }, [activeTab, worldName]);
 
-  // Keyboard shortcut for performance stats
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleKeyDown = (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'P') {
-        const stats = document.querySelector('.performance-stats');
-        if (stats) {
-          stats.classList.toggle('show');
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
   // ========== RENDER FUNCTIONS ==========
   const renderActiveTab = useCallback(() => {
     switch (activeTab) {
@@ -1189,12 +1346,29 @@ function AppContent() {
               spatialDistortion,
               quantumField
             }}
+            reducedMotion={isReducedMotion}
+            highContrast={highContrast}
           />
         );
       case 'community':
-        return <Community addNotification={addNotification} encryptedParams={encryptedParams} />;
+        return (
+          <Community 
+            addNotification={addNotification} 
+            encryptedParams={encryptedParams}
+            reducedMotion={isReducedMotion}
+            highContrast={highContrast}
+            screenReaderMode={screenReaderMode}
+          />
+        );
       case 'profile':
-        return <Profile addNotification={addNotification} quantumState={quantumState} />;
+        return (
+          <Profile 
+            addNotification={addNotification} 
+            quantumState={quantumState}
+            reducedMotion={isReducedMotion}
+            highContrast={highContrast}
+          />
+        );
       default:
         return (
           <ThreeWorld 
@@ -1209,14 +1383,23 @@ function AppContent() {
               spatialDistortion,
               quantumField
             }}
+            reducedMotion={isReducedMotion}
+            highContrast={highContrast}
           />
         );
     }
-  }, [activeTab, worldName, handleModDropIntoWorld, isDraggingOverWorld, handleThreeWorldReady, handleWebGLError, chaosLevel, realityCoefficient, temporalDisplacement, spatialDistortion, quantumField, encryptedParams, quantumState]);
+  }, [activeTab, worldName, handleModDropIntoWorld, isDraggingOverWorld, handleThreeWorldReady, 
+      handleWebGLError, chaosLevel, realityCoefficient, temporalDisplacement, spatialDistortion, 
+      quantumField, encryptedParams, quantumState, isReducedMotion, highContrast, screenReaderMode]);
 
   const renderQuantumErrorFallback = useCallback(() => (
-    <div className="quantum-error-fallback">
-      <div className="quantum-error-icon">
+    <div 
+      className="quantum-error-fallback" 
+      role="alert" 
+      aria-live="assertive"
+      aria-labelledby="error-heading"
+    >
+      <div className="quantum-error-icon" aria-hidden={isReducedMotion ? "true" : "false"}>
         <i className="fas fa-atom fa-spin"></i>
         <div className="quantum-error-rings">
           <div className="ring"></div>
@@ -1224,27 +1407,28 @@ function AppContent() {
           <div className="ring"></div>
         </div>
       </div>
-      <h3>Quantum Reality Unstable</h3>
+      <h2 id="error-heading">Quantum Reality Unstable</h2>
       <p className="error-message">{webGLError}</p>
       <div className="quantum-error-actions">
         <button 
           className="btn btn-quantum"
           onClick={() => window.location.reload()}
-          style={{
-            background: 'linear-gradient(135deg, var(--quantum-plasma), var(--quantum-hyperpurple))'
-          }}
+          onKeyDown={(e) => handleKeyboardNavigation(e, () => window.location.reload())}
+          aria-label="Reload page to fix quantum rendering error"
         >
-          <i className="fas fa-redo"></i> Quantum Reboot
+          <i className="fas fa-redo" aria-hidden="true"></i> Quantum Reboot
         </button>
         <button 
           className="btn btn-quantum-secondary"
           onClick={() => navigateToTab('community')}
+          onKeyDown={(e) => handleKeyboardNavigation(e, () => navigateToTab('community'))}
+          aria-label="Go to Quantum Community"
         >
-          <i className="fas fa-share-alt"></i> Quantum Community
+          <i className="fas fa-share-alt" aria-hidden="true"></i> Quantum Community
         </button>
       </div>
       <div className="quantum-tips">
-        <p><strong>Quantum Tips:</strong></p>
+        <h3>Quantum Tips:</h3>
         <ul>
           <li>Ensure quantum entanglement (WebGL) is enabled</li>
           <li>Update quantum drivers (Graphics drivers)</li>
@@ -1252,7 +1436,7 @@ function AppContent() {
           <li>Adjust quantum coherence settings (Disable hardware acceleration blockers)</li>
         </ul>
       </div>
-      <div className="quantum-stats">
+      <div className="quantum-stats" aria-label="Quantum statistics">
         <div className="stat">
           <span className="stat-label">Reality Coefficient</span>
           <span className="stat-value">{realityCoefficient.toFixed(2)}</span>
@@ -1267,15 +1451,144 @@ function AppContent() {
         </div>
       </div>
     </div>
-  ), [webGLError, realityCoefficient, chaosLevel, quantumField]);
+  ), [webGLError, realityCoefficient, chaosLevel, quantumField, isReducedMotion, navigateToTab]);
+
+  const renderAccessibilityControls = () => (
+    <div 
+      className="accessibility-controls" 
+      role="group" 
+      aria-label="Accessibility controls"
+      style={{
+        position: 'fixed',
+        bottom: '10px',
+        right: '10px',
+        zIndex: 100000,
+        display: 'flex',
+        gap: '10px'
+      }}
+    >
+      <button
+        className="btn btn-quantum-small"
+        onClick={() => {
+          const newFontSize = fontSize === 'normal' ? 'large' : 'normal';
+          setFontSize(newFontSize);
+          document.body.setAttribute('data-font-size', newFontSize);
+          announceToScreenReader(`Font size changed to ${newFontSize}`);
+        }}
+        aria-label="Toggle font size"
+        title="Toggle large text"
+      >
+        <i className="fas fa-text-height" aria-hidden="true"></i>
+        <span className="sr-only">Toggle font size</span>
+      </button>
+      
+      <button
+        className="btn btn-quantum-small"
+        onClick={() => {
+          const newContrast = !highContrast;
+          setHighContrast(newContrast);
+          document.body.setAttribute('data-high-contrast', newContrast);
+          announceToScreenReader(`High contrast mode ${newContrast ? 'enabled' : 'disabled'}`);
+        }}
+        aria-pressed={highContrast}
+        aria-label="Toggle high contrast"
+      >
+        <i className="fas fa-adjust" aria-hidden="true"></i>
+        <span className="sr-only">Toggle high contrast</span>
+      </button>
+      
+      <button
+        className="btn btn-quantum-small"
+        onClick={() => {
+          const newMotion = !isReducedMotion;
+          setIsReducedMotion(newMotion);
+          document.body.setAttribute('data-reduced-motion', newMotion);
+          announceToScreenReader(`Reduced motion ${newMotion ? 'enabled' : 'disabled'}`);
+        }}
+        aria-pressed={isReducedMotion}
+        aria-label="Toggle reduced motion"
+      >
+        <i className="fas fa-heartbeat" aria-hidden="true"></i>
+        <span className="sr-only">Toggle reduced motion</span>
+      </button>
+      
+      <button
+        className="btn btn-quantum-small"
+        onClick={() => {
+          const helpText = `
+            Quantum Modz 3.0 Accessibility Features:
+            
+            Keyboard Shortcuts:
+            - Alt+W: Go to World
+            - Alt+E: Toggle Editor
+            - Alt+C: Go to Community
+            - Alt+P: Go to Profile
+            - Alt+N: Create New World
+            - Alt+I: Open Installer
+            - Alt+Shift+P: Toggle Performance Mode
+            - Alt+H: Show this help
+            
+            Screen Reader Support: Full NVDA, JAWS, VoiceOver compatibility
+            High Contrast Mode: Toggle with button or system preference
+            Reduced Motion: Toggle with button or system preference
+            Large Text: Toggle font size scaling
+            
+            For more help, visit our community tab.
+          `;
+          announceToScreenReader(helpText, 'assertive');
+        }}
+        aria-label="Accessibility help"
+        title="Show accessibility shortcuts"
+      >
+        <i className="fas fa-question-circle" aria-hidden="true"></i>
+        <span className="sr-only">Accessibility help</span>
+      </button>
+    </div>
+  );
 
   // ========== RENDER JSX ==========
   return (
-    <div className="quantum-app-container" suppressHydrationWarning>
-      {/* Quantum Background Canvas */}
+    <div 
+      className="quantum-app-container" 
+      suppressHydrationWarning
+      ref={mainRef}
+      data-active-tab={activeTab}
+      data-reduced-motion={isReducedMotion}
+      data-high-contrast={highContrast}
+      data-font-size={fontSize}
+      data-screen-reader={screenReaderMode}
+      data-performance-level={performanceLevel}
+    >
+      {/* Skip to content link for keyboard users */}
+      <a 
+        href="#main-content" 
+        className="skip-to-content"
+        style={{
+          position: 'absolute',
+          top: '-40px',
+          left: '0',
+          background: 'var(--quantum-plasma)',
+          color: 'white',
+          padding: '8px 16px',
+          zIndex: 100000,
+          textDecoration: 'none',
+          borderRadius: '0 0 8px 0',
+          transition: 'top 0.2s'
+        }}
+        onFocus={(e) => e.target.style.top = '0'}
+        onBlur={(e) => e.target.style.top = '-40px'}
+      >
+        Skip to main content
+      </a>
+
+      {/* Screen reader announcer */}
+      <div id="quantum-announcer" className="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+      {/* Quantum Background Canvas - hidden from screen readers */}
       <canvas 
         ref={canvasRef} 
         className="quantum-background-canvas"
+        aria-hidden="true"
         style={{
           position: 'fixed',
           top: 0,
@@ -1283,29 +1596,33 @@ function AppContent() {
           width: '100%',
           height: '100%',
           pointerEvents: 'none',
-          zIndex: 0
+          zIndex: 0,
+          display: isReducedMotion ? 'none' : 'block'
         }}
       />
 
-      {/* Quantum Visual Effects Containers */}
-      <div className="quantum-visual-effects">
-        <div id="quantum-particle-field" className="quantum-particle-field"></div>
-        <div id="interference-patterns" className="interference-patterns"></div>
-        <div id="quantum-global-particles" className="quantum-global-particles"></div>
-      </div>
+      {/* Quantum Visual Effects Containers - hidden from screen readers */}
+      {!isReducedMotion && (
+        <div className="quantum-visual-effects" aria-hidden="true">
+          <div id="quantum-particle-field" className="quantum-particle-field"></div>
+          <div id="interference-patterns" className="interference-patterns"></div>
+          <div id="quantum-global-particles" className="quantum-global-particles"></div>
+        </div>
+      )}
 
-      {/* Quantum Visual Effects */}
-      <div className="quantum-scan-line"></div>
-      <div className="quantum-hologram-effect"></div>
-      <div className="quantum-distortion-field"></div>
-
-      {/* Performance Elements */}
-      <div className="performance-indicator">
-        <i className="fas fa-tachometer-alt"></i>
+      {/* Performance Indicator - accessible */}
+      <div 
+        className="performance-indicator" 
+        role="status" 
+        aria-live="polite"
+        aria-label={`Performance mode: ${performanceLevel}`}
+      >
+        <i className="fas fa-tachometer-alt" aria-hidden="true"></i>
         <span>Performance Mode: <span id="performance-level">{performanceLevel.charAt(0).toUpperCase() + performanceLevel.slice(1)}</span></span>
       </div>
 
-      <div className="performance-stats">
+      {/* Performance Stats - toggle with keyboard */}
+      <div className="performance-stats" role="region" aria-label="Performance statistics">
         <div className="stat">
           <span className="stat-label">FPS:</span>
           <span className="stat-value" id="fps-counter">{fps}</span>
@@ -1320,25 +1637,54 @@ function AppContent() {
         </div>
       </div>
 
-      <button className="performance-toggle" id="performanceToggle" onClick={togglePerformanceMode}>
-        <i className="fas fa-cog"></i>
+      {/* Performance Toggle Button */}
+      <button 
+        className="performance-toggle" 
+        id="performanceToggle" 
+        onClick={togglePerformanceMode}
+        onKeyDown={(e) => handleKeyboardNavigation(e, togglePerformanceMode)}
+        aria-label={`Current performance mode: ${performanceLevel}. Click to toggle.`}
+      >
+        <i className="fas fa-cog" aria-hidden="true"></i>
         <span>Performance</span>
       </button>
 
-      <div className="fps-counter" id="fpsDisplay">{fps} FPS</div>
+      {/* FPS Display - accessible */}
+      <div 
+        className={`fps-counter ${fps < 30 ? 'low' : ''}`} 
+        id="fpsDisplay"
+        role="status"
+        aria-live="polite"
+        aria-label={`Frames per second: ${fps}`}
+      >
+        {fps} FPS
+      </div>
 
+      {/* Memory Warning - accessible alert */}
       {showMemoryWarning && (
-        <div className="memory-warning show" id="memoryWarning">
+        <div 
+          className="memory-warning show" 
+          id="memoryWarning"
+          role="alert"
+          aria-live="assertive"
+        >
           <h3>⚠️ Low Memory Detected</h3>
           <p>Your device has limited memory (<span id="detected-memory">{detectedMemory}</span>GB).</p>
           <p>Enabling Extreme Performance Mode to prevent crashes...</p>
           <div className="memory-warning-buttons">
-            <button className="btn btn-quantum" onClick={enableExtremePerformance}>
+            <button 
+              className="btn btn-quantum" 
+              onClick={enableExtremePerformance}
+              onKeyDown={(e) => handleKeyboardNavigation(e, enableExtremePerformance)}
+              aria-label="Enable extreme performance mode for better stability"
+            >
               Enable Extreme Mode
             </button>
             <button 
               className="btn btn-quantum-secondary" 
               onClick={() => setShowMemoryWarning(false)}
+              onKeyDown={(e) => handleKeyboardNavigation(e, () => setShowMemoryWarning(false))}
+              aria-label="Dismiss memory warning and continue"
             >
               Continue Anyway
             </button>
@@ -1347,9 +1693,9 @@ function AppContent() {
       )}
 
       {/* Quantum Header */}
-      <header className="quantum-header">
+      <header className="quantum-header" role="banner">
         <div className="quantum-logo">
-          <div className="logo-quantum-animation">
+          <div className="logo-quantum-animation" aria-hidden={isReducedMotion ? "true" : "false"}>
             <div className="quantum-logo-singularity"></div>
             <div className="quantum-logo-rings">
               <div className="logo-ring"></div>
@@ -1363,25 +1709,29 @@ function AppContent() {
           </h1>
         </div>
         
-        {/* NAVIGATION */}
-        <nav className="quantum-nav-links">
+        {/* NAVIGATION - accessible */}
+        <nav className="quantum-nav-links" aria-label="Main navigation" role="navigation">
           <button 
             className={`quantum-nav-link ${activeTab === 'world' ? 'active' : ''}`}
             onClick={() => navigateToTab('world')}
+            onKeyDown={(e) => handleKeyboardNavigation(e, () => navigateToTab('world'))}
+            aria-current={activeTab === 'world' ? 'page' : undefined}
+            aria-label={`Quantum World ${activeTab === 'world' ? 'current page' : ''}`}
             data-quantum="world"
           >
             <div className="nav-link-quantum">
-              <i className="fas fa-globe-americas"></i>
+              <i className="fas fa-globe-americas" aria-hidden="true"></i>
               <span>Quantum World</span>
               {webGLError && activeTab === 'world' && (
-                <span className="quantum-error-badge">
-                  <i className="fas fa-radiation"></i>
+                <span className="quantum-error-badge" aria-label="WebGL error detected">
+                  <i className="fas fa-radiation" aria-hidden="true"></i>
                 </span>
               )}
               {chaosLevel > 50 && (
                 <span 
                   className="quantum-chaos-indicator" 
                   style={{'--chaos': `${chaosLevel}%`}}
+                  aria-label={`High chaos level: ${Math.round(chaosLevel)}%`}
                 ></span>
               )}
             </div>
@@ -1389,30 +1739,39 @@ function AppContent() {
           <button 
             className="quantum-nav-link"
             onClick={toggleQuantumEditor}
+            onKeyDown={(e) => handleKeyboardNavigation(e, toggleQuantumEditor)}
+            aria-pressed={showEditor}
+            aria-label={`Quantum Editor ${showEditor ? 'active' : 'inactive'}`}
             data-quantum="editor"
           >
             <div className="nav-link-quantum">
-              <i className="fas fa-atom"></i>
+              <i className="fas fa-atom" aria-hidden="true"></i>
               <span>Quantum Editor</span>
             </div>
           </button>
           <button 
             className={`quantum-nav-link ${activeTab === 'community' ? 'active' : ''}`}
             onClick={() => navigateToTab('community')}
+            onKeyDown={(e) => handleKeyboardNavigation(e, () => navigateToTab('community'))}
+            aria-current={activeTab === 'community' ? 'page' : undefined}
+            aria-label="Quantum Community"
             data-quantum="community"
           >
             <div className="nav-link-quantum">
-              <i className="fas fa-share-alt"></i>
+              <i className="fas fa-share-alt" aria-hidden="true"></i>
               <span>Quantum Community</span>
             </div>
           </button>
           <button 
             className={`quantum-nav-link ${activeTab === 'profile' ? 'active' : ''}`}
             onClick={() => navigateToTab('profile')}
+            onKeyDown={(e) => handleKeyboardNavigation(e, () => navigateToTab('profile'))}
+            aria-current={activeTab === 'profile' ? 'page' : undefined}
+            aria-label="Quantum Profile"
             data-quantum="profile"
           >
             <div className="nav-link-quantum">
-              <i className="fas fa-user-astronaut"></i>
+              <i className="fas fa-user-astronaut" aria-hidden="true"></i>
               <span>Quantum Profile</span>
             </div>
           </button>
@@ -1420,47 +1779,71 @@ function AppContent() {
         
         <div className="quantum-user-section">
           <div className="quantum-world-actions">
-            <button className="btn btn-quantum-secondary" onClick={handleImportWorld} data-action="import">
-              <i className="fas fa-folder-open"></i>
+            <button 
+              className="btn btn-quantum-secondary" 
+              onClick={handleImportWorld} 
+              onKeyDown={(e) => handleKeyboardNavigation(e, handleImportWorld)}
+              aria-label="Import quantum world"
+              data-action="import"
+            >
+              <i className="fas fa-folder-open" aria-hidden="true"></i>
               <span>Quantum Import</span>
             </button>
-            <button className="btn btn-quantum-primary" onClick={handleExportWorld} data-action="export">
-              <i className="fas fa-download"></i>
+            <button 
+              className="btn btn-quantum-primary" 
+              onClick={handleExportWorld} 
+              onKeyDown={(e) => handleKeyboardNavigation(e, handleExportWorld)}
+              aria-label="Export quantum world"
+              data-action="export"
+            >
+              <i className="fas fa-download" aria-hidden="true"></i>
               <span>Quantum Export</span>
             </button>
-            <button className="btn btn-quantum-accent" onClick={handleShareWorld} data-action="share">
-              <i className="fas fa-share"></i>
+            <button 
+              className="btn btn-quantum-accent" 
+              onClick={handleShareWorld} 
+              onKeyDown={(e) => handleKeyboardNavigation(e, handleShareWorld)}
+              aria-label="Share quantum world"
+              data-action="share"
+            >
+              <i className="fas fa-share" aria-hidden="true"></i>
               <span>Quantum Share</span>
             </button>
           </div>
           <div className="quantum-avatar-container">
-            <div className="quantum-avatar-glow"></div>
-            <div className="quantum-avatar-halo"></div>
-            <div className="quantum-avatar-3d" title="Quantum Profile" onClick={() => navigateToTab('profile')}>
-              <div className="avatar-quantum-core"></div>
-              <i className="fas fa-robot"></i>
+            <div className="quantum-avatar-glow" aria-hidden="true"></div>
+            <div className="quantum-avatar-halo" aria-hidden="true"></div>
+            <button 
+              className="quantum-avatar-3d" 
+              title="Quantum Profile" 
+              onClick={() => navigateToTab('profile')}
+              onKeyDown={(e) => handleKeyboardNavigation(e, () => navigateToTab('profile'))}
+              aria-label="Open quantum profile"
+            >
+              <div className="avatar-quantum-core" aria-hidden="true"></div>
+              <i className="fas fa-robot" aria-hidden="true"></i>
               {quantumState && (
-                <div className="avatar-quantum-stats">
-                  <div className="avatar-stat" title={`Chaos: ${Math.round(chaosLevel)}%`}>
-                    <div className="stat-bar">
+                <div className="avatar-quantum-stats" aria-label={`Chaos level: ${Math.round(chaosLevel)}%`}>
+                  <div className="avatar-stat">
+                    <div className="stat-bar" aria-hidden="true">
                       <div className="stat-fill" style={{width: `${chaosLevel}%`}}></div>
                     </div>
                   </div>
                 </div>
               )}
-            </div>
+            </button>
           </div>
         </div>
       </header>
 
       {/* Quantum Main Container */}
-      <div className="quantum-main-container">
+      <main id="main-content" className="quantum-main-container" role="main">
         {/* Quantum Sidebar */}
         {activeTab === 'world' && (
-          <div className="quantum-sidebar">
+          <aside className="quantum-sidebar" aria-label="Quantum Mod Manager">
             <div className="quantum-sidebar-header">
-              <h3>Quantum Mod Manager</h3>
-              <div className="quantum-sidebar-stats">
+              <h2>Quantum Mod Manager</h2>
+              <div className="quantum-sidebar-stats" aria-label="Quantum statistics">
                 <div className="stat">
                   <span className="stat-label">Reality</span>
                   <span className="stat-value">{realityCoefficient.toFixed(2)}</span>
@@ -1480,12 +1863,18 @@ function AppContent() {
                 realityCoefficient,
                 quantumField
               }}
+              reducedMotion={isReducedMotion}
+              highContrast={highContrast}
+              screenReaderMode={screenReaderMode}
             />
-          </div>
+          </aside>
         )}
 
         {/* Quantum Content Area */}
-        <div className={`quantum-content-area ${activeTab !== 'world' ? 'quantum-full-width' : ''}`}>
+        <div 
+          className={`quantum-content-area ${activeTab !== 'world' ? 'quantum-full-width' : ''}`}
+          data-quantum-tab={activeTab}
+        >
           {activeTab === 'world' ? (
             <>
               <div className="quantum-world-wrapper">
@@ -1494,47 +1883,71 @@ function AppContent() {
                     <span className="world-name">Quantum Reality: {worldName}</span>
                     {encryptedParams.source === 'shared' && (
                       <span className="quantum-shared-badge" title="Quantum Shared via encrypted link">
-                        <i className="fas fa-lock"></i> Quantum Encrypted
+                        <i className="fas fa-lock" aria-hidden="true"></i> Quantum Encrypted
                       </span>
                     )}
                     {webGLError && (
                       <span className="quantum-error-badge-global" title="Quantum Rendering Error">
-                        <i className="fas fa-radiation"></i> Reality Unstable
+                        <i className="fas fa-radiation" aria-hidden="true"></i> Reality Unstable
                       </span>
                     )}
                     {quantumEffects.length > 0 && (
-                      <span className="quantum-effects-indicator">
-                        <i className="fas fa-bolt"></i> {quantumEffects.length} Active Effects
+                      <span className="quantum-effects-indicator" aria-label={`${quantumEffects.length} active quantum effects`}>
+                        <i className="fas fa-bolt" aria-hidden="true"></i> {quantumEffects.length} Active Effects
                       </span>
                     )}
                   </h2>
                   <div className="quantum-world-actions">
-                    <button className="btn btn-quantum-secondary" id="quantumToggleGrid" onClick={() => addNotification('Quantum Grid Manipulation - Coming soon', 'info')}>
-                      <i className="fas fa-th"></i>
+                    <button 
+                      className="btn btn-quantum-secondary" 
+                      id="quantumToggleGrid" 
+                      onClick={() => addNotification('Quantum Grid Manipulation - Coming soon', 'info')}
+                      onKeyDown={(e) => handleKeyboardNavigation(e, () => addNotification('Quantum Grid Manipulation - Coming soon', 'info'))}
+                      aria-label="Toggle quantum grid - coming soon"
+                    >
+                      <i className="fas fa-th" aria-hidden="true"></i>
                       <span>Quantum Grid</span>
                     </button>
-                    <button className="btn btn-quantum-danger" id="quantumClearWorld" onClick={handleClearWorld}>
-                      <i className="fas fa-trash"></i>
+                    <button 
+                      className="btn btn-quantum-danger" 
+                      id="quantumClearWorld" 
+                      onClick={handleClearWorld}
+                      onKeyDown={(e) => handleKeyboardNavigation(e, handleClearWorld)}
+                      aria-label="Clear quantum world"
+                    >
+                      <i className="fas fa-trash" aria-hidden="true"></i>
                       <span>Collapse Reality</span>
                     </button>
-                    <button className="btn btn-quantum-success" id="quantumNewWorld" onClick={handleNewWorld}>
-                      <i className="fas fa-plus"></i>
+                    <button 
+                      className="btn btn-quantum-success" 
+                      id="quantumNewWorld" 
+                      onClick={handleNewWorld}
+                      onKeyDown={(e) => handleKeyboardNavigation(e, handleNewWorld)}
+                      aria-label="Create new quantum world"
+                    >
+                      <i className="fas fa-plus" aria-hidden="true"></i>
                       <span>New Reality</span>
                     </button>
                   </div>
                 </div>
 
-                <div className="quantum-world-overlay"></div>
+                <div className="quantum-world-overlay" aria-hidden="true"></div>
                 {webGLError ? renderQuantumErrorFallback() : renderActiveTab()}
-                <div className="quantum-drop-zone" id="dropZone"></div>
+                <div 
+                  className="quantum-drop-zone" 
+                  id="dropZone"
+                  role="region"
+                  aria-label="Mod drop zone"
+                  aria-live="polite"
+                ></div>
 
                 {/* Quantum Stats Overlay */}
                 {quantumState && (
-                  <div className="quantum-stats-overlay">
+                  <div className="quantum-stats-overlay" aria-label="Quantum statistics">
                     <div className="quantum-stat">
                       <div className="stat-label">Quantum Field</div>
                       <div className="stat-value">{Math.round(quantumField * 100)}%</div>
-                      <div className="stat-bar">
+                      <div className="stat-bar" aria-hidden="true">
                         <div className="stat-fill" style={{width: `${quantumField * 100}%`}}></div>
                       </div>
                     </div>
@@ -1543,7 +1956,7 @@ function AppContent() {
                       <div className="stat-value">{temporalDisplacement.toFixed(1)}</div>
                       <div className="stat-indicator" style={{
                         left: `${50 + temporalDisplacement * 5}%`
-                      }}></div>
+                      }} aria-hidden="true"></div>
                     </div>
                     <div className="quantum-stat">
                       <div className="stat-label">Spatial Distortion</div>
@@ -1555,12 +1968,15 @@ function AppContent() {
 
               {/* Quantum Code Editor */}
               {showEditor && (
-                <div className="quantum-editor-panel active">
+                <div className="quantum-editor-panel active" role="region" aria-label="Quantum Code Editor">
                   <CodeEditor 
                     onClose={() => setShowEditor(false)}
                     addNotification={addNotification}
                     quantumMode={true}
                     quantumState={quantumState}
+                    reducedMotion={isReducedMotion}
+                    highContrast={highContrast}
+                    screenReaderMode={screenReaderMode}
                   />
                 </div>
               )}
@@ -1573,8 +1989,13 @@ function AppContent() {
                   {activeTab === 'profile' && 'Quantum Reality Profile'}
                 </h2>
                 {activeTab === 'community' && (
-                  <button className="btn btn-quantum-accent" onClick={handleShareWorld}>
-                    <i className="fas fa-share"></i> Share Quantum Reality
+                  <button 
+                    className="btn btn-quantum-accent" 
+                    onClick={handleShareWorld}
+                    onKeyDown={(e) => handleKeyboardNavigation(e, handleShareWorld)}
+                    aria-label="Share quantum world with community"
+                  >
+                    <i className="fas fa-share" aria-hidden="true"></i> Share Quantum Reality
                   </button>
                 )}
               </div>
@@ -1584,32 +2005,40 @@ function AppContent() {
             </div>
           )}
         </div>
-      </div>
+      </main>
 
-      {/* Quantum Installer Modal */}
+      {/* Quantum Installer Modal - accessible */}
       {showQuantumInstaller && (
-        <div className="quantum-notification quantum-notification show info" style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          zIndex: 10002,
-          maxWidth: '600px',
-          width: '90%'
-        }}>
+        <div 
+          className="quantum-notification quantum-notification show info" 
+          role="dialog"
+          aria-modal="true"
+          aria-label="Quantum Installation Options"
+          style={{
+            position: 'fixed',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 10002,
+            maxWidth: '600px',
+            width: '90%'
+          }}
+        >
           <div className="quantum-notification-header">
-            <div className="notification-quantum-icon">
+            <div className="notification-quantum-icon" aria-hidden="true">
               <i className="fas fa-atom fa-spin"></i>
             </div>
-            <div className="quantum-notification-title">
+            <h2 className="quantum-notification-title">
               🚀 Install Modz Quantum
-            </div>
+            </h2>
             <button 
               className="quantum-notification-time"
               onClick={dismissQuantumInstaller}
+              onKeyDown={(e) => handleKeyboardNavigation(e, dismissQuantumInstaller)}
               style={{background: 'none', border: 'none', color: 'inherit', cursor: 'pointer'}}
+              aria-label="Close installer"
             >
-              <i className="fas fa-times"></i>
+              <i className="fas fa-times" aria-hidden="true"></i>
             </button>
           </div>
           <div className="quantum-notification-message">
@@ -1619,24 +2048,26 @@ function AppContent() {
               {/* PWA Option */}
               <div className="quantum-effect-item" style={{marginBottom: '15px'}}>
                 <div style={{flex: 1}}>
-                  <h4 style={{margin: '0 0 5px 0'}}>
-                    <i className="fas fa-mobile-alt" style={{marginRight: '10px'}}></i>
+                  <h3 style={{margin: '0 0 5px 0', fontSize: '18px'}}>
+                    <i className="fas fa-mobile-alt" style={{marginRight: '10px'}} aria-hidden="true"></i>
                     Standard PWA
-                  </h4>
+                  </h3>
                   <p style={{margin: '0', fontSize: '14px', opacity: 0.8}}>
                     Basic Progressive Web App installation
                   </p>
                   <div style={{display: 'flex', gap: '10px', marginTop: '10px', fontSize: '12px'}}>
-                    <span><i className="fas fa-check"></i> Works everywhere</span>
-                    <span><i className="fas fa-check"></i> Offline support</span>
-                    <span><i className="fas fa-check"></i> Auto-updates</span>
+                    <span><i className="fas fa-check" aria-hidden="true"></i> Works everywhere</span>
+                    <span><i className="fas fa-check" aria-hidden="true"></i> Offline support</span>
+                    <span><i className="fas fa-check" aria-hidden="true"></i> Auto-updates</span>
                   </div>
                 </div>
                 <button 
                   className="btn btn-quantum-small"
                   onClick={handlePWAInstall}
+                  onKeyDown={(e) => handleKeyboardNavigation(e, handlePWAInstall)}
                   disabled={!deferredPrompt}
                   style={{minWidth: '120px'}}
+                  aria-label={deferredPrompt ? 'Install Progressive Web App' : 'PWA installation not available'}
                 >
                   {deferredPrompt ? 'Install PWA' : 'Manual Install'}
                 </button>
@@ -1645,9 +2076,10 @@ function AppContent() {
               {/* CWA Option */}
               <div className="quantum-effect-item" style={{borderLeftColor: 'var(--quantum-warning)'}}>
                 <div style={{flex: 1}}>
-                  <h4 style={{margin: '0 0 5px 0'}}>
-                    <i className="fas fa-bolt" style={{marginRight: '10px'}}></i>
-                    Advanced CWA <span style={{
+                  <h3 style={{margin: '0 0 5px 0', fontSize: '18px'}}>
+                    <i className="fas fa-bolt" style={{marginRight: '10px'}} aria-hidden="true"></i>
+                    Advanced CWA 
+                    <span style={{
                       background: 'var(--quantum-warning)',
                       color: 'var(--quantum-whitehole)',
                       padding: '2px 8px',
@@ -1655,24 +2087,26 @@ function AppContent() {
                       fontSize: '10px',
                       marginLeft: '5px'
                     }}>⚡ NEW</span>
-                  </h4>
+                  </h3>
                   <p style={{margin: '0', fontSize: '14px', opacity: 0.8}}>
                     ChromeBook Web App with advanced optimizations
                   </p>
                   <div style={{display: 'flex', gap: '10px', marginTop: '10px', fontSize: '12px', flexWrap: 'wrap'}}>
-                    <span><i className="fas fa-check"></i> 40FPS Performance</span>
-                    <span><i className="fas fa-check"></i> School Bypass</span>
-                    <span><i className="fas fa-check"></i> Stealth Mode</span>
-                    <span><i className="fas fa-check"></i> Memory Optimized</span>
+                    <span><i className="fas fa-check" aria-hidden="true"></i> 40FPS Performance</span>
+                    <span><i className="fas fa-check" aria-hidden="true"></i> School Bypass</span>
+                    <span><i className="fas fa-check" aria-hidden="true"></i> Stealth Mode</span>
+                    <span><i className="fas fa-check" aria-hidden="true"></i> Memory Optimized</span>
                   </div>
                 </div>
                 <button 
                   className="btn btn-quantum-small"
                   onClick={handleCWAInstall}
+                  onKeyDown={(e) => handleKeyboardNavigation(e, handleCWAInstall)}
                   style={{
                     minWidth: '120px',
                     background: 'linear-gradient(135deg, var(--quantum-warning), #ffaa00)'
                   }}
+                  aria-label="Install Chrome Web App with advanced features"
                 >
                   Install CWA
                 </button>
@@ -1681,7 +2115,7 @@ function AppContent() {
             
             <div style={{marginTop: '20px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)'}}>
               <p style={{margin: '0 0 10px 0', fontSize: '12px', opacity: 0.8}}>
-                <i className="fas fa-lightbulb"></i> 
+                <i className="fas fa-lightbulb" aria-hidden="true"></i> 
                 <strong> Tip:</strong> CWA is recommended for school Chromebooks & better performance
               </p>
               <div className="quantum-sidebar-stats" style={{justifyContent: 'center', gap: '30px'}}>
@@ -1700,15 +2134,23 @@ function AppContent() {
       )}
 
       {/* Quantum Notifications */}
-      <div className="quantum-notification-container" id="quantumNotificationContainer">
+      <div 
+        className="quantum-notification-container" 
+        id="quantumNotificationContainer"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         {notifications.map((notification) => (
           <div 
             key={notification.id} 
             className={`quantum-notification show ${notification.type}`}
             data-chaos={notification.chaosLevel}
+            role="alert"
+            aria-live={notification.type === 'error' || notification.type === 'warning' ? 'assertive' : 'polite'}
           >
             <div className="quantum-notification-header">
-              <div className="notification-quantum-icon">
+              <div className="notification-quantum-icon" aria-hidden="true">
                 <i className={`fas fa-${
                   notification.type === 'success' ? 'atom' :
                   notification.type === 'error' ? 'radiation' :
@@ -1725,15 +2167,20 @@ function AppContent() {
               </div>
             </div>
             <div className="quantum-notification-message">{notification.message}</div>
-            <div className="quantum-notification-progress"></div>
+            <div className="quantum-notification-progress" aria-hidden="true"></div>
           </div>
         ))}
       </div>
 
       {/* Quantum Dragging Indicator */}
       {draggedMod && (
-        <div className="quantum-dragging-indicator">
-          <div className="quantum-dragging-icon">
+        <div 
+          className="quantum-dragging-indicator" 
+          role="status" 
+          aria-live="polite"
+          aria-label={`Dragging mod: ${draggedMod.name}`}
+        >
+          <div className="quantum-dragging-icon" aria-hidden="true">
             <i className="fas fa-atom fa-spin"></i>
           </div>
           <div className="quantum-dragging-text">
@@ -1741,7 +2188,7 @@ function AppContent() {
             <div className="dragging-mod">{draggedMod.name}</div>
             <small>Drop into quantum reality field</small>
           </div>
-          <div className="quantum-dragging-effects">
+          <div className="quantum-dragging-effects" aria-hidden="true">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="dragging-effect"></div>
             ))}
@@ -1750,10 +2197,14 @@ function AppContent() {
       )}
 
       {/* Quantum Effects Display */}
-      {quantumEffects.length > 0 && (
-        <div className="quantum-effects-display">
+      {quantumEffects.length > 0 && !isReducedMotion && (
+        <div 
+          className="quantum-effects-display" 
+          role="region" 
+          aria-label="Active quantum effects"
+        >
           <div className="effects-header">
-            <i className="fas fa-bolt"></i>
+            <i className="fas fa-bolt" aria-hidden="true"></i>
             <span>Active Quantum Effects</span>
           </div>
           <div className="effects-list">
@@ -1761,7 +2212,7 @@ function AppContent() {
               <div key={effect.id} className="quantum-effect-item">
                 <div className="effect-type">{effect.type}</div>
                 <div className="effect-intensity">
-                  <div className="intensity-bar">
+                  <div className="intensity-bar" aria-hidden="true">
                     <div className="intensity-fill" style={{width: `${effect.intensity}%`}}></div>
                   </div>
                 </div>
@@ -1773,30 +2224,43 @@ function AppContent() {
 
       {/* Quantum Session Indicators */}
       {encryptedParams.source === 'shared' && (
-        <div className="quantum-session-indicator">
+        <div 
+          className="quantum-session-indicator" 
+          role="status" 
+          aria-live="polite"
+          aria-label="Quantum encrypted session active"
+        >
           <div className="indicator-content">
-            <i className="fas fa-lock"></i>
+            <i className="fas fa-lock" aria-hidden="true"></i>
             <span>Quantum Encrypted Session</span>
             <div className="indicator-stats">
               <span className="stat">RC: {realityCoefficient.toFixed(2)}</span>
               <span className="stat">CL: {Math.round(chaosLevel)}%</span>
             </div>
           </div>
-          <button onClick={() => {
-            if (typeof window !== 'undefined') {
-              window.location.href = window.location.pathname;
-            }
-          }}>
-            <i className="fas fa-times"></i>
+          <button 
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.location.href = window.location.pathname;
+              }
+            }}
+            onKeyDown={(e) => handleKeyboardNavigation(e, () => {
+              if (typeof window !== 'undefined') {
+                window.location.href = window.location.pathname;
+              }
+            })}
+            aria-label="Clear session and return to home"
+          >
+            <i className="fas fa-times" aria-hidden="true"></i>
           </button>
         </div>
       )}
 
       {/* Quantum Status Bar */}
-      <div className="quantum-status-bar">
+      <div className="quantum-status-bar" role="region" aria-label="Quantum system status">
         <div className="status-items">
           <div className="status-item">
-            <div className="status-icon">
+            <div className="status-icon" aria-hidden="true">
               <i className="fas fa-atom"></i>
             </div>
             <div className="status-content">
@@ -1805,7 +2269,7 @@ function AppContent() {
             </div>
           </div>
           <div className="status-item">
-            <div className="status-icon">
+            <div className="status-icon" aria-hidden="true">
               <i className="fas fa-fire"></i>
             </div>
             <div className="status-content">
@@ -1814,7 +2278,7 @@ function AppContent() {
             </div>
           </div>
           <div className="status-item">
-            <div className="status-icon">
+            <div className="status-icon" aria-hidden="true">
               <i className="fas fa-globe-americas"></i>
             </div>
             <div className="status-content">
@@ -1823,7 +2287,7 @@ function AppContent() {
             </div>
           </div>
           <div className="status-item">
-            <div className="status-icon">
+            <div className="status-icon" aria-hidden="true">
               <i className="fas fa-clock"></i>
             </div>
             <div className="status-content">
@@ -1833,11 +2297,21 @@ function AppContent() {
           </div>
         </div>
         <div className="status-actions">
-          <button className="btn btn-quantum-small" onClick={() => setShowQuantumInstaller(true)}>
-            <i className="fas fa-download"></i>
+          <button 
+            className="btn btn-quantum-small" 
+            onClick={() => setShowQuantumInstaller(true)}
+            onKeyDown={(e) => handleKeyboardNavigation(e, () => setShowQuantumInstaller(true))}
+            aria-label="Open quantum installer"
+          >
+            <i className="fas fa-download" aria-hidden="true"></i>
           </button>
-          <button className="btn btn-quantum-small" onClick={generateQuantumShareLink}>
-            <i className="fas fa-share"></i>
+          <button 
+            className="btn btn-quantum-small" 
+            onClick={generateQuantumShareLink}
+            onKeyDown={(e) => handleKeyboardNavigation(e, generateQuantumShareLink)}
+            aria-label="Generate share link"
+          >
+            <i className="fas fa-share" aria-hidden="true"></i>
           </button>
         </div>
       </div>
@@ -1850,14 +2324,19 @@ function AppContent() {
           <button 
             className="btn btn-quantum-primary btn-quantum-install"
             onClick={() => setShowQuantumInstaller(true)}
+            onKeyDown={(e) => handleKeyboardNavigation(e, () => setShowQuantumInstaller(true))}
+            aria-label="Install Quantum Reality application"
           >
             <div className="install-button-quantum">
-              <i className="fas fa-atom fa-spin"></i>
+              <i className="fas fa-atom fa-spin" aria-hidden="true"></i>
               <span>Install Quantum Reality</span>
             </div>
           </button>
         </div>
       )}
+
+      {/* Accessibility Controls */}
+      {renderAccessibilityControls()}
     </div>
   );
 }
@@ -1866,8 +2345,13 @@ function AppContent() {
 export default function Home() {
   return (
     <Suspense fallback={
-      <div className="quantum-loading-screen">
-        <div className="quantum-loading-animation">
+      <div 
+        className="quantum-loading-screen" 
+        role="status" 
+        aria-live="polite"
+        aria-label="Loading Quantum Modz 3.0"
+      >
+        <div className="quantum-loading-animation" aria-hidden="true">
           <div className="quantum-loading-singularity"></div>
           <div className="quantum-loading-rings">
             <div className="ring"></div>
@@ -1891,6 +2375,7 @@ export default function Home() {
             <span>{(Math.random() * 2).toFixed(2)}</span>
           </div>
         </div>
+        <span className="sr-only">Loading, please wait</span>
       </div>
     }>
       <AppContent />
