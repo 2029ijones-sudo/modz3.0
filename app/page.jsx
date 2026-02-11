@@ -218,7 +218,6 @@ function AppContent() {
     const container = document.getElementById('quantum-particle-field');
     if (!container) return;
     
-    // Clear existing particles
     container.innerHTML = '';
     
     for (let i = 0; i < 100; i++) {
@@ -238,7 +237,6 @@ function AppContent() {
     const container = document.getElementById('interference-patterns');
     if (!container) return;
     
-    // Clear existing patterns
     container.innerHTML = '';
     
     for (let i = 0; i < 5; i++) {
@@ -289,7 +287,6 @@ function AppContent() {
       quantumField: quantumField
     };
     
-    // Initialize quantum particles
     for (let i = 0; i < 100; i++) {
       particleSystemRef.current.particles.push({
         x: Math.random() * canvas.width,
@@ -305,7 +302,6 @@ function AppContent() {
       });
     }
     
-    // Initialize strange attractors
     for (let i = 0; i < 5; i++) {
       particleSystemRef.current.attractors.push({
         x: Math.random() * canvas.width,
@@ -321,8 +317,6 @@ function AppContent() {
       
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Draw quantum field background
-      const time = particleSystemRef.current.time;
       const fieldStrength = quantumField * 100;
       
       const gradient = ctx.createRadialGradient(
@@ -342,7 +336,6 @@ function AppContent() {
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      // Update system state
       particleSystemRef.current.time += 0.01;
       particleSystemRef.current.chaos = chaosLevel / 100;
       particleSystemRef.current.quantumField = quantumField;
@@ -411,10 +404,8 @@ function AppContent() {
     setActiveTab(tab);
     setWebGLError(null);
     
-    // Add quantum notification
     addNotification(`Quantum reality shifted to ${tab} dimension`, 'quantum');
     
-    // Create quantum shareable URL
     const data = {
       tab,
       world: worldName,
@@ -527,7 +518,6 @@ function AppContent() {
     }
   }, [draggedMod, chaosLevel, realityCoefficient, quantumField]);
 
-  // Drag and drop handlers with quantum effects
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -745,7 +735,6 @@ function AppContent() {
     initializeCWA();
   }, []);
 
-  // Handle PWA installation
   const handlePWAInstall = useCallback(async () => {
     if (deferredPrompt) {
       try {
@@ -769,7 +758,6 @@ function AppContent() {
     }
   }, [deferredPrompt]);
 
-  // Handle CWA installation
   const handleCWAInstall = useCallback(async () => {
     try {
       if (!cwaInstaller) {
@@ -804,7 +792,6 @@ function AppContent() {
     }
   }, [cwaInstaller]);
 
-  // Show manual installation instructions
   const showManualInstallInstructions = useCallback((type) => {
     if (typeof document === 'undefined') return;
     
@@ -909,7 +896,6 @@ function AppContent() {
     }
   }, [handleCWAInstall]);
 
-  // Dismiss quantum installer
   const dismissQuantumInstaller = useCallback(() => {
     setShowQuantumInstaller(false);
     if (typeof localStorage !== 'undefined') {
@@ -946,7 +932,6 @@ function AppContent() {
       }
     }
 
-    // Check WebGL support
     const checkWebGLSupport = () => {
       try {
         const canvas = document.createElement('canvas');
@@ -963,14 +948,12 @@ function AppContent() {
 
     initializeQuantumSystem();
 
-    // Auto-detect if installer should be shown
     if ('serviceWorker' in navigator && 
         !window.matchMedia('(display-mode: standalone)').matches &&
         !localStorage.getItem('quantum_installer_dismissed')) {
       setShowQuantumInstaller(true);
     }
 
-    // Global quantum effects
     const createGlobalParticles = () => {
       const particleCount = 100;
       const particlesContainer = document.getElementById('quantum-global-particles');
@@ -1012,7 +995,6 @@ function AppContent() {
     };
   }, [searchParams, initializeQuantumSystem, handleWebGLError]);
 
-  // Update URL when active tab changes
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
@@ -1097,7 +1079,7 @@ function AppContent() {
           className="btn btn-quantum"
           onClick={() => window.location.reload()}
           style={{
-            background: `linear-gradient(135deg, var(--quantum-plasma), var(--quantum-hyperpurple))`
+            background: 'linear-gradient(135deg, var(--quantum-plasma), var(--quantum-hyperpurple))'
           }}
         >
           <i className="fas fa-redo"></i> Quantum Reboot
@@ -1198,9 +1180,10 @@ function AppContent() {
                 </span>
               )}
               {chaosLevel > 50 && (
-                <span className="quantum-chaos-indicator" style={{
-                  '--chaos': `${chaosLevel}%`
-                } as React.CSSProperties}></span>
+                <span 
+                  className="quantum-chaos-indicator" 
+                  style={{'--chaos': `${chaosLevel}%`}}
+                ></span>
               )}
             </div>
           </button>
@@ -1361,7 +1344,7 @@ function AppContent() {
                       <div className="stat-value">{temporalDisplacement.toFixed(1)}</div>
                       <div className="stat-indicator" style={{
                         left: `${50 + temporalDisplacement * 5}%`
-                      } as React.CSSProperties}></div>
+                      }}></div>
                     </div>
                     <div className="quantum-stat">
                       <div className="stat-label">Spatial Distortion</div>
@@ -1472,7 +1455,7 @@ function AppContent() {
                       borderRadius: '10px',
                       fontSize: '10px',
                       marginLeft: '5px'
-                    } as React.CSSProperties}>⚡ NEW</span>
+                    }}>⚡ NEW</span>
                   </h4>
                   <p style={{margin: '0', fontSize: '14px', opacity: 0.8}}>
                     ChromeBook Web App with advanced optimizations
@@ -1490,7 +1473,7 @@ function AppContent() {
                   style={{
                     minWidth: '120px',
                     background: 'linear-gradient(135deg, var(--quantum-warning), #ffaa00)'
-                  } as React.CSSProperties}
+                  }}
                 >
                   Install CWA
                 </button>
