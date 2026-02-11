@@ -39,7 +39,7 @@ import {
 // Encryption key
 const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || 'quantum-mods-secret-key-2024';
 
-const encryptData = (data: any) => {
+const encryptData = (data) => {
   try {
     const encrypted = CryptoJS.AES.encrypt(JSON.stringify(data), ENCRYPTION_KEY).toString();
     return encodeURIComponent(encrypted);
@@ -49,7 +49,7 @@ const encryptData = (data: any) => {
   }
 };
 
-const decryptData = (encrypted: string) => {
+const decryptData = (encrypted) => {
   try {
     const decrypted = CryptoJS.AES.decrypt(decodeURIComponent(encrypted), ENCRYPTION_KEY);
     return JSON.parse(decrypted.toString(CryptoJS.enc.Utf8));
@@ -58,129 +58,6 @@ const decryptData = (encrypted: string) => {
     return null;
   }
 };
-
-interface FileType {
-  path: string;
-  name: string;
-  content: string;
-  language?: string;
-  size?: number;
-  created_at?: string;
-  updated_at?: string;
-}
-
-interface Repository {
-  id: string;
-  name: string;
-  description: string;
-  user_id: string;
-  is_public: boolean;
-  content: {
-    files: FileType[];
-    structure: any;
-  };
-  language: string;
-  star_count: number;
-  fork_count: number;
-  view_count: number;
-  created_at: string;
-  updated_at: string;
-  original_repo_id?: string;
-  owner?: {
-    username: string;
-    avatar_url: string;
-  };
-  is_starred?: boolean;
-  issue_count?: number;
-  pr_count?: number;
-}
-
-interface Profile {
-  user_id: string;
-  username: string;
-  email: string;
-  full_name: string;
-  avatar_url: string;
-  bio: string;
-  location: string;
-  website: string;
-  github_username: string;
-  twitter_username: string;
-  company: string;
-  skills: string[];
-  interests: string[];
-  created_at: string;
-  updated_at: string;
-}
-
-interface QuantumEffects {
-  chaosLevel?: number;
-}
-
-interface Issue {
-  id: string;
-  title: string;
-  status: string;
-  created_at: string;
-  user_id: string;
-}
-
-interface PullRequest {
-  id: string;
-  title: string;
-  status: string;
-  created_at: string;
-  commits: number;
-  base_branch: string;
-  head_branch: string;
-}
-
-interface Branch {
-  name: string;
-  default?: boolean;
-  updated_at?: string;
-}
-
-interface Release {
-  id: string;
-  tag_name: string;
-  title: string;
-  prerelease: boolean;
-  created_at: string;
-}
-
-interface Contributor {
-  author_id: string;
-  author_name: string;
-  author_email: string;
-  count: number;
-}
-
-interface Commit {
-  id: string;
-  repo_id: string;
-  user_id: string;
-  author_name: string;
-  author_email: string;
-  message: string;
-  files: string[];
-  hash: string;
-  created_at: string;
-}
-
-interface ActivityData {
-  date: string;
-  count: number;
-}
-
-interface RepoStats {
-  commits: number;
-  branches: number;
-  releases: number;
-  contributors: number;
-  size: number;
-  lines: number;
-}
 
 // ============= QUANTUM CODE EDITOR =============
 const QuantumCodeEditor = ({ 
@@ -191,32 +68,24 @@ const QuantumCodeEditor = ({
   user,
   addNotification,
   quantumEffects = {}
-}: {
-  file: FileType;
-  onSave: (file: FileType) => Promise<void>;
-  onClose: () => void;
-  repository: Repository;
-  user: any;
-  addNotification?: (message: string, type: string) => void;
-  quantumEffects?: QuantumEffects;
 }) => {
   const [code, setCode] = useState(file?.content || '');
   const [language, setLanguage] = useState(file?.language || 'javascript');
   const [theme, setTheme] = useState('quantum-dark');
   const [fontSize, setFontSize] = useState(14);
-  const [lintErrors, setLintErrors] = useState<Array<{line: number, message: string, severity: string}>>([]);
+  const [lintErrors, setLintErrors] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [complexity, setComplexity] = useState(0);
   const [tokens, setTokens] = useState(0);
   const [lines, setLines] = useState(0);
-  const [ast, setAst] = useState<any>(null);
-  const [breakpoints, setBreakpoints] = useState<number[]>([]);
+  const [ast, setAst] = useState(null);
+  const [breakpoints, setBreakpoints] = useState([]);
   const [isDebugging, setIsDebugging] = useState(false);
   const [debuggerState, setDebuggerState] = useState(null);
-  const [consoleOutput, setConsoleOutput] = useState<Array<{type: string, args: any[]}>>([]);
+  const [consoleOutput, setConsoleOutput] = useState([]);
   const [isExecuting, setIsExecuting] = useState(false);
-  const [history, setHistory] = useState<Array<{code: string, timestamp: number}>>([]);
+  const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [selections, setSelections] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -226,19 +95,19 @@ const QuantumCodeEditor = ({
   const [showLineNumbers, setShowLineNumbers] = useState(true);
   const [wordWrap, setWordWrap] = useState(true);
   const [autoSave, setAutoSave] = useState(true);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [lastSaved, setLastSaved] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
   
-  const editorRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef(null);
   const linesRef = useRef([]);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
+  const containerRef = useRef(null);
+  const autoSaveTimer = useRef(null);
 
   // Language detection
   useEffect(() => {
     if (file?.name) {
       const ext = file.name.split('.').pop()?.toLowerCase() || '';
-      const langMap: {[key: string]: string} = {
+      const langMap = {
         'js': 'javascript', 'jsx': 'javascript', 'ts': 'typescript',
         'tsx': 'typescript', 'py': 'python', 'html': 'html',
         'css': 'css', 'json': 'json', 'md': 'markdown',
@@ -257,13 +126,13 @@ const QuantumCodeEditor = ({
       analyzeCode();
       updateMetrics();
     }
-  }, [code, analyzeCode, updateMetrics]);
+  }, [code]);
 
   const analyzeCode = useCallback(debounce(() => {
     setIsAnalyzing(true);
     try {
       // Linting
-      const errors: Array<{line: number, message: string, severity: string}> = [];
+      const errors = [];
       const codeLines = code.split('\n');
       
       // Basic syntax checking for JavaScript
@@ -284,7 +153,7 @@ const QuantumCodeEditor = ({
               errors.push({ line: i + 1, message: 'Debugger statement found', severity: 'warning' });
             }
           });
-        } catch (e: any) {
+        } catch (e) {
           const match = e.message.match(/line (\d+)/);
           if (match) {
             errors.push({ line: parseInt(match[1]), message: e.message, severity: 'error' });
@@ -331,18 +200,18 @@ const QuantumCodeEditor = ({
     return () => {
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     };
-  }, [code, autoSave, isDirty, handleSave]);
+  }, [code, autoSave, isDirty]);
 
   const handleSave = useCallback(async () => {
     if (onSave) {
       await onSave({ ...file, content: code, language, updated_at: new Date().toISOString() });
       setIsDirty(false);
       setLastSaved(new Date());
-      addNotification?.('File saved successfully', 'success');
+      if (addNotification) addNotification('File saved successfully', 'success');
     }
   }, [onSave, file, code, language, addNotification]);
 
-  const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleCodeChange = (e) => {
     setCode(e.target.value);
     setIsDirty(true);
     
@@ -373,9 +242,9 @@ const QuantumCodeEditor = ({
         formatted = JSON.stringify(obj, null, 2);
       }
       setCode(formatted);
-      addNotification?.('Code formatted', 'success');
+      if (addNotification) addNotification('Code formatted', 'success');
     } catch (error) {
-      addNotification?.('Failed to format code', 'error');
+      if (addNotification) addNotification('Failed to format code', 'error');
     }
   };
 
@@ -387,10 +256,10 @@ const QuantumCodeEditor = ({
       // Create a safe sandbox
       const sandbox = {
         console: {
-          log: (...args: any[]) => setConsoleOutput(prev => [...prev, { type: 'log', args }]),
-          error: (...args: any[]) => setConsoleOutput(prev => [...prev, { type: 'error', args }]),
-          warn: (...args: any[]) => setConsoleOutput(prev => [...prev, { type: 'warn', args }]),
-          info: (...args: any[]) => setConsoleOutput(prev => [...prev, { type: 'info', args }])
+          log: (...args) => setConsoleOutput(prev => [...prev, { type: 'log', args }]),
+          error: (...args) => setConsoleOutput(prev => [...prev, { type: 'error', args }]),
+          warn: (...args) => setConsoleOutput(prev => [...prev, { type: 'warn', args }]),
+          info: (...args) => setConsoleOutput(prev => [...prev, { type: 'info', args }])
         },
         setTimeout,
         clearTimeout,
@@ -409,7 +278,7 @@ const QuantumCodeEditor = ({
       if (result !== undefined) {
         setConsoleOutput(prev => [...prev, { type: 'result', args: [result] }]);
       }
-    } catch (error: any) {
+    } catch (error) {
       setConsoleOutput(prev => [...prev, { type: 'error', args: [error.message] }]);
     } finally {
       setIsExecuting(false);
@@ -417,7 +286,7 @@ const QuantumCodeEditor = ({
   };
 
   // Syntax highlighting
-  const renderLine = (line: string, index: number) => {
+  const renderLine = (line, index) => {
     const lineErrors = lintErrors.filter(e => e.line === index + 1);
     const hasBreakpoint = breakpoints.includes(index + 1);
     
@@ -448,7 +317,7 @@ const QuantumCodeEditor = ({
     );
   };
 
-  const highlightSyntax = (line: string) => {
+  const highlightSyntax = (line) => {
     // Basic syntax highlighting
     const keywords = ['function', 'const', 'let', 'var', 'if', 'else', 'for', 'while', 'return', 'import', 'export', 'default', 'class', 'extends', 'new', 'this', 'super', 'try', 'catch', 'finally', 'throw', 'switch', 'case', 'break', 'continue', 'typeof', 'instanceof', 'void', 'delete', 'in'];
     
@@ -1080,22 +949,15 @@ export default function Community({
   highContrast = false,
   screenReaderMode = false,
   performanceMode = {}
-}: {
-  addNotification?: (message: string, type: string) => void;
-  encryptedParams?: string;
-  reducedMotion?: boolean;
-  highContrast?: boolean;
-  screenReaderMode?: boolean;
-  performanceMode?: any;
 }) {
   const [activeTab, setActiveTab] = useState('repositories');
-  const [repositories, setRepositories] = useState<Repository[]>([]);
-  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
-  const [repoContent, setRepoContent] = useState<{ files: FileType[], structure: any } | null>(null);
+  const [repositories, setRepositories] = useState([]);
+  const [selectedRepo, setSelectedRepo] = useState(null);
+  const [repoContent, setRepoContent] = useState(null);
   const [currentPath, setCurrentPath] = useState('');
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [newContent, setNewContent] = useState({
     type: 'repository',
     name: '',
@@ -1111,7 +973,7 @@ export default function Community({
     }
   });
   const [contentLoading, setContentLoading] = useState(false);
-  const [editingFile, setEditingFile] = useState<FileType | null>(null);
+  const [editingFile, setEditingFile] = useState(null);
   const [isCreatingFile, setIsCreatingFile] = useState(false);
   const [newFileName, setNewFileName] = useState('');
   const [newFileType, setNewFileType] = useState('file');
@@ -1121,21 +983,21 @@ export default function Community({
   const [viewMode, setViewMode] = useState('grid');
   const [showStats, setShowStats] = useState(false);
   const [showGraph, setShowGraph] = useState(false);
-  const [commitHistory, setCommitHistory] = useState<Commit[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([{ name: 'main', default: true }]);
+  const [commitHistory, setCommitHistory] = useState([]);
+  const [branches, setBranches] = useState([{ name: 'main', default: true }]);
   const [currentBranch, setCurrentBranch] = useState('main');
-  const [pullRequests, setPullRequests] = useState<PullRequest[]>([]);
-  const [issues, setIssues] = useState<Issue[]>([]);
+  const [pullRequests, setPullRequests] = useState([]);
+  const [issues, setIssues] = useState([]);
   const [stars, setStars] = useState([]);
   const [forks, setForks] = useState([]);
   const [watchers, setWatchers] = useState([]);
-  const [activity, setActivity] = useState<ActivityData[]>([]);
-  const [contributors, setContributors] = useState<Contributor[]>([]);
-  const [releases, setReleases] = useState<Release[]>([]);
-  const [readme, setReadme] = useState<string | null>(null);
+  const [activity, setActivity] = useState([]);
+  const [contributors, setContributors] = useState([]);
+  const [releases, setReleases] = useState([]);
+  const [readme, setReadme] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [repoStats, setRepoStats] = useState<RepoStats>({
+  const [repoStats, setRepoStats] = useState({
     commits: 0,
     branches: 1,
     releases: 0,
@@ -1189,7 +1051,7 @@ export default function Community({
     }
   };
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId) => {
     try {
       let { data: profile, error } = await supabase
         .from('profiles')
@@ -1395,7 +1257,13 @@ export default function Community({
     }
   };
 
-  const createRepository = async (e: React.FormEvent) => {
+  useEffect(() => {
+    if (user) {
+      fetchRepositories();
+    }
+  }, [activeTab, searchQuery, filterLanguage, sortBy, user]);
+
+  const createRepository = async (e) => {
     e.preventDefault();
     
     if (!user) {
@@ -1410,7 +1278,7 @@ export default function Community({
 
     try {
       // Initialize content based on template
-      let initialContent: { files: FileType[], structure: any } = {
+      let initialContent = {
         files: [],
         structure: {}
       };
@@ -1495,15 +1363,15 @@ export default function Community({
       await fetchRepositories();
       
       toast.success('Repository created successfully!');
-      addNotification?.('Repository created successfully', 'success');
+      if (addNotification) addNotification('Repository created successfully', 'success');
       
-    } catch (error: any) {
+    } catch (error) {
       console.error('Create repository error:', error);
       toast.error(`Failed to create repository: ${error.message}`);
     }
   };
 
-  const selectRepository = async (repo: Repository) => {
+  const selectRepository = async (repo) => {
     setSelectedRepo(repo);
     setCurrentPath('');
     
@@ -1521,7 +1389,7 @@ export default function Community({
       
       // Load README if exists
       if (data.content?.files) {
-        const readmeFile = data.content.files.find((f: FileType) => 
+        const readmeFile = data.content.files.find((f) => 
           f.name.toLowerCase() === 'readme.md' || f.name.toLowerCase() === 'readme'
         );
         if (readmeFile) {
@@ -1562,7 +1430,7 @@ export default function Community({
     }
   };
 
-  const fetchCommitHistory = async (repoId: string) => {
+  const fetchCommitHistory = async (repoId) => {
     try {
       const { data, error } = await supabase
         .from('commits')
@@ -1579,7 +1447,7 @@ export default function Community({
     }
   };
 
-  const fetchBranches = async (repoId: string) => {
+  const fetchBranches = async (repoId) => {
     try {
       const { data, error } = await supabase
         .from('branches')
@@ -1594,7 +1462,7 @@ export default function Community({
     }
   };
 
-  const fetchIssues = async (repoId: string) => {
+  const fetchIssues = async (repoId) => {
     try {
       const { data, error } = await supabase
         .from('repo_issues')
@@ -1609,7 +1477,7 @@ export default function Community({
     }
   };
 
-  const fetchPullRequests = async (repoId: string) => {
+  const fetchPullRequests = async (repoId) => {
     try {
       const { data, error } = await supabase
         .from('pull_requests')
@@ -1624,7 +1492,7 @@ export default function Community({
     }
   };
 
-  const fetchContributors = async (repoId: string) => {
+  const fetchContributors = async (repoId) => {
     try {
       const { data, error } = await supabase
         .from('commits')
@@ -1635,7 +1503,7 @@ export default function Community({
       
       // Group by author
       const contributorsMap = new Map();
-      data?.forEach((commit: any) => {
+      data?.forEach((commit) => {
         const key = commit.author_id || commit.author_email;
         if (contributorsMap.has(key)) {
           contributorsMap.get(key).count++;
@@ -1657,7 +1525,7 @@ export default function Community({
     }
   };
 
-  const fetchReleases = async (repoId: string) => {
+  const fetchReleases = async (repoId) => {
     try {
       const { data, error } = await supabase
         .from('releases')
@@ -1673,7 +1541,7 @@ export default function Community({
     }
   };
 
-  const fetchActivity = async (repoId: string) => {
+  const fetchActivity = async (repoId) => {
     try {
       // Group commits by date
       const { data, error } = await supabase
@@ -1683,8 +1551,8 @@ export default function Community({
 
       if (error) throw error;
 
-      const activityData: {[key: string]: number} = {};
-      data?.forEach((commit: any) => {
+      const activityData = {};
+      data?.forEach((commit) => {
         const date = new Date(commit.created_at).toISOString().split('T')[0];
         activityData[date] = (activityData[date] || 0) + 1;
       });
@@ -1700,7 +1568,7 @@ export default function Community({
     }
   };
 
-  const saveFile = async (updatedFile: FileType) => {
+  const saveFile = async (updatedFile) => {
     if (!selectedRepo || !repoContent) return;
 
     try {
@@ -1733,13 +1601,13 @@ export default function Community({
 
       toast.success('File saved successfully');
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving file:', error);
       toast.error(`Failed to save file: ${error.message}`);
     }
   };
 
-  const createCommit = async (repoId: string, filePath: string, message: string) => {
+  const createCommit = async (repoId, filePath, message) => {
     if (!user) return;
 
     try {
@@ -1775,7 +1643,7 @@ export default function Community({
       let updatedContent;
 
       if (newFileType === 'file') {
-        const newFile: FileType = {
+        const newFile = {
           path: fullPath,
           name: newFileName,
           content: '',
@@ -1821,13 +1689,13 @@ export default function Community({
       
       toast.success(`${newFileType === 'file' ? 'File' : 'Folder'} created successfully`);
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error creating item:', error);
       toast.error(`Failed to create ${newFileType}: ${error.message}`);
     }
   };
 
-  const deleteFile = async (filePath: string) => {
+  const deleteFile = async (filePath) => {
     if (!selectedRepo || !repoContent) return;
 
     if (!confirm('Are you sure you want to delete this file?')) return;
@@ -1864,13 +1732,13 @@ export default function Community({
 
       toast.success('File deleted successfully');
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error deleting file:', error);
       toast.error(`Failed to delete file: ${error.message}`);
     }
   };
 
-  const starRepository = async (repo: Repository) => {
+  const starRepository = async (repo) => {
     if (!user) {
       toast.error('Please login to star repositories');
       return;
@@ -1916,13 +1784,13 @@ export default function Community({
       // Refresh repositories
       fetchRepositories();
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error starring repo:', error);
       toast.error(`Failed to ${repo.is_starred ? 'unstar' : 'star'} repository`);
     }
   };
 
-  const forkRepository = async (repo: Repository) => {
+  const forkRepository = async (repo) => {
     if (!user) {
       toast.error('Please login to fork repositories');
       return;
@@ -1964,7 +1832,7 @@ export default function Community({
       // Refresh repositories
       fetchRepositories();
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error forking repo:', error);
       toast.error(`Failed to fork repository: ${error.message}`);
     }
@@ -2010,7 +1878,7 @@ export default function Community({
     input.accept = '.zip,.json';
     
     input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
+      const file = e.target.files?.[0];
       if (!file) return;
 
       try {
@@ -2019,8 +1887,8 @@ export default function Community({
         const zip = new JSZip();
         const contents = await zip.loadAsync(file);
         
-        const files: FileType[] = [];
-        const structure: any = {};
+        const files = [];
+        const structure = {};
 
         for (const [path, zipEntry] of Object.entries(contents.files)) {
           if (!zipEntry.dir) {
@@ -2086,9 +1954,9 @@ export default function Community({
   };
 
   // ============= UTILITY FUNCTIONS =============
-  const detectLanguage = (filename: string) => {
+  const detectLanguage = (filename) => {
     const ext = filename.split('.').pop()?.toLowerCase() || '';
-    const languageMap: {[key: string]: string} = {
+    const languageMap = {
       'js': 'JavaScript', 'jsx': 'JavaScript', 'ts': 'TypeScript',
       'tsx': 'TypeScript', 'py': 'Python', 'html': 'HTML',
       'css': 'CSS', 'json': 'JSON', 'md': 'Markdown',
@@ -2100,8 +1968,8 @@ export default function Community({
     return languageMap[ext] || 'Plain Text';
   };
 
-  const detectLanguageFromFiles = (files: FileType[]) => {
-    const languages: {[key: string]: number} = {};
+  const detectLanguageFromFiles = (files) => {
+    const languages = {};
     files.forEach(file => {
       const lang = detectLanguage(file.name);
       languages[lang] = (languages[lang] || 0) + 1;
@@ -2120,8 +1988,8 @@ export default function Community({
     return mainLanguage;
   };
 
-  const getGitignoreTemplate = (type: string) => {
-    const templates: {[key: string]: string} = {
+  const getGitignoreTemplate = (type) => {
+    const templates = {
       'Node': `# Node.js
 node_modules/
 npm-debug.log
@@ -2178,9 +2046,9 @@ dist/
     return templates[type] || templates['Node'];
   };
 
-  const getLicenseTemplate = (type: string) => {
+  const getLicenseTemplate = (type) => {
     const year = new Date().getFullYear();
-    const templates: {[key: string]: string} = {
+    const templates = {
       'MIT': `MIT License
 
 Copyright (c) ${year} ${profile?.username || 'User'}
@@ -2212,7 +2080,7 @@ Version 3, 29 June 2007`,
     return templates[type] || templates['MIT'];
   };
 
-  const addToStructure = (structure: any, currentPath: string, name: string, type: string) => {
+  const addToStructure = (structure, currentPath, name, type) => {
     const pathParts = currentPath.split('/').filter(p => p);
     let current = { ...structure };
     let result = current;
@@ -2232,7 +2100,7 @@ Version 3, 29 June 2007`,
     return result;
   };
 
-  const removeFromStructure = (structure: any, path: string) => {
+  const removeFromStructure = (structure, path) => {
     const pathParts = path.split('/');
     const fileName = pathParts.pop();
     let current = { ...structure };
@@ -2264,7 +2132,7 @@ Version 3, 29 June 2007`,
       }
     }
     
-    return Object.entries(current).map(([name, item]: [string, any]) => ({
+    return Object.entries(current).map(([name, item]) => ({
       name,
       ...item,
       path: currentPath ? `${currentPath}/${name}` : name
@@ -2275,9 +2143,9 @@ Version 3, 29 June 2007`,
     });
   };
 
-  const getFileIcon = (filename: string) => {
+  const getFileIcon = (filename) => {
     const ext = filename.split('.').pop()?.toLowerCase() || '';
-    const iconMap: {[key: string]: JSX.Element} = {
+    const iconMap = {
       'js': <FileCode size={18} />,
       'jsx': <Code size={18} />,
       'ts': <FileCode size={18} />,
@@ -3716,8 +3584,8 @@ Version 3, 29 June 2007`,
     );
   };
 
-  const getLanguageColor = (language: string) => {
-    const colors: {[key: string]: string} = {
+  const getLanguageColor = (language) => {
+    const colors = {
       'JavaScript': '#f1e05a',
       'TypeScript': '#2b7489',
       'Python': '#3572A5',
