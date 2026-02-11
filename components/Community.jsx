@@ -33,13 +33,13 @@ import {
   Layers, Activity, GitMerge, GitPullRequest, GitCommit,
   BookOpen, AlertCircle, CheckCircle, Clock, Copy, ExternalLink,
   FileCode, FileText, FileJson, FileImage, Type, Box,
-  Grid, List, RefreshCw, Server, Wifi, Power
+  Grid, List, RefreshCw, Server, Wifi, Power, ChevronLeft, Tag
 } from 'lucide-react';
 
 // Encryption key
 const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || 'quantum-mods-secret-key-2024';
 
-const encryptData = (data) => {
+const encryptData = (data: any) => {
   try {
     const encrypted = CryptoJS.AES.encrypt(JSON.stringify(data), ENCRYPTION_KEY).toString();
     return encodeURIComponent(encrypted);
@@ -49,7 +49,7 @@ const encryptData = (data) => {
   }
 };
 
-const decryptData = (encrypted) => {
+const decryptData = (encrypted: string) => {
   try {
     const decrypted = CryptoJS.AES.decrypt(decodeURIComponent(encrypted), ENCRYPTION_KEY);
     return JSON.parse(decrypted.toString(CryptoJS.enc.Utf8));
@@ -58,6 +58,129 @@ const decryptData = (encrypted) => {
     return null;
   }
 };
+
+interface FileType {
+  path: string;
+  name: string;
+  content: string;
+  language?: string;
+  size?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface Repository {
+  id: string;
+  name: string;
+  description: string;
+  user_id: string;
+  is_public: boolean;
+  content: {
+    files: FileType[];
+    structure: any;
+  };
+  language: string;
+  star_count: number;
+  fork_count: number;
+  view_count: number;
+  created_at: string;
+  updated_at: string;
+  original_repo_id?: string;
+  owner?: {
+    username: string;
+    avatar_url: string;
+  };
+  is_starred?: boolean;
+  issue_count?: number;
+  pr_count?: number;
+}
+
+interface Profile {
+  user_id: string;
+  username: string;
+  email: string;
+  full_name: string;
+  avatar_url: string;
+  bio: string;
+  location: string;
+  website: string;
+  github_username: string;
+  twitter_username: string;
+  company: string;
+  skills: string[];
+  interests: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface QuantumEffects {
+  chaosLevel?: number;
+}
+
+interface Issue {
+  id: string;
+  title: string;
+  status: string;
+  created_at: string;
+  user_id: string;
+}
+
+interface PullRequest {
+  id: string;
+  title: string;
+  status: string;
+  created_at: string;
+  commits: number;
+  base_branch: string;
+  head_branch: string;
+}
+
+interface Branch {
+  name: string;
+  default?: boolean;
+  updated_at?: string;
+}
+
+interface Release {
+  id: string;
+  tag_name: string;
+  title: string;
+  prerelease: boolean;
+  created_at: string;
+}
+
+interface Contributor {
+  author_id: string;
+  author_name: string;
+  author_email: string;
+  count: number;
+}
+
+interface Commit {
+  id: string;
+  repo_id: string;
+  user_id: string;
+  author_name: string;
+  author_email: string;
+  message: string;
+  files: string[];
+  hash: string;
+  created_at: string;
+}
+
+interface ActivityData {
+  date: string;
+  count: number;
+}
+
+interface RepoStats {
+  commits: number;
+  branches: number;
+  releases: number;
+  contributors: number;
+  size: number;
+  lines: number;
+}
 
 // ============= QUANTUM CODE EDITOR =============
 const QuantumCodeEditor = ({ 
@@ -68,24 +191,32 @@ const QuantumCodeEditor = ({
   user,
   addNotification,
   quantumEffects = {}
+}: {
+  file: FileType;
+  onSave: (file: FileType) => Promise<void>;
+  onClose: () => void;
+  repository: Repository;
+  user: any;
+  addNotification?: (message: string, type: string) => void;
+  quantumEffects?: QuantumEffects;
 }) => {
   const [code, setCode] = useState(file?.content || '');
   const [language, setLanguage] = useState(file?.language || 'javascript');
   const [theme, setTheme] = useState('quantum-dark');
   const [fontSize, setFontSize] = useState(14);
-  const [lintErrors, setLintErrors] = useState([]);
+  const [lintErrors, setLintErrors] = useState<Array<{line: number, message: string, severity: string}>>([]);
   const [suggestions, setSuggestions] = useState([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [complexity, setComplexity] = useState(0);
   const [tokens, setTokens] = useState(0);
   const [lines, setLines] = useState(0);
-  const [ast, setAst] = useState(null);
-  const [breakpoints, setBreakpoints] = useState([]);
+  const [ast, setAst] = useState<any>(null);
+  const [breakpoints, setBreakpoints] = useState<number[]>([]);
   const [isDebugging, setIsDebugging] = useState(false);
   const [debuggerState, setDebuggerState] = useState(null);
-  const [consoleOutput, setConsoleOutput] = useState([]);
+  const [consoleOutput, setConsoleOutput] = useState<Array<{type: string, args: any[]}>>([]);
   const [isExecuting, setIsExecuting] = useState(false);
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState<Array<{code: string, timestamp: number}>>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [selections, setSelections] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -95,19 +226,19 @@ const QuantumCodeEditor = ({
   const [showLineNumbers, setShowLineNumbers] = useState(true);
   const [wordWrap, setWordWrap] = useState(true);
   const [autoSave, setAutoSave] = useState(true);
-  const [lastSaved, setLastSaved] = useState(null);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   
-  const editorRef = useRef(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const linesRef = useRef([]);
-  const containerRef = useRef(null);
-  const autoSaveTimer = useRef(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Language detection
   useEffect(() => {
     if (file?.name) {
-      const ext = file.name.split('.').pop().toLowerCase();
-      const langMap = {
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      const langMap: {[key: string]: string} = {
         'js': 'javascript', 'jsx': 'javascript', 'ts': 'typescript',
         'tsx': 'typescript', 'py': 'python', 'html': 'html',
         'css': 'css', 'json': 'json', 'md': 'markdown',
@@ -126,14 +257,14 @@ const QuantumCodeEditor = ({
       analyzeCode();
       updateMetrics();
     }
-  }, [code]);
+  }, [code, analyzeCode, updateMetrics]);
 
   const analyzeCode = useCallback(debounce(() => {
     setIsAnalyzing(true);
     try {
       // Linting
-      const errors = [];
-      const lines = code.split('\n');
+      const errors: Array<{line: number, message: string, severity: string}> = [];
+      const codeLines = code.split('\n');
       
       // Basic syntax checking for JavaScript
       if (['javascript', 'typescript', 'jsx', 'tsx'].includes(language)) {
@@ -142,7 +273,7 @@ const QuantumCodeEditor = ({
           setAst(ast);
           
           // Check for common issues
-          lines.forEach((line, i) => {
+          codeLines.forEach((line, i) => {
             if (line.length > 100) {
               errors.push({ line: i + 1, message: 'Line exceeds 100 characters', severity: 'warning' });
             }
@@ -153,7 +284,7 @@ const QuantumCodeEditor = ({
               errors.push({ line: i + 1, message: 'Debugger statement found', severity: 'warning' });
             }
           });
-        } catch (e) {
+        } catch (e: any) {
           const match = e.message.match(/line (\d+)/);
           if (match) {
             errors.push({ line: parseInt(match[1]), message: e.message, severity: 'error' });
@@ -163,7 +294,7 @@ const QuantumCodeEditor = ({
 
       // Complexity analysis
       let complexityScore = 0;
-      const tokens = code.split(/\s+/).length;
+      const tokenCount = code.split(/\s+/).length;
       
       // Count conditionals
       const ifCount = (code.match(/if\s*\(/g) || []).length;
@@ -174,8 +305,8 @@ const QuantumCodeEditor = ({
       complexityScore = (ifCount + forCount + whileCount + switchCount) * 2;
       
       setComplexity(complexityScore);
-      setTokens(tokens);
-      setLines(lines.length);
+      setTokens(tokenCount);
+      setLines(codeLines.length);
       setLintErrors(errors);
       
     } catch (error) {
@@ -183,11 +314,11 @@ const QuantumCodeEditor = ({
     } finally {
       setIsAnalyzing(false);
     }
-  }, 500), []);
+  }, 500), [code, language]);
 
-  const updateMetrics = () => {
+  const updateMetrics = useCallback(() => {
     // Update code metrics
-  };
+  }, []);
 
   // Auto-save
   useEffect(() => {
@@ -200,18 +331,18 @@ const QuantumCodeEditor = ({
     return () => {
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     };
-  }, [code, autoSave, isDirty]);
+  }, [code, autoSave, isDirty, handleSave]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (onSave) {
-      await onSave({ ...file, content: code, language, updated_at: new Date() });
+      await onSave({ ...file, content: code, language, updated_at: new Date().toISOString() });
       setIsDirty(false);
       setLastSaved(new Date());
       addNotification?.('File saved successfully', 'success');
     }
-  };
+  }, [onSave, file, code, language, addNotification]);
 
-  const handleCodeChange = (e) => {
+  const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setCode(e.target.value);
     setIsDirty(true);
     
@@ -238,7 +369,7 @@ const QuantumCodeEditor = ({
     try {
       let formatted = code;
       if (['javascript', 'typescript', 'json'].includes(language)) {
-        const obj = eval('(' + code + ')');
+        const obj = JSON.parse(code);
         formatted = JSON.stringify(obj, null, 2);
       }
       setCode(formatted);
@@ -255,12 +386,12 @@ const QuantumCodeEditor = ({
     try {
       // Create a safe sandbox
       const sandbox = {
-       console: {
-  log: (...args) => setConsoleOutput(prev => [...prev, { type: 'log', args }]),
-  error: (...args) => setConsoleOutput(prev => [...prev, { type: 'error', args }]),
-  warn: (...args) => setConsoleOutput(prev => [...prev, { type: 'warn', args }]),
-  info: (...args) => setConsoleOutput(prev => [...prev, { type: 'info', args }])
-},
+        console: {
+          log: (...args: any[]) => setConsoleOutput(prev => [...prev, { type: 'log', args }]),
+          error: (...args: any[]) => setConsoleOutput(prev => [...prev, { type: 'error', args }]),
+          warn: (...args: any[]) => setConsoleOutput(prev => [...prev, { type: 'warn', args }]),
+          info: (...args: any[]) => setConsoleOutput(prev => [...prev, { type: 'info', args }])
+        },
         setTimeout,
         clearTimeout,
         Math,
@@ -278,7 +409,7 @@ const QuantumCodeEditor = ({
       if (result !== undefined) {
         setConsoleOutput(prev => [...prev, { type: 'result', args: [result] }]);
       }
-    } catch (error) {
+    } catch (error: any) {
       setConsoleOutput(prev => [...prev, { type: 'error', args: [error.message] }]);
     } finally {
       setIsExecuting(false);
@@ -286,7 +417,7 @@ const QuantumCodeEditor = ({
   };
 
   // Syntax highlighting
-  const renderLine = (line, index) => {
+  const renderLine = (line: string, index: number) => {
     const lineErrors = lintErrors.filter(e => e.line === index + 1);
     const hasBreakpoint = breakpoints.includes(index + 1);
     
@@ -317,7 +448,7 @@ const QuantumCodeEditor = ({
     );
   };
 
-  const highlightSyntax = (line) => {
+  const highlightSyntax = (line: string) => {
     // Basic syntax highlighting
     const keywords = ['function', 'const', 'let', 'var', 'if', 'else', 'for', 'while', 'return', 'import', 'export', 'default', 'class', 'extends', 'new', 'this', 'super', 'try', 'catch', 'finally', 'throw', 'switch', 'case', 'break', 'continue', 'typeof', 'instanceof', 'void', 'delete', 'in'];
     
@@ -516,12 +647,23 @@ const QuantumCodeEditor = ({
         </div>
       )}
 
-      {/* Main Editor */}
+      {/* Main Editor - Using textarea for actual editing */}
       <div 
         className="editor-container"
         style={{ fontSize: `${fontSize}px` }}
         ref={editorRef}
       >
+        <textarea
+          className="editor-textarea"
+          value={code}
+          onChange={handleCodeChange}
+          spellCheck={false}
+          style={{
+            fontSize: `${fontSize}px`,
+            lineHeight: 1.5,
+            fontFamily: '"JetBrains Mono", "Fira Code", monospace'
+          }}
+        />
         <div className="editor-lines">
           {code.split('\n').map((line, i) => renderLine(line, i))}
         </div>
@@ -692,9 +834,30 @@ const QuantumCodeEditor = ({
           line-height: 1.5;
         }
 
+        .editor-textarea {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          padding: 12px 12px 12px 52px;
+          background: transparent;
+          color: transparent;
+          border: none;
+          outline: none;
+          resize: none;
+          font-family: inherit;
+          line-height: inherit;
+          caret-color: white;
+          z-index: 2;
+        }
+
         .editor-lines {
           min-height: 100%;
           padding: 12px 0;
+          position: relative;
+          z-index: 1;
+          pointer-events: none;
         }
 
         .editor-line {
@@ -702,6 +865,7 @@ const QuantumCodeEditor = ({
           display: flex;
           white-space: pre-wrap;
           word-wrap: break-word;
+          min-height: 1.5em;
         }
 
         .editor-line.has-error {
@@ -725,6 +889,8 @@ const QuantumCodeEditor = ({
           font-size: 12px;
           user-select: none;
           cursor: pointer;
+          pointer-events: auto;
+          z-index: 3;
         }
 
         .line-content {
@@ -914,15 +1080,22 @@ export default function Community({
   highContrast = false,
   screenReaderMode = false,
   performanceMode = {}
+}: {
+  addNotification?: (message: string, type: string) => void;
+  encryptedParams?: string;
+  reducedMotion?: boolean;
+  highContrast?: boolean;
+  screenReaderMode?: boolean;
+  performanceMode?: any;
 }) {
   const [activeTab, setActiveTab] = useState('repositories');
-  const [repositories, setRepositories] = useState([]);
-  const [selectedRepo, setSelectedRepo] = useState(null);
-  const [repoContent, setRepoContent] = useState(null);
+  const [repositories, setRepositories] = useState<Repository[]>([]);
+  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
+  const [repoContent, setRepoContent] = useState<{ files: FileType[], structure: any } | null>(null);
   const [currentPath, setCurrentPath] = useState('');
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [newContent, setNewContent] = useState({
     type: 'repository',
     name: '',
@@ -938,7 +1111,7 @@ export default function Community({
     }
   });
   const [contentLoading, setContentLoading] = useState(false);
-  const [editingFile, setEditingFile] = useState(null);
+  const [editingFile, setEditingFile] = useState<FileType | null>(null);
   const [isCreatingFile, setIsCreatingFile] = useState(false);
   const [newFileName, setNewFileName] = useState('');
   const [newFileType, setNewFileType] = useState('file');
@@ -948,21 +1121,21 @@ export default function Community({
   const [viewMode, setViewMode] = useState('grid');
   const [showStats, setShowStats] = useState(false);
   const [showGraph, setShowGraph] = useState(false);
-  const [commitHistory, setCommitHistory] = useState([]);
-  const [branches, setBranches] = useState([]);
+  const [commitHistory, setCommitHistory] = useState<Commit[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([{ name: 'main', default: true }]);
   const [currentBranch, setCurrentBranch] = useState('main');
-  const [pullRequests, setPullRequests] = useState([]);
-  const [issues, setIssues] = useState([]);
+  const [pullRequests, setPullRequests] = useState<PullRequest[]>([]);
+  const [issues, setIssues] = useState<Issue[]>([]);
   const [stars, setStars] = useState([]);
   const [forks, setForks] = useState([]);
   const [watchers, setWatchers] = useState([]);
-  const [activity, setActivity] = useState([]);
-  const [contributors, setContributors] = useState([]);
-  const [releases, setReleases] = useState([]);
-  const [readme, setReadme] = useState(null);
+  const [activity, setActivity] = useState<ActivityData[]>([]);
+  const [contributors, setContributors] = useState<Contributor[]>([]);
+  const [releases, setReleases] = useState<Release[]>([]);
+  const [readme, setReadme] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [repoStats, setRepoStats] = useState({
+  const [repoStats, setRepoStats] = useState<RepoStats>({
     commits: 0,
     branches: 1,
     releases: 0,
@@ -1016,7 +1189,7 @@ export default function Community({
     }
   };
 
-  const fetchProfile = async (userId) => {
+  const fetchProfile = async (userId: string) => {
     try {
       let { data: profile, error } = await supabase
         .from('profiles')
@@ -1159,7 +1332,7 @@ export default function Community({
       if (error) throw error;
 
       // Enrich with additional data
-      const enrichedRepos = await Promise.all(repos.map(async (repo) => {
+      const enrichedRepos = await Promise.all((repos || []).map(async (repo) => {
         // Get profile
         const { data: profile } = await supabase
           .from('profiles')
@@ -1222,7 +1395,7 @@ export default function Community({
     }
   };
 
-  const createRepository = async (e) => {
+  const createRepository = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!user) {
@@ -1237,7 +1410,7 @@ export default function Community({
 
     try {
       // Initialize content based on template
-      let initialContent = {
+      let initialContent: { files: FileType[], structure: any } = {
         files: [],
         structure: {}
       };
@@ -1324,13 +1497,13 @@ export default function Community({
       toast.success('Repository created successfully!');
       addNotification?.('Repository created successfully', 'success');
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Create repository error:', error);
       toast.error(`Failed to create repository: ${error.message}`);
     }
   };
 
-  const selectRepository = async (repo) => {
+  const selectRepository = async (repo: Repository) => {
     setSelectedRepo(repo);
     setCurrentPath('');
     
@@ -1348,7 +1521,7 @@ export default function Community({
       
       // Load README if exists
       if (data.content?.files) {
-        const readmeFile = data.content.files.find(f => 
+        const readmeFile = data.content.files.find((f: FileType) => 
           f.name.toLowerCase() === 'readme.md' || f.name.toLowerCase() === 'readme'
         );
         if (readmeFile) {
@@ -1389,7 +1562,7 @@ export default function Community({
     }
   };
 
-  const fetchCommitHistory = async (repoId) => {
+  const fetchCommitHistory = async (repoId: string) => {
     try {
       const { data, error } = await supabase
         .from('commits')
@@ -1406,7 +1579,7 @@ export default function Community({
     }
   };
 
-  const fetchBranches = async (repoId) => {
+  const fetchBranches = async (repoId: string) => {
     try {
       const { data, error } = await supabase
         .from('branches')
@@ -1421,7 +1594,7 @@ export default function Community({
     }
   };
 
-  const fetchIssues = async (repoId) => {
+  const fetchIssues = async (repoId: string) => {
     try {
       const { data, error } = await supabase
         .from('repo_issues')
@@ -1436,7 +1609,7 @@ export default function Community({
     }
   };
 
-  const fetchPullRequests = async (repoId) => {
+  const fetchPullRequests = async (repoId: string) => {
     try {
       const { data, error } = await supabase
         .from('pull_requests')
@@ -1451,23 +1624,40 @@ export default function Community({
     }
   };
 
-  const fetchContributors = async (repoId) => {
+  const fetchContributors = async (repoId: string) => {
     try {
       const { data, error } = await supabase
         .from('commits')
-        .select('author_id, author_name, author_email, count(*)')
-        .eq('repo_id', repoId)
-        .group('author_id, author_name, author_email');
+        .select('author_id, author_name, author_email')
+        .eq('repo_id', repoId);
 
       if (error) throw error;
-      setContributors(data || []);
-      setRepoStats(prev => ({ ...prev, contributors: data?.length || 0 }));
+      
+      // Group by author
+      const contributorsMap = new Map();
+      data?.forEach((commit: any) => {
+        const key = commit.author_id || commit.author_email;
+        if (contributorsMap.has(key)) {
+          contributorsMap.get(key).count++;
+        } else {
+          contributorsMap.set(key, {
+            author_id: commit.author_id,
+            author_name: commit.author_name,
+            author_email: commit.author_email,
+            count: 1
+          });
+        }
+      });
+      
+      const contributorsList = Array.from(contributorsMap.values());
+      setContributors(contributorsList);
+      setRepoStats(prev => ({ ...prev, contributors: contributorsList.length }));
     } catch (error) {
       console.error('Error fetching contributors:', error);
     }
   };
 
-  const fetchReleases = async (repoId) => {
+  const fetchReleases = async (repoId: string) => {
     try {
       const { data, error } = await supabase
         .from('releases')
@@ -1483,7 +1673,7 @@ export default function Community({
     }
   };
 
-  const fetchActivity = async (repoId) => {
+  const fetchActivity = async (repoId: string) => {
     try {
       // Group commits by date
       const { data, error } = await supabase
@@ -1493,8 +1683,8 @@ export default function Community({
 
       if (error) throw error;
 
-      const activityData = {};
-      data?.forEach(commit => {
+      const activityData: {[key: string]: number} = {};
+      data?.forEach((commit: any) => {
         const date = new Date(commit.created_at).toISOString().split('T')[0];
         activityData[date] = (activityData[date] || 0) + 1;
       });
@@ -1510,7 +1700,7 @@ export default function Community({
     }
   };
 
-  const saveFile = async (updatedFile) => {
+  const saveFile = async (updatedFile: FileType) => {
     if (!selectedRepo || !repoContent) return;
 
     try {
@@ -1543,13 +1733,13 @@ export default function Community({
 
       toast.success('File saved successfully');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving file:', error);
       toast.error(`Failed to save file: ${error.message}`);
     }
   };
 
-  const createCommit = async (repoId, filePath, message) => {
+  const createCommit = async (repoId: string, filePath: string, message: string) => {
     if (!user) return;
 
     try {
@@ -1585,7 +1775,7 @@ export default function Community({
       let updatedContent;
 
       if (newFileType === 'file') {
-        const newFile = {
+        const newFile: FileType = {
           path: fullPath,
           name: newFileName,
           content: '',
@@ -1631,13 +1821,13 @@ export default function Community({
       
       toast.success(`${newFileType === 'file' ? 'File' : 'Folder'} created successfully`);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating item:', error);
       toast.error(`Failed to create ${newFileType}: ${error.message}`);
     }
   };
 
-  const deleteFile = async (filePath) => {
+  const deleteFile = async (filePath: string) => {
     if (!selectedRepo || !repoContent) return;
 
     if (!confirm('Are you sure you want to delete this file?')) return;
@@ -1674,13 +1864,13 @@ export default function Community({
 
       toast.success('File deleted successfully');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting file:', error);
       toast.error(`Failed to delete file: ${error.message}`);
     }
   };
 
-  const starRepository = async (repo) => {
+  const starRepository = async (repo: Repository) => {
     if (!user) {
       toast.error('Please login to star repositories');
       return;
@@ -1726,13 +1916,13 @@ export default function Community({
       // Refresh repositories
       fetchRepositories();
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error starring repo:', error);
       toast.error(`Failed to ${repo.is_starred ? 'unstar' : 'star'} repository`);
     }
   };
 
-  const forkRepository = async (repo) => {
+  const forkRepository = async (repo: Repository) => {
     if (!user) {
       toast.error('Please login to fork repositories');
       return;
@@ -1774,7 +1964,7 @@ export default function Community({
       // Refresh repositories
       fetchRepositories();
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error forking repo:', error);
       toast.error(`Failed to fork repository: ${error.message}`);
     }
@@ -1820,7 +2010,7 @@ export default function Community({
     input.accept = '.zip,.json';
     
     input.onchange = async (e) => {
-      const file = e.target.files?.[0];
+      const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
 
       try {
@@ -1829,15 +2019,15 @@ export default function Community({
         const zip = new JSZip();
         const contents = await zip.loadAsync(file);
         
-        const files = [];
-        const structure = {};
+        const files: FileType[] = [];
+        const structure: any = {};
 
         for (const [path, zipEntry] of Object.entries(contents.files)) {
           if (!zipEntry.dir) {
             const content = await zipEntry.async('string');
             files.push({
               path,
-              name: path.split('/').pop(),
+              name: path.split('/').pop() || '',
               content,
               language: detectLanguage(path),
               size: content.length,
@@ -1896,9 +2086,9 @@ export default function Community({
   };
 
   // ============= UTILITY FUNCTIONS =============
-  const detectLanguage = (filename) => {
-    const ext = filename.split('.').pop().toLowerCase();
-    const languageMap = {
+  const detectLanguage = (filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase() || '';
+    const languageMap: {[key: string]: string} = {
       'js': 'JavaScript', 'jsx': 'JavaScript', 'ts': 'TypeScript',
       'tsx': 'TypeScript', 'py': 'Python', 'html': 'HTML',
       'css': 'CSS', 'json': 'JSON', 'md': 'Markdown',
@@ -1910,8 +2100,8 @@ export default function Community({
     return languageMap[ext] || 'Plain Text';
   };
 
-  const detectLanguageFromFiles = (files) => {
-    const languages = {};
+  const detectLanguageFromFiles = (files: FileType[]) => {
+    const languages: {[key: string]: number} = {};
     files.forEach(file => {
       const lang = detectLanguage(file.name);
       languages[lang] = (languages[lang] || 0) + 1;
@@ -1930,8 +2120,8 @@ export default function Community({
     return mainLanguage;
   };
 
-  const getGitignoreTemplate = (type) => {
-    const templates = {
+  const getGitignoreTemplate = (type: string) => {
+    const templates: {[key: string]: string} = {
       'Node': `# Node.js
 node_modules/
 npm-debug.log
@@ -1988,15 +2178,30 @@ dist/
     return templates[type] || templates['Node'];
   };
 
-  const getLicenseTemplate = (type) => {
-    const templates = {
+  const getLicenseTemplate = (type: string) => {
+    const year = new Date().getFullYear();
+    const templates: {[key: string]: string} = {
       'MIT': `MIT License
 
-Copyright (c) ${new Date().getFullYear()} ${profile?.username || 'User'}
+Copyright (c) ${year} ${profile?.username || 'User'}
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction...`,
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.`,
       'Apache-2.0': `Apache License
 Version 2.0, January 2004
 http://www.apache.org/licenses/`,
@@ -2007,9 +2212,10 @@ Version 3, 29 June 2007`,
     return templates[type] || templates['MIT'];
   };
 
-  const addToStructure = (structure, currentPath, name, type) => {
+  const addToStructure = (structure: any, currentPath: string, name: string, type: string) => {
     const pathParts = currentPath.split('/').filter(p => p);
-    let current = structure;
+    let current = { ...structure };
+    let result = current;
     
     for (const part of pathParts) {
       if (!current[part]) {
@@ -2023,13 +2229,14 @@ Version 3, 29 June 2007`,
       current[name].contents = {};
     }
     
-    return structure;
+    return result;
   };
 
-  const removeFromStructure = (structure, path) => {
+  const removeFromStructure = (structure: any, path: string) => {
     const pathParts = path.split('/');
     const fileName = pathParts.pop();
-    let current = structure;
+    let current = { ...structure };
+    let result = current;
     
     for (const part of pathParts) {
       if (current[part]?.contents) {
@@ -2037,8 +2244,10 @@ Version 3, 29 June 2007`,
       }
     }
     
-    delete current[fileName];
-    return structure;
+    if (fileName) {
+      delete current[fileName];
+    }
+    return result;
   };
 
   const getCurrentDirectoryContents = () => {
@@ -2055,7 +2264,7 @@ Version 3, 29 June 2007`,
       }
     }
     
-    return Object.entries(current).map(([name, item]) => ({
+    return Object.entries(current).map(([name, item]: [string, any]) => ({
       name,
       ...item,
       path: currentPath ? `${currentPath}/${name}` : name
@@ -2066,9 +2275,9 @@ Version 3, 29 June 2007`,
     });
   };
 
-  const getFileIcon = (filename) => {
-    const ext = filename.split('.').pop().toLowerCase();
-    const iconMap = {
+  const getFileIcon = (filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase() || '';
+    const iconMap: {[key: string]: JSX.Element} = {
       'js': <FileCode size={18} />,
       'jsx': <Code size={18} />,
       'ts': <FileCode size={18} />,
@@ -3507,8 +3716,8 @@ Version 3, 29 June 2007`,
     );
   };
 
-  const getLanguageColor = (language) => {
-    const colors = {
+  const getLanguageColor = (language: string) => {
+    const colors: {[key: string]: string} = {
       'JavaScript': '#f1e05a',
       'TypeScript': '#2b7489',
       'Python': '#3572A5',
