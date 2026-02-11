@@ -467,11 +467,14 @@ export default function Profile() {
         updated_at: new Date().toISOString()
       };
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .upsert(profileData)
-        .select()
-        .single();
+    const { data, error } = await supabase
+  .from('profiles')
+  .upsert(profileData, { 
+    onConflict: 'user_id',  // TELL IT WHICH COLUMN IS UNIQUE
+    ignoreDuplicates: false // REPLACE IT
+  })
+  .select()
+  .single();
       
       if (error) throw error;
       
