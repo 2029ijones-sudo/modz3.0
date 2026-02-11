@@ -6,23 +6,8 @@
       "use": "@vercel/next"
     }
   ],
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/$1"
-    }
-  ],
-  "git": {
-    "deploymentEnabled": {
-      "main": true,
-      "BackUp7": true
-    }
-  },
   "env": {
-    "NEXT_PUBLIC_APP_VERSION": "@git-branch"
-  },
-  "regions": ["iad1"],
-  "public": true,
-  "cleanUrls": true,
-  "trailingSlash": false
+    "NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF": "$VERCEL_GIT_COMMIT_REF",
+    "NEXT_PUBLIC_VERCEL_ENV": "$VERCEL_ENV"
+  }
 }
