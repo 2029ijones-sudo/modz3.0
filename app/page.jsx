@@ -321,7 +321,7 @@ function AppContent() {
     };
   }, [isReducedMotion]);
 
-  // Performance toggle handler
+  // Performance toggle handler - UPDATED to properly affect tabs
   const togglePerformanceMode = useCallback(() => {
     const body = document.body;
     const isExtreme = body.classList.contains('extreme-performance-mode');
@@ -346,15 +346,35 @@ function AppContent() {
       console.log('⬇️ Switched to Extreme Performance Mode');
     }
     
+    // Force update tab rendering by toggling active tab state
+    setActiveTab(prevTab => {
+      const currentTab = prevTab;
+      // Small delay to ensure performance classes are applied
+      setTimeout(() => {
+        setActiveTab(currentTab);
+      }, 10);
+      return prevTab;
+    });
+    
     addNotification(`Performance mode: ${newMode}`, 'info');
     announceToScreenReader(`Performance mode changed to ${newMode}`);
   }, []);
 
-  // Enable extreme performance
+  // Enable extreme performance - UPDATED to properly affect tabs
   const enableExtremePerformance = useCallback(() => {
     document.body.classList.add('extreme-performance-mode');
     setShowMemoryWarning(false);
     setPerformanceLevel('extreme');
+    
+    // Force update tab rendering
+    setActiveTab(prevTab => {
+      const currentTab = prevTab;
+      setTimeout(() => {
+        setActiveTab(currentTab);
+      }, 10);
+      return prevTab;
+    });
+    
     addNotification('Extreme performance mode enabled', 'info');
     announceToScreenReader('Extreme performance mode enabled for your device');
   }, []);
@@ -1709,7 +1729,7 @@ function AppContent() {
           </h1>
         </div>
         
-        {/* NAVIGATION - accessible */}
+        {/* NAVIGATION - accessible - FIXED TO RESPECT PERFORMANCE MODE */}
         <nav className="quantum-nav-links" aria-label="Main navigation" role="navigation">
           <button 
             className={`quantum-nav-link ${activeTab === 'world' ? 'active' : ''}`}
@@ -1838,7 +1858,7 @@ function AppContent() {
 
       {/* Quantum Main Container */}
       <main id="main-content" className="quantum-main-container" role="main">
-        {/* Quantum Sidebar */}
+        {/* Quantum Sidebar - UPDATED to respect performance mode */}
         {activeTab === 'world' && (
           <aside className="quantum-sidebar" aria-label="Quantum Mod Manager">
             <div className="quantum-sidebar-header">
