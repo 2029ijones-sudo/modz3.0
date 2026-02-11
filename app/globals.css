@@ -1,4454 +1,2049 @@
-/* app/globals.css - UPDATED FOR QUANTUM MODZ 3.0 - ENHANCED EDITION */
-/* CURSOR ISSUES FIXED - Removed custom cursor leftovers */
+'use client';
+import { useEffect, useState, useRef, Suspense, useCallback } from 'react';
+import dynamic from 'next/dynamic';
+import { useRouter, useSearchParams } from 'next/navigation';
+import CryptoJS from 'crypto-js';
+import './globals.css';
 
-/* ===== QUANTUM VARIABLES ===== */
-:root {
-  /* Quantum Color Palette - Enhanced with more dynamic colors */
-  --quantum-primary: #6c5ce7;
-  --quantum-primary-dark: #5b4fcf;
-  --quantum-primary-light: #a29bfe;
-  --quantum-secondary: #00cec9;
-  --quantum-secondary-dark: #00a8a8;
-  --quantum-accent: #fd79a8;
-  --quantum-accent-light: #ffb8d0;
-  --quantum-success: #00b894;
-  --quantum-warning: #fdcb6e;
-  --quantum-danger: #ff4757;
-  --quantum-info: #4cc9f0;
-  --quantum-vortex: #9b59b6;
-  --quantum-temporal: #0984e3;
-  --quantum-anomaly: #e17055;
-  
-  /* Quantum Gradients - Enhanced with more variations */
-  --quantum-gradient: linear-gradient(135deg, var(--quantum-primary), var(--quantum-secondary));
-  --quantum-gradient-dark: linear-gradient(135deg, var(--quantum-primary-dark), var(--quantum-secondary-dark));
-  --quantum-gradient-vortex: linear-gradient(135deg, var(--quantum-vortex), var(--quantum-primary));
-  --quantum-gradient-temporal: linear-gradient(135deg, var(--quantum-temporal), var(--quantum-info));
-  --quantum-gradient-anomaly: linear-gradient(135deg, var(--quantum-anomaly), var(--quantum-danger));
-  
-  /* Quantum Glows */
-  --quantum-glow: 0 0 30px rgba(108, 92, 231, 0.7);
-  --quantum-glow-secondary: 0 0 30px rgba(0, 206, 201, 0.7);
-  --quantum-glow-accent: 0 0 30px rgba(253, 121, 168, 0.7);
-  --quantum-glow-vortex: 0 0 40px rgba(155, 89, 182, 0.8);
-  --quantum-glow-temporal: 0 0 40px rgba(9, 132, 227, 0.8);
-  
-  /* Quantum Backgrounds - Enhanced depth */
-  --quantum-bg-dark: #0a0e13;
-  --quantum-bg-darker: #05080c;
-  --quantum-bg-light: #1a1f26;
-  --quantum-bg-lighter: #2a2f36;
-  --quantum-bg-gradient: linear-gradient(135deg, #0a0e13 0%, #05080c 50%, #0a0e13 100%);
-  --quantum-bg-radial: radial-gradient(circle at 50% 50%, #1a1f26 0%, #0a0e13 70%, #05080c 100%);
-  
-  /* Quantum Text - Enhanced contrast */
-  --quantum-text-light: #ffffff;
-  --quantum-text-gray: #a0aec0;
-  --quantum-text-gray-light: #e2e8f0;
-  --quantum-text-glow: 0 0 10px rgba(255, 255, 255, 0.5);
-  
-  /* Quantum Effects */
-  --quantum-blur: blur(20px);
-  --quantum-border: 1px solid rgba(108, 92, 231, 0.3);
-  --quantum-border-glow: 1px solid rgba(108, 92, 231, 0.5);
-  
-  /* Quantum Shadows */
-  --quantum-shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
-  --quantum-shadow-2xl: 0 50px 100px -20px rgba(0, 0, 0, 0.8);
-  --quantum-shadow-glow: 0 0 50px rgba(108, 92, 231, 0.3);
-  
-  /* Quantum Animation Speeds */
-  --quantum-slow: 3s;
-  --quantum-medium: 2s;
-  --quantum-fast: 1s;
-  --quantum-very-fast: 0.5s;
-}
+// Use your alias structure for imports
+// @ for components, # for app, ~ for lib, $ for public
+const ThreeWorld = dynamic(() => import('@/ThreeWorld'), { 
+  ssr: false,
+  loading: () => (
+    <div className="quantum-loading">
+      <div className="quantum-spinner">
+        <div className="quantum-particle"></div>
+        <div className="quantum-particle"></div>
+        <div className="quantum-particle"></div>
+      </div>
+      <p>Initializing Quantum Reality...</p>
+    </div>
+  )
+});
 
-/* ===== RESET & BASE STYLES ===== */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: 'Segoe UI', system-ui, -apple-system, 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
-}
+const CodeEditor = dynamic(() => import('@/CodeEditor'), { ssr: false });
+const ModManager = dynamic(() => import('@/ModManager'), { ssr: false });
+const Community = dynamic(() => import('@/Community'), { ssr: false });
+const Profile = dynamic(() => import('@/Profile'), { ssr: false });
 
-html {
-  scroll-behavior: smooth;
-  overflow: hidden;
-}
+// Quantum Installation System - use ~ alias for lib
+import { quantumInstallation, getQuantumStateSummary } from '~/quantum-installation';
 
-body {
-  background: var(--quantum-bg-gradient);
-  color: var(--quantum-text-light);
-  min-height: 100vh;
-  overflow: hidden;
-  font-smooth: always;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-}
+// Encryption key (in production, store in environment variables)
+const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || 'quantum-mods-secret-key-2024';
 
-/* REMOVED: cursor: none; from body */
-
-/* ===== QUANTUM HEADER - ENHANCED ===== */
-.quantum-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 40px;
-  background: 
-    linear-gradient(180deg, 
-      rgba(15, 20, 25, 0.98) 0%,
-      rgba(15, 20, 25, 0.85) 100%),
-    radial-gradient(ellipse at top center,
-      rgba(108, 92, 231, 0.2) 0%,
-      transparent 70%);
-  backdrop-filter: blur(30px) saturate(200%);
-  border-bottom: 1px solid rgba(108, 92, 231, 0.4);
-  position: relative;
-  z-index: 100;
-  box-shadow: 
-    var(--quantum-shadow-xl),
-    var(--quantum-shadow-glow),
-    0 5px 20px rgba(0, 0, 0, 0.3);
-  transform-style: preserve-3d;
-  animation: quantumHeaderEntrance 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.quantum-header::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, 
-    transparent, 
-    var(--quantum-info),
-    var(--quantum-primary),
-    var(--quantum-accent),
-    var(--quantum-secondary),
-    transparent);
-  animation: quantumHeaderGlow 4s linear infinite;
-  filter: blur(2px);
-  z-index: 1;
-}
-
-.quantum-header::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 100%;
-  background: 
-    repeating-linear-gradient(90deg,
-      transparent 0px,
-      transparent 2px,
-      rgba(255, 255, 255, 0.02) 2px,
-      rgba(255, 255, 255, 0.02) 4px);
-  pointer-events: none;
-  z-index: 0;
-}
-
-@keyframes quantumHeaderEntrance {
-  from {
-    opacity: 0;
-    transform: translateY(-100%) rotateX(45deg);
+// Function to encrypt URL parameters with quantum enhancement
+const encryptData = (data) => {
+  try {
+    // Add quantum entropy to encryption
+    const quantumEntropy = quantumInstallation.quantumState?.quantumSignature || Math.random().toString(36);
+    const enhancedKey = CryptoJS.SHA256(ENCRYPTION_KEY + quantumEntropy).toString();
+    
+    const encrypted = CryptoJS.AES.encrypt(JSON.stringify(data), enhancedKey).toString();
+    return encodeURIComponent(encrypted);
+  } catch (error) {
+    console.error('Quantum encryption error:', error);
+    return null;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0) rotateX(0deg);
+};
+
+// Function to decrypt URL parameters
+const decryptData = (encrypted) => {
+  try {
+    const quantumEntropy = quantumInstallation.quantumState?.quantumSignature || Math.random().toString(36);
+    const enhancedKey = CryptoJS.SHA256(ENCRYPTION_KEY + quantumEntropy).toString();
+    
+    const decrypted = CryptoJS.AES.decrypt(decodeURIComponent(encrypted), enhancedKey);
+    return JSON.parse(decrypted.toString(CryptoJS.enc.Utf8));
+  } catch (error) {
+    console.error('Quantum decryption error:', error);
+    return null;
   }
-}
-
-@keyframes quantumHeaderGlow {
-  0% { 
-    background-position: -100% 0;
-    opacity: 0.3;
-  }
-  50% { 
-    opacity: 1;
-  }
-  100% { 
-    background-position: 200% 0;
-    opacity: 0.3;
-  }
-}
-
-/* Quantum Logo - Enhanced */
-.quantum-logo {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  position: relative;
-  transform-style: preserve-3d;
-  perspective: 1000px;
-}
-
-.logo-quantum-animation {
-  position: relative;
-  width: 60px;
-  height: 60px;
-  transform-style: preserve-3d;
-}
-
-.quantum-logo-orb {
-  width: 60px;
-  height: 60px;
-  background: 
-    radial-gradient(circle at 30% 30%, 
-      rgba(255, 255, 255, 0.9) 0%,
-      var(--quantum-primary) 40%,
-      transparent 80%),
-    radial-gradient(circle at 70% 70%, 
-      var(--quantum-secondary) 0%,
-      transparent 70%),
-    var(--quantum-gradient);
-  border-radius: 50%;
-  animation: quantumLogoFloat 6s ease-in-out infinite;
-  box-shadow: 
-    inset 0 0 40px rgba(255, 255, 255, 0.4),
-    0 0 60px var(--quantum-primary),
-    0 0 120px var(--quantum-primary-light);
-  transform-style: preserve-3d;
-  position: relative;
-}
-
-.quantum-logo-orb::before {
-  content: '';
-  position: absolute;
-  top: -10px;
-  left: -10px;
-  right: -10px;
-  bottom: -10px;
-  background: conic-gradient(
-    from 0deg,
-    var(--quantum-primary),
-    var(--quantum-secondary),
-    var(--quantum-accent),
-    var(--quantum-primary)
-  );
-  border-radius: 50%;
-  animation: quantumLogoRotate 3s linear infinite;
-  filter: blur(15px);
-  opacity: 0.5;
-  z-index: -1;
-}
-
-.quantum-logo-rings {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  transform-style: preserve-3d;
-}
-
-.logo-ring {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  border: 2px solid;
-  border-radius: 50%;
-  opacity: 0.4;
-  animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.logo-ring:nth-child(1) { 
-  width: 80px; height: 80px; 
-  border-color: var(--quantum-secondary);
-  animation: quantumRingPulse 4s infinite;
-  filter: blur(1px);
-}
-.logo-ring:nth-child(2) { 
-  width: 100px; height: 100px; 
-  border-color: var(--quantum-accent);
-  animation: quantumRingPulse 5s infinite 0.5s;
-  filter: blur(2px);
-}
-.logo-ring:nth-child(3) { 
-  width: 120px; height: 120px; 
-  border-color: var(--quantum-primary);
-  animation: quantumRingPulse 6s infinite 1s;
-  filter: blur(3px);
-}
-
-.quantum-logo-text {
-  font-size: 32px;
-  font-weight: 900;
-  letter-spacing: 3px;
-  background: 
-    linear-gradient(45deg, 
-      var(--quantum-primary) 0%,
-      var(--quantum-secondary) 25%,
-      var(--quantum-accent) 50%,
-      var(--quantum-info) 75%,
-      var(--quantum-primary) 100%);
-  background-size: 400% 400%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 
-    0 0 40px rgba(108, 92, 231, 0.5),
-    0 0 80px rgba(0, 206, 201, 0.3),
-    0 0 120px rgba(253, 121, 168, 0.2);
-  animation: quantumLogoTextShimmer 6s linear infinite;
-  position: relative;
-  transform-style: preserve-3d;
-}
-
-.quantum-logo-text::after {
-  content: 'MODZ 3.0';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  background: linear-gradient(45deg, 
-    transparent 0%,
-    rgba(255, 255, 255, 0.1) 50%,
-    transparent 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  z-index: -1;
-  filter: blur(2px);
-}
-
-.logo-text-modz {
-  color: var(--quantum-primary);
-  text-shadow: 0 0 30px var(--quantum-primary);
-}
-
-.logo-text-quantum {
-  color: var(--quantum-secondary);
-  text-shadow: 0 0 30px var(--quantum-secondary);
-}
-
-@keyframes quantumLogoFloat {
-  0%, 100% { 
-    transform: translateY(0px) rotateY(0deg) scale(1);
-    filter: hue-rotate(0deg);
-  }
-  33% { 
-    transform: translateY(-10px) rotateY(120deg) scale(1.1);
-    filter: hue-rotate(120deg);
-  }
-  66% { 
-    transform: translateY(5px) rotateY(240deg) scale(0.9);
-    filter: hue-rotate(240deg);
-  }
-}
-
-@keyframes quantumLogoRotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes quantumLogoTextShimmer {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-/* ===== QUANTUM NAVIGATION - ENHANCED ===== */
-.quantum-nav-links {
-  display: flex;
-  gap: 8px;
-  background: 
-    linear-gradient(135deg,
-      rgba(255, 255, 255, 0.05) 0%,
-      rgba(255, 255, 255, 0.02) 100%);
-  border-radius: 60px;
-  padding: 8px;
-  backdrop-filter: blur(25px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 
-    var(--quantum-shadow-xl),
-    inset 0 2px 4px rgba(255, 255, 255, 0.1),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.5);
-  transform-style: preserve-3d;
-  animation: quantumNavEntrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
-}
-
-@keyframes quantumNavEntrance {
-  from {
-    opacity: 0;
-    transform: translateY(-20px) rotateX(45deg);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) rotateX(0deg);
-  }
-}
-
-.quantum-nav-link {
-  color: var(--quantum-text-gray-light);
-  text-decoration: none;
-  font-weight: 700;
-  padding: 14px 28px;
-  border-radius: 50px;
-  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  position: relative;
-  overflow: hidden;
-  transform-style: preserve-3d;
-  background: transparent;
-  border: none;
-  font-size: 15px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  /* REMOVED: cursor: none; */
-}
-
-.nav-link-quantum {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  position: relative;
-  z-index: 2;
-}
-
-.quantum-nav-link::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, 
-    transparent, 
-    rgba(255, 255, 255, 0.15), 
-    transparent);
-  transition: left 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
-  z-index: 1;
-}
-
-.quantum-nav-link::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50px;
-  padding: 2px;
-  background: linear-gradient(135deg, 
-    var(--quantum-primary) 0%,
-    transparent 50%,
-    var(--quantum-secondary) 100%);
-  -webkit-mask: 
-    linear-gradient(#fff 0 0) content-box, 
-    linear-gradient(#fff 0 0);
-  mask: 
-    linear-gradient(#fff 0 0) content-box, 
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  z-index: 0;
-}
-
-.quantum-nav-link:hover::before {
-  left: 100%;
-}
-
-.quantum-nav-link:hover::after {
-  opacity: 1;
-}
-
-.quantum-nav-link:hover {
-  color: var(--quantum-text-light);
-  transform: translateY(-4px) scale(1.08) rotateX(5deg);
-  background: linear-gradient(135deg, 
-    rgba(108, 92, 231, 0.25) 0%, 
-    rgba(0, 206, 201, 0.15) 100%);
-  box-shadow: 
-    0 12px 30px rgba(108, 92, 231, 0.5),
-    0 8px 25px rgba(108, 92, 231, 0.3),
-    0 0 35px var(--quantum-primary),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-}
-
-.quantum-nav-link.active {
-  background: var(--quantum-gradient);
-  color: white;
-  box-shadow: 
-    var(--quantum-glow),
-    0 8px 25px rgba(108, 92, 231, 0.4),
-    inset 0 2px 4px rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px) scale(1.05);
-  animation: quantumActiveTabPulse 2s infinite;
-}
-
-.quantum-nav-link.active::after {
-  opacity: 0;
-}
-
-.quantum-nav-link i {
-  font-size: 18px;
-  filter: 
-    drop-shadow(0 0 8px currentColor)
-    drop-shadow(0 0 16px currentColor);
-  transition: transform 0.3s ease;
-}
-
-.quantum-nav-link:hover i {
-  transform: scale(1.2) rotate(15deg);
-}
-
-.quantum-nav-link.active i {
-  animation: quantumIconPulse 1s infinite;
-}
-
-.quantum-error-badge {
-  background: var(--quantum-gradient-anomaly);
-  color: white;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  margin-left: 8px;
-  box-shadow: 0 0 15px var(--quantum-danger);
-  animation: quantumErrorPulse 1.5s infinite;
-}
-
-.quantum-chaos-indicator {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--quantum-gradient-anomaly);
-  animation: quantumChaosIndicatorPulse 1s infinite;
-  box-shadow: 0 0 10px var(--quantum-warning);
-  z-index: 3;
-}
-
-@keyframes quantumActiveTabPulse {
-  0%, 100% { 
-    box-shadow: 
-      var(--quantum-glow),
-      0 8px 25px rgba(108, 92, 231, 0.4),
-      inset 0 2px 4px rgba(255, 255, 255, 0.3);
-  }
-  50% { 
-    box-shadow: 
-      0 0 40px var(--quantum-primary),
-      0 12px 35px rgba(108, 92, 231, 0.6),
-      inset 0 2px 8px rgba(255, 255, 255, 0.4);
-  }
-}
-
-@keyframes quantumIconPulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.2); }
-}
-
-@keyframes quantumErrorPulse {
-  0%, 100% { 
-    transform: scale(1);
-    box-shadow: 0 0 15px var(--quantum-danger);
-  }
-  50% { 
-    transform: scale(1.2);
-    box-shadow: 0 0 25px var(--quantum-danger);
-  }
-}
-
-@keyframes quantumChaosIndicatorPulse {
-  0%, 100% { 
-    transform: scale(1) rotate(0deg);
-    opacity: 0.8;
-  }
-  33% { 
-    transform: scale(1.3) rotate(120deg);
-    opacity: 1;
-  }
-  66% { 
-    transform: scale(1.1) rotate(240deg);
-    opacity: 0.6;
-  }
-}
-
-/* ===== QUANTUM BUTTONS - ENHANCED ===== */
-.btn {
-  padding: 14px 28px;
-  border-radius: 50px;
-  border: none;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-  position: relative;
-  overflow: hidden;
-  letter-spacing: 0.8px;
-  font-size: 15px;
-  transform-style: preserve-3d;
-  perspective: 500px;
-  text-transform: uppercase;
-  isolation: isolate;
-  /* REMOVED: cursor: none; */
-}
-
-.btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50px;
-  padding: 2px;
-  background: linear-gradient(135deg, 
-    var(--quantum-primary) 0%,
-    var(--quantum-secondary) 50%,
-    var(--quantum-accent) 100%);
-  -webkit-mask: 
-    linear-gradient(#fff 0 0) content-box, 
-    linear-gradient(#fff 0 0);
-  mask: 
-    linear-gradient(#fff 0 0) content-box, 
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  z-index: -1;
-}
-
-.btn::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, 
-    transparent, 
-    rgba(255, 255, 255, 0.2), 
-    transparent);
-  transition: left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.btn:hover::before {
-  opacity: 1;
-}
-
-.btn:hover::after {
-  left: 100%;
-}
-
-.btn-quantum {
-  background: var(--quantum-gradient);
-  color: white;
-  box-shadow: 
-    var(--quantum-glow),
-    0 10px 30px rgba(108, 92, 231, 0.5),
-    0 5px 15px rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-}
-
-.btn-quantum:hover {
-  transform: translateY(-4px) scale(1.05) rotateX(5deg);
-  box-shadow: 
-    0 15px 40px rgba(108, 92, 231, 0.7),
-    0 10px 35px rgba(0, 0, 0, 0.4),
-    0 0 50px var(--quantum-primary),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  background: linear-gradient(135deg, 
-    var(--quantum-primary-light), 
-    var(--quantum-primary));
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-}
-
-.btn-quantum-primary {
-  background: linear-gradient(135deg, 
-    var(--quantum-primary), 
-    var(--quantum-primary-dark));
-  color: white;
-  box-shadow: 
-    var(--quantum-glow),
-    0 10px 30px rgba(108, 92, 231, 0.5);
-}
-
-.btn-quantum-primary:hover {
-  background: linear-gradient(135deg, 
-    var(--quantum-primary-light), 
-    var(--quantum-primary));
-  box-shadow: 
-    0 15px 40px rgba(108, 92, 231, 0.7),
-    0 0 50px var(--quantum-primary);
-}
-
-.btn-quantum-secondary {
-  background: linear-gradient(135deg, 
-    rgba(255, 255, 255, 0.12) 0%,
-    rgba(255, 255, 255, 0.08) 100%);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(15px);
-}
-
-.btn-quantum-secondary:hover {
-  background: linear-gradient(135deg, 
-    rgba(255, 255, 255, 0.2) 0%,
-    rgba(255, 255, 255, 0.15) 100%);
-  transform: translateY(-3px);
-  border-color: var(--quantum-primary);
-  box-shadow: 
-    0 10px 30px rgba(108, 92, 231, 0.4),
-    0 0 30px var(--quantum-primary);
-}
-
-.btn-quantum-accent {
-  background: var(--quantum-gradient-anomaly);
-  color: white;
-  box-shadow: 
-    0 10px 30px rgba(253, 121, 168, 0.4),
-    0 0 30px rgba(253, 121, 168, 0.3);
-}
-
-.btn-quantum-accent:hover {
-  background: linear-gradient(135deg, 
-    var(--quantum-accent-light), 
-    var(--quantum-accent));
-  box-shadow: 
-    0 15px 40px rgba(253, 121, 168, 0.6),
-    0 0 50px var(--quantum-accent);
-}
-
-.btn-quantum-success {
-  background: linear-gradient(135deg, 
-    var(--quantum-success), 
-    #00a085);
-  color: white;
-  box-shadow: 
-    0 10px 30px rgba(0, 184, 148, 0.4),
-    0 0 30px rgba(0, 184, 148, 0.3);
-}
-
-.btn-quantum-success:hover {
-  box-shadow: 
-    0 15px 40px rgba(0, 184, 148, 0.6),
-    0 0 50px var(--quantum-success);
-}
-
-.btn-quantum-danger {
-  background: var(--quantum-gradient-anomaly);
-  color: white;
-  box-shadow: 
-    0 10px 30px rgba(255, 71, 87, 0.4),
-    0 0 30px rgba(255, 71, 87, 0.3);
-}
-
-.btn-quantum-danger:hover {
-  background: linear-gradient(135deg, 
-    #ff6b81, 
-    var(--quantum-danger));
-  box-shadow: 
-    0 15px 40px rgba(255, 71, 87, 0.6),
-    0 0 50px var(--quantum-danger);
-}
-
-.btn-quantum-small {
-  padding: 10px 20px;
-  font-size: 13px;
-  min-width: auto;
-  letter-spacing: 0.5px;
-}
-
-/* ===== QUANTUM AVATAR - ENHANCED ===== */
-.quantum-avatar-container {
-  width: 60px;
-  height: 60px;
-  position: relative;
-  transform-style: preserve-3d;
-  perspective: 1000px;
-  animation: quantumAvatarEntrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.5s both;
-  /* REMOVED: cursor: none; */
-}
-
-@keyframes quantumAvatarEntrance {
-  from {
-    opacity: 0;
-    transform: translateX(50px) rotateY(90deg);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) rotateY(0deg);
-  }
-}
-
-.quantum-avatar-glow {
-  position: absolute;
-  width: 120%;
-  height: 120%;
-  top: -10%;
-  left: -10%;
-  border-radius: 50%;
-  background: conic-gradient(
-    from 0deg,
-    var(--quantum-primary),
-    var(--quantum-secondary),
-    var(--quantum-accent),
-    var(--quantum-info),
-    var(--quantum-primary)
-  );
-  animation: quantumRotateGlow 4s linear infinite;
-  opacity: 0.6;
-  filter: blur(15px);
-  z-index: 0;
-}
-
-.quantum-avatar-halo {
-  position: absolute;
-  width: 140%;
-  height: 140%;
-  top: -20%;
-  left: -20%;
-  border-radius: 50%;
-  border: 3px solid transparent;
-  background: linear-gradient(135deg, 
-    var(--quantum-secondary), 
-    var(--quantum-primary),
-    var(--quantum-accent)) border-box;
-  -webkit-mask: 
-    linear-gradient(#fff 0 0) padding-box, 
-    linear-gradient(#fff 0 0);
-  mask: 
-    linear-gradient(#fff 0 0) padding-box, 
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0.4;
-  animation: quantumHaloPulse 3s ease-in-out infinite;
-  z-index: 0;
-}
-
-.quantum-avatar-3d {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: 
-    radial-gradient(circle at 30% 30%, 
-      rgba(255, 255, 255, 0.9) 0%,
-      var(--quantum-primary) 40%,
-      transparent 80%),
-    radial-gradient(circle at 70% 70%, 
-      var(--quantum-secondary) 0%,
-      transparent 70%),
-    var(--quantum-gradient);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-  border: 2px solid transparent;
-  position: relative;
-  overflow: hidden;
-  animation: quantumAvatarFloat 8s ease-in-out infinite;
-  box-shadow: 
-    inset 0 0 30px rgba(255, 255, 255, 0.3),
-    0 0 40px var(--quantum-primary),
-    0 0 80px var(--quantum-primary-light),
-    0 0 120px rgba(108, 92, 231, 0.3);
-  transform-style: preserve-3d;
-  z-index: 2;
-  /* REMOVED: cursor: none; */
-}
-
-.avatar-quantum-core {
-  position: absolute;
-  width: 30px;
-  height: 30px;
-  background: radial-gradient(circle, 
-    rgba(255, 255, 255, 0.9) 0%,
-    rgba(255, 255, 255, 0.4) 50%,
-    transparent 100%);
-  border-radius: 50%;
-  filter: blur(3px);
-  opacity: 0.8;
-  animation: quantumCorePulse 2s infinite alternate;
-}
-
-.quantum-avatar-3d i {
-  font-size: 24px;
-  color: white;
-  filter: 
-    drop-shadow(0 0 5px rgba(0,0,0,0.5))
-    drop-shadow(0 0 10px rgba(255, 255, 255, 0.3));
-  z-index: 3;
-}
-
-.quantum-avatar-3d:hover {
-  transform: rotateY(720deg) scale(1.15) rotateZ(15deg);
-  border-color: rgba(255, 255, 255, 0.5);
-  box-shadow: 
-    inset 0 0 50px rgba(255, 255, 255, 0.4),
-    0 0 60px var(--quantum-primary),
-    0 0 120px var(--quantum-primary-light),
-    0 0 180px rgba(108, 92, 231, 0.5);
-  animation: quantumAvatarHover 0.5s ease-out forwards;
-}
-
-.avatar-quantum-stats {
-  position: absolute;
-  bottom: -8px;
-  left: 10%;
-  right: 10%;
-  height: 6px;
-  background: rgba(0,0,0,0.4);
-  border-radius: 3px;
-  overflow: hidden;
-  z-index: 4;
-  box-shadow: 
-    inset 0 1px 3px rgba(0,0,0,0.5),
-    0 1px 0 rgba(255,255,255,0.1);
-}
-
-.avatar-stat .stat-bar {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, 
-    rgba(255,255,255,0.1) 0%,
-    rgba(255,255,255,0.05) 100%);
-  border-radius: 3px;
-  overflow: hidden;
-  position: relative;
-}
-
-.stat-fill {
-  height: 100%;
-  background: linear-gradient(90deg, 
-    var(--quantum-warning) 0%,
-    var(--quantum-danger) 100%);
-  transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.stat-fill::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(90deg, 
-    transparent, 
-    rgba(255, 255, 255, 0.3), 
-    transparent);
-  animation: quantumStatShimmer 2s infinite;
-}
-
-@keyframes quantumRotateGlow {
-  from { transform: rotate(0deg) scale(1); }
-  to { transform: rotate(360deg) scale(1.1); }
-}
-
-@keyframes quantumHaloPulse {
-  0%, 100% { 
-    transform: scale(1) rotate(0deg);
-    opacity: 0.3;
-  }
-  50% { 
-    transform: scale(1.1) rotate(180deg);
-    opacity: 0.6;
-  }
-}
-
-@keyframes quantumAvatarFloat {
-  0%, 100% { 
-    transform: translateY(0px) rotateY(0deg) scale(1);
-    filter: brightness(1) hue-rotate(0deg);
-  }
-  25% { 
-    transform: translateY(-8px) rotateY(90deg) scale(1.05);
-    filter: brightness(1.2) hue-rotate(90deg);
-  }
-  50% { 
-    transform: translateY(0px) rotateY(180deg) scale(1);
-    filter: brightness(1) hue-rotate(180deg);
-  }
-  75% { 
-    transform: translateY(-8px) rotateY(270deg) scale(1.05);
-    filter: brightness(1.2) hue-rotate(270deg);
-  }
-}
-
-@keyframes quantumAvatarHover {
-  0% { transform: rotateY(0deg) scale(1); }
-  100% { transform: rotateY(720deg) scale(1.15); }
-}
-
-@keyframes quantumCorePulse {
-  0% { 
-    transform: scale(1);
-    opacity: 0.6;
-  }
-  100% { 
-    transform: scale(1.5);
-    opacity: 0.9;
-  }
-}
-
-@keyframes quantumStatShimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
-/* ===== QUANTUM WORLD SECTION - ENHANCED ===== */
-.quantum-world-wrapper {
-  width: 100%;
-  height: 100%;
-  position: relative;
-  border-radius: 25px;
-  overflow: hidden;
-  background: 
-    radial-gradient(circle at 50% 50%, 
-      rgba(10, 15, 20, 0.8) 0%,
-      rgba(5, 10, 15, 0.9) 100%),
-    repeating-linear-gradient(45deg,
-      transparent 0px,
-      transparent 1px,
-      rgba(108, 92, 231, 0.05) 1px,
-      rgba(108, 92, 231, 0.05) 2px);
-  border: 1px solid rgba(108, 92, 231, 0.3);
-  box-shadow: 
-    inset 0 0 100px rgba(0, 0, 0, 0.7),
-    0 20px 60px rgba(0, 0, 0, 0.8),
-    var(--quantum-shadow-glow);
-  transform-style: preserve-3d;
-  animation: quantumWorldEntrance 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes quantumWorldEntrance {
-  from {
-    opacity: 0;
-    transform: scale(0.9) rotateX(15deg);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) rotateX(0deg);
-  }
-}
-
-.quantum-world-header {
-  position: absolute;
-  top: 25px;
-  left: 25px;
-  right: 25px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  z-index: 40;
-  background: 
-    linear-gradient(135deg, 
-      rgba(15, 20, 25, 0.95) 0%,
-      rgba(10, 15, 20, 0.9) 100%),
-    radial-gradient(ellipse at top,
-      rgba(108, 92, 231, 0.3) 0%,
-      transparent 70%);
-  backdrop-filter: blur(40px) saturate(200%);
-  padding: 18px 30px;
-  border-radius: 20px;
-  border: 1px solid rgba(108, 92, 231, 0.5);
-  box-shadow: 
-    var(--quantum-shadow-2xl),
-    var(--quantum-shadow-glow),
-    0 0 60px rgba(108, 92, 231, 0.3);
-  transform-style: preserve-3d;
-  animation: quantumHeaderSlideIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes quantumHeaderSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-30px) rotateX(15deg);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) rotateX(0deg);
-  }
-}
-
-.quantum-world-title {
-  font-size: 28px;
-  font-weight: 900;
-  background: 
-    linear-gradient(45deg, 
-      var(--quantum-secondary) 0%,
-      var(--quantum-primary-light) 50%,
-      var(--quantum-info) 100%);
-  background-size: 300% 300%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 
-    0 0 30px rgba(0, 206, 201, 0.7),
-    0 0 60px rgba(108, 92, 231, 0.5),
-    0 0 90px rgba(108, 92, 231, 0.3);
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  animation: quantumTitleShimmer 4s linear infinite;
-}
-
-.world-name {
-  font-weight: 900;
-  position: relative;
-  padding: 0 10px;
-}
-
-.world-name::after {
-  content: '';
-  position: absolute;
-  bottom: -5px;
-  left: 10px;
-  right: 10px;
-  height: 2px;
-  background: linear-gradient(90deg, 
-    transparent, 
-    var(--quantum-secondary),
-    transparent);
-  border-radius: 2px;
-  animation: quantumUnderlinePulse 3s infinite;
-}
-
-.quantum-shared-badge {
-  background: linear-gradient(135deg, 
-    var(--quantum-success), 
-    #00a085);
-  color: white;
-  padding: 6px 16px;
-  border-radius: 25px;
-  font-size: 13px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  box-shadow: 
-    0 5px 20px rgba(0, 184, 148, 0.4),
-    0 0 20px var(--quantum-success);
-  animation: quantumBadgePulse 2s infinite;
-}
-
-.quantum-error-badge-global {
-  background: var(--quantum-gradient-anomaly);
-  color: white;
-  padding: 6px 16px;
-  border-radius: 25px;
-  font-size: 13px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  box-shadow: 
-    0 5px 20px rgba(255, 71, 87, 0.4),
-    0 0 20px var(--quantum-danger);
-  animation: quantumErrorBadgePulse 1.5s infinite;
-}
-
-.quantum-effects-indicator {
-  background: linear-gradient(135deg, 
-    var(--quantum-accent), 
-    #ff8ab3);
-  color: white;
-  padding: 6px 16px;
-  border-radius: 25px;
-  font-size: 13px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  box-shadow: 
-    0 5px 20px rgba(253, 121, 168, 0.4),
-    0 0 20px var(--quantum-accent);
-  animation: quantumEffectsPulse 3s infinite;
-}
-
-@keyframes quantumTitleShimmer {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-@keyframes quantumUnderlinePulse {
-  0%, 100% { opacity: 0.5; width: 0%; }
-  50% { opacity: 1; width: calc(100% - 20px); }
-}
-
-@keyframes quantumBadgePulse {
-  0%, 100% { 
-    transform: scale(1);
-    box-shadow: 
-      0 5px 20px rgba(0, 184, 148, 0.4),
-      0 0 20px var(--quantum-success);
-  }
-  50% { 
-    transform: scale(1.05);
-    box-shadow: 
-      0 8px 25px rgba(0, 184, 148, 0.6),
-      0 0 30px var(--quantum-success);
-  }
-}
-
-@keyframes quantumErrorBadgePulse {
-  0%, 100% { 
-    transform: scale(1);
-    box-shadow: 
-      0 5px 20px rgba(255, 71, 87, 0.4),
-      0 0 20px var(--quantum-danger);
-  }
-  50% { 
-    transform: scale(1.1);
-    box-shadow: 
-      0 8px 25px rgba(255, 71, 87, 0.6),
-      0 0 30px var(--quantum-danger);
-  }
-}
-
-@keyframes quantumEffectsPulse {
-  0%, 100% { 
-    transform: scale(1);
-    box-shadow: 
-      0 5px 20px rgba(253, 121, 168, 0.4),
-      0 0 20px var(--quantum-accent);
-  }
-  50% { 
-    transform: scale(1.05);
-    box-shadow: 
-      0 8px 25px rgba(253, 121, 168, 0.6),
-      0 0 30px var(--quantum-accent);
-  }
-}
-
-/* ===== QUANTUM STATS OVERLAY - ENHANCED ===== */
-.quantum-stats-overlay {
-  position: absolute;
-  bottom: 25px;
-  left: 25px;
-  display: flex;
-  gap: 20px;
-  z-index: 30;
-  animation: quantumStatsEntrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
-}
-
-@keyframes quantumStatsEntrance {
-  from {
-    opacity: 0;
-    transform: translateY(30px) scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.quantum-stat {
-  background: 
-    linear-gradient(135deg, 
-      rgba(15, 20, 25, 0.9) 0%,
-      rgba(10, 15, 20, 0.85) 100%),
-    radial-gradient(circle at top left,
-      rgba(108, 92, 231, 0.2) 0%,
-      transparent 50%);
-  padding: 16px 24px;
-  border-radius: 15px;
-  backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(108, 92, 231, 0.4);
-  min-width: 180px;
-  transform-style: preserve-3d;
-  box-shadow: 
-    var(--quantum-shadow-xl),
-    0 0 30px rgba(108, 92, 231, 0.2);
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.quantum-stat:hover {
-  transform: translateY(-5px) scale(1.05);
-  box-shadow: 
-    var(--quantum-shadow-2xl),
-    0 0 40px rgba(108, 92, 231, 0.3);
-  border-color: var(--quantum-primary);
-}
-
-.quantum-stat .stat-label {
-  font-size: 12px;
-  color: var(--quantum-text-gray-light);
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.quantum-stat .stat-value {
-  font-size: 24px;
-  font-weight: 900;
-  color: var(--quantum-secondary);
-  margin-bottom: 12px;
-  text-shadow: 0 0 10px var(--quantum-secondary);
-  position: relative;
-  display: inline-block;
-}
-
-.quantum-stat .stat-value::after {
-  content: '';
-  position: absolute;
-  bottom: -4px;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background: linear-gradient(90deg, 
-    var(--quantum-secondary),
-    transparent);
-  border-radius: 2px;
-}
-
-.stat-bar {
-  width: 100%;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-  overflow: hidden;
-  position: relative;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
-}
-
-.stat-bar::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(90deg, 
-    transparent, 
-    rgba(255, 255, 255, 0.1), 
-    transparent);
-  animation: quantumStatBarShimmer 2s infinite;
-}
-
-.stat-fill {
-  height: 100%;
-  background: linear-gradient(90deg, 
-    var(--quantum-primary) 0%,
-    var(--quantum-secondary) 100%);
-  border-radius: 3px;
-  position: relative;
-  overflow: hidden;
-  transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.stat-fill::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(90deg, 
-    transparent, 
-    rgba(255, 255, 255, 0.3), 
-    transparent);
-  animation: quantumStatFillShimmer 1.5s infinite;
-}
-
-.stat-indicator {
-  position: absolute;
-  bottom: 0;
-  width: 3px;
-  height: 100%;
-  background: var(--quantum-info);
-  box-shadow: 
-    0 0 10px var(--quantum-info),
-    0 0 20px var(--quantum-info);
-  transition: left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-  z-index: 2;
-}
-
-@keyframes quantumStatBarShimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
-@keyframes quantumStatFillShimmer {
-  0% { transform: translateX(-100%); }
-  50%, 100% { transform: translateX(100%); }
-}
-
-/* ===== QUANTUM NOTIFICATIONS - ENHANCED ===== */
-.quantum-notification-container {
-  position: fixed;
-  bottom: 40px;
-  right: 40px;
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  max-width: 450px;
-  transform-style: preserve-3d;
-  perspective: 1000px;
-}
-
-.quantum-notification {
-  background: 
-    linear-gradient(135deg, 
-      rgba(15, 20, 25, 0.98) 0%,
-      rgba(10, 15, 20, 0.95) 100%),
-    radial-gradient(circle at top right,
-      rgba(108, 92, 231, 0.3) 0%,
-      transparent 50%);
-  backdrop-filter: blur(40px) saturate(200%);
-  border-radius: 20px;
-  padding: 24px;
-  border-left: 5px solid var(--quantum-primary);
-  box-shadow: 
-    var(--quantum-shadow-2xl),
-    0 0 40px rgba(108, 92, 231, 0.4),
-    0 10px 40px rgba(0, 0, 0, 0.6);
-  transform: translateX(150%) rotateY(45deg) scale(0.9);
-  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-  border: 1px solid rgba(108, 92, 231, 0.3);
-  transform-style: preserve-3d;
-  position: relative;
-  overflow: hidden;
-}
-
-.quantum-notification::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, 
-    var(--quantum-primary),
-    transparent);
-  animation: quantumNotificationTopGlow 3s infinite;
-}
-
-.quantum-notification.show {
-  transform: translateX(0) rotateY(0deg) scale(1);
-}
-
-.quantum-notification.success {
-  border-left-color: var(--quantum-success);
-  --notification-glow: var(--quantum-success);
-}
-
-.quantum-notification.error {
-  border-left-color: var(--quantum-danger);
-  --notification-glow: var(--quantum-danger);
-}
-
-.quantum-notification.warning {
-  border-left-color: var(--quantum-warning);
-  --notification-glow: var(--quantum-warning);
-}
-
-.quantum-notification.info {
-  border-left-color: var(--quantum-info);
-  --notification-glow: var(--quantum-info);
-}
-
-.quantum-notification.quantum {
-  border-left-color: var(--quantum-primary);
-  --notification-glow: var(--quantum-primary);
-  animation: quantumNotificationPulse 3s infinite;
-}
-
-.quantum-notification-header {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  margin-bottom: 12px;
-}
-
-.notification-quantum-icon {
-  font-size: 24px;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: linear-gradient(135deg, 
-    rgba(255, 255, 255, 0.15) 0%,
-    rgba(255, 255, 255, 0.1) 100%);
-  box-shadow: 
-    inset 0 2px 4px rgba(255, 255, 255, 0.2),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.3),
-    0 5px 15px rgba(0, 0, 0, 0.3);
-  color: var(--notification-glow, var(--quantum-primary));
-  filter: drop-shadow(0 0 10px var(--notification-glow, var(--quantum-primary)));
-}
-
-.quantum-notification-title {
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--quantum-text-light);
-  flex: 1;
-  text-shadow: var(--quantum-text-glow);
-}
-
-.quantum-notification-time {
-  font-size: 13px;
-  color: var(--quantum-text-gray);
-  font-weight: 600;
-  opacity: 0.8;
-}
-
-.quantum-notification-message {
-  color: var(--quantum-text-gray-light);
-  line-height: 1.6;
-  font-size: 15px;
-  padding-left: 55px;
-  position: relative;
-}
-
-.quantum-notification-message::before {
-  content: '>';
-  position: absolute;
-  left: 40px;
-  color: var(--notification-glow, var(--quantum-primary));
-  font-weight: bold;
-  animation: quantumNotificationCursor 1s infinite;
-}
-
-.quantum-notification-progress {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 3px;
-  background: linear-gradient(90deg, 
-    var(--notification-glow, var(--quantum-primary)), 
-    transparent);
-  animation: quantumNotificationProgress 3s linear forwards;
-  border-radius: 0 0 20px 20px;
-}
-
-@keyframes quantumNotificationTopGlow {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
-}
-
-@keyframes quantumNotificationPulse {
-  0%, 100% { 
-    box-shadow: 
-      var(--quantum-shadow-2xl),
-      0 0 40px rgba(108, 92, 231, 0.4);
-  }
-  50% { 
-    box-shadow: 
-      var(--quantum-shadow-2xl),
-      0 0 60px rgba(108, 92, 231, 0.6);
-  }
-}
-
-@keyframes quantumNotificationCursor {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
-}
-
-@keyframes quantumNotificationProgress {
-  from { 
-    width: 100%;
-    opacity: 1;
-  }
-  to { 
-    width: 0%;
-    opacity: 0.5;
-  }
-}
-
-/* ===== QUANTUM VISUAL EFFECTS - ENHANCED ===== */
-.quantum-visual-effects {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.quantum-particle-field,
-.quantum-global-particles {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.quantum-particle-bg,
-.quantum-global-particle {
-  position: absolute;
-  border-radius: 50%;
-  animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
-  filter: blur(2px);
-  pointer-events: none;
-}
-
-.quantum-particle-bg {
-  width: var(--size, 3px);
-  height: var(--size, 3px);
-  background: radial-gradient(circle, 
-    hsl(var(--hue, 270), 100%, 70%) 0%,
-    transparent 70%);
-  animation: quantumFloatBg var(--duration, 15s) linear infinite;
-  animation-delay: var(--delay, 0s);
-  opacity: var(--opacity, 0.6);
-  box-shadow: 0 0 10px hsl(var(--hue, 270), 100%, 70%);
-}
-
-.quantum-global-particle {
-  width: var(--size, 4px);
-  height: var(--size, 4px);
-  background: radial-gradient(circle, 
-    hsl(var(--hue, 270), 100%, 70%) 0%,
-    transparent 70%);
-  animation: quantumFloatGlobal var(--duration, 20s) ease-in-out infinite;
-  animation-delay: var(--delay, 0s);
-  opacity: var(--opacity, 0.3);
-  box-shadow: 
-    0 0 15px hsl(var(--hue, 270), 100%, 70%),
-    0 0 30px hsl(var(--hue, 270), 100%, 70%);
-}
-
-@keyframes quantumFloatBg {
-  0% {
-    transform: 
-      translateY(100vh) 
-      translateX(var(--x, 0)) 
-      rotate(0deg) 
-      scale(1);
-    opacity: 0;
-  }
-  10% {
-    opacity: var(--opacity, 0.6);
-  }
-  90% {
-    opacity: var(--opacity, 0.6);
-  }
-  100% {
-    transform: 
-      translateY(-100px) 
-      translateX(calc(var(--x, 0) + 50px)) 
-      rotate(720deg) 
-      scale(1.5);
-    opacity: 0;
-  }
-}
-
-@keyframes quantumFloatGlobal {
-  0%, 100% {
-    transform: 
-      translateY(100vh) 
-      translateX(var(--x, 0)) 
-      scale(0.5);
-    opacity: 0;
-  }
-  20%, 80% {
-    opacity: var(--opacity, 0.3);
-  }
-  50% {
-    transform: 
-      translateY(50vh) 
-      translateX(calc(var(--x, 0) + 100px)) 
-      scale(1.2);
-    opacity: calc(var(--opacity, 0.3) * 1.5);
-  }
-}
-
-/* ===== QUANTUM SCAN LINE - ENHANCED ===== */
-.quantum-scan-line {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 3px;
-  background: linear-gradient(90deg, 
-    transparent, 
-    rgba(108, 92, 231, 0.9),
-    rgba(0, 206, 201, 0.9),
-    rgba(108, 92, 231, 0.9),
-    transparent);
-  z-index: 9997;
-  animation: quantumScan 6s linear infinite;
-  filter: blur(2px);
-  box-shadow: 0 0 20px rgba(108, 92, 231, 0.5);
-}
-
-/* ===== QUANTUM HOLOGRAM EFFECT - ENHANCED ===== */
-.quantum-hologram-effect {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: 
-    repeating-linear-gradient(0deg, 
-      rgba(108, 92, 231, 0.15) 0px, 
-      rgba(108, 92, 231, 0.15) 2px, 
-      transparent 2px, 
-      transparent 4px),
-    repeating-linear-gradient(90deg, 
-      rgba(0, 206, 201, 0.1) 0px, 
-      rgba(0, 206, 201, 0.1) 2px, 
-      transparent 2px, 
-      transparent 4px);
-  pointer-events: none;
-  z-index: 9996;
-  opacity: 0.15;
-  animation: quantumHologramScan 12s linear infinite;
-  mix-blend-mode: overlay;
-}
-
-/* ===== QUANTUM DISTORTION FIELD - ENHANCED ===== */
-.quantum-distortion-field {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: 
-    radial-gradient(circle at 50% 50%, 
-      rgba(108, 92, 231, 0.2) 0%, 
-      transparent 60%),
-    radial-gradient(circle at 30% 70%, 
-      rgba(0, 206, 201, 0.15) 0%, 
-      transparent 50%),
-    radial-gradient(circle at 70% 30%, 
-      rgba(253, 121, 168, 0.15) 0%, 
-      transparent 50%),
-    radial-gradient(circle at 20% 20%, 
-      rgba(76, 201, 240, 0.1) 0%, 
-      transparent 40%),
-    radial-gradient(circle at 80% 80%, 
-      rgba(253, 203, 110, 0.1) 0%, 
-      transparent 40%);
-  filter: blur(30px);
-  opacity: 0.4;
-  animation: quantumDistortion 25s ease-in-out infinite;
-  mix-blend-mode: screen;
-  z-index: 9995;
-}
-
-/* ===== QUANTUM EFFECT ANIMATIONS - ENHANCED ===== */
-@keyframes quantumScan {
-  0% { top: 0; opacity: 0.5; }
-  10% { opacity: 1; }
-  90% { opacity: 1; }
-  100% { top: 100vh; opacity: 0.5; }
-}
-
-@keyframes quantumHologramScan {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(200px); }
-}
-
-@keyframes quantumDistortion {
-  0%, 100% { 
-    transform: scale(1) rotate(0deg);
-    filter: blur(30px) hue-rotate(0deg);
-  }
-  33% { 
-    transform: scale(1.2) rotate(120deg);
-    filter: blur(40px) hue-rotate(120deg);
-  }
-  66% { 
-    transform: scale(0.8) rotate(240deg);
-    filter: blur(20px) hue-rotate(240deg);
-  }
-}
-
-/* ===== QUANTUM INTERFERENCE PATTERNS - ENHANCED ===== */
-.interference-patterns {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0.15;
-  pointer-events: none;
-  z-index: 9994;
-}
-
-.interference-pattern {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 300%;
-  height: 300%;
-  background: 
-    radial-gradient(circle, 
-      transparent 20%, 
-      var(--quantum-primary) 40%,
-      transparent 60%),
-    repeating-conic-gradient(
-      from 0deg,
-      transparent 0deg 15deg,
-      var(--quantum-secondary) 15deg 30deg
-    ),
-    repeating-conic-gradient(
-      from 45deg,
-      transparent 0deg 10deg,
-      var(--quantum-accent) 10deg 20deg
+};
+
+// Main component wrapper that handles routing
+function AppContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState('world');
+  const [showEditor, setShowEditor] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [worldName, setWorldName] = useState('Quantum Metaverse');
+  const [encryptedParams, setEncryptedParams] = useState({});
+  // REMOVED: cursorRef, cursorTracerRef
+  const [showQuantumInstaller, setShowQuantumInstaller] = useState(true);
+  const [draggedMod, setDraggedMod] = useState(null);
+  const [isDraggingOverWorld, setIsDraggingOverWorld] = useState(false);
+  const [webGLError, setWebGLError] = useState(null);
+  const [isThreeWorldReady, setIsThreeWorldReady] = useState(false);
+  const [quantumState, setQuantumState] = useState(null);
+  const [chaosLevel, setChaosLevel] = useState(0);
+  const [realityCoefficient, setRealityCoefficient] = useState(1.0);
+  const [temporalDisplacement, setTemporalDisplacement] = useState(0);
+  const [spatialDistortion, setSpatialDistortion] = useState(1.0);
+  const [quantumField, setQuantumField] = useState(0);
+  const [quantumEffects, setQuantumEffects] = useState([]);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [cwaInstaller, setCWAInstaller] = useState(null);
+  const canvasRef = useRef(null);
+  const animationRef = useRef(null);
+  const particleSystemRef = useRef(null);
+
+  // Initialize Quantum System
+  const initializeQuantumSystem = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        // Get initial quantum state
+        const state = getQuantumStateSummary();
+        setQuantumState(state);
+        setChaosLevel(state.chaosLevel);
+        setRealityCoefficient(state.realityCoefficient);
+        setTemporalDisplacement(state.temporalDisplacement);
+        setSpatialDistortion(state.spatialDistortion);
+        setQuantumField(state.quantumFieldStrength);
+
+        // Subscribe to quantum events
+        const quantumEvents = [
+          'quantum-state-change',
+          'quantum-chaos-trigger',
+          'quantum-installation-progress',
+          'quantum-field-strength-change',
+          'quantum-temporal-displacement',
+          'quantum-spatial-distortion',
+          'quantum-reality-coefficient-change',
+          'quantum-coherence-change',
+          'quantum-resonance-change',
+          'quantum-vortex-detected',
+          'quantum-anomaly-detected',
+          'quantum-echo-detected'
+        ];
+
+        quantumEvents.forEach(eventName => {
+          window.addEventListener(eventName, handleQuantumEvent);
+        });
+
+        // Start quantum visualization
+        startQuantumVisualization();
+
+        // Initialize quantum particles for global effects
+        initializeGlobalQuantumEffects();
+
+        console.log('🌀 Quantum system initialized');
+      } catch (error) {
+        console.error('Quantum initialization failed:', error);
+      }
+    }
+  }, []);
+
+  // Handle quantum events
+  const handleQuantumEvent = useCallback((event) => {
+    const { detail } = event;
+    
+    switch (event.type) {
+      case 'quantum-state-change':
+        setQuantumState(detail.quantumState);
+        break;
+      case 'quantum-chaos-trigger':
+        handleQuantumChaosTrigger(detail);
+        break;
+      case 'quantum-field-strength-change':
+        setQuantumField(detail.quantumFieldStrength);
+        break;
+      case 'quantum-temporal-displacement':
+        setTemporalDisplacement(detail.temporalDisplacement);
+        break;
+      case 'quantum-spatial-distortion':
+        setSpatialDistortion(detail.spatialDistortion);
+        break;
+      case 'quantum-reality-coefficient-change':
+        setRealityCoefficient(detail.realityCoefficient);
+        break;
+      case 'quantum-anomaly-detected':
+        handleQuantumAnomaly(detail);
+        break;
+      case 'quantum-vortex-detected':
+        handleQuantumVortex(detail);
+        break;
+      default:
+        // Update state based on event
+        const state = getQuantumStateSummary();
+        setQuantumState(state);
+        setChaosLevel(state.chaosLevel);
+        setQuantumField(state.quantumFieldStrength);
+    }
+  }, []);
+
+  // Handle quantum chaos triggers
+  const handleQuantumChaosTrigger = useCallback((detail) => {
+    const { type, intensity = 50 } = detail;
+    
+    // Add quantum effect
+    const effectId = Date.now();
+    const newEffect = {
+      id: effectId,
+      type,
+      intensity,
+      timestamp: Date.now()
+    };
+    
+    setQuantumEffects(prev => [...prev, newEffect]);
+    
+    // Trigger visual effect
+    createQuantumVisualEffect(type, intensity);
+    
+    // Auto-remove effect after duration
+    setTimeout(() => {
+      setQuantumEffects(prev => prev.filter(effect => effect.id !== effectId));
+    }, 3000);
+    
+    // Add notification
+    addNotification(`Quantum ${type} effect triggered!`, 'info');
+  }, []);
+
+  // Handle quantum anomalies
+  const handleQuantumAnomaly = useCallback((detail) => {
+    const { strength, position } = detail;
+    
+    // Create anomaly visual effect
+    createAnomalyEffect(position, strength);
+    
+    // Apply effects based on anomaly
+    if (strength > 0.7) {
+      // Strong anomaly - cause reality distortion
+      window.dispatchEvent(new CustomEvent('reality-distortion', {
+        detail: { intensity: strength }
+      }));
+      addNotification('Reality anomaly detected! Reality coefficient fluctuating.', 'warning');
+    }
+  }, []);
+
+  // Handle quantum vortices
+  const handleQuantumVortex = useCallback((detail) => {
+    const { type, strength, position } = detail;
+    
+    // Create vortex visual effect
+    createVortexEffect(type, position, strength);
+    
+    // Apply time dilation for temporal vortices
+    if (type.includes('temporal')) {
+      window.dispatchEvent(new CustomEvent('time-dilation', {
+        detail: { factor: 1 + strength * 0.5 }
+      }));
+      addNotification('Temporal vortex detected! Time dilation active.', 'info');
+    }
+  }, []);
+
+  // Initialize global quantum effects
+  const initializeGlobalQuantumEffects = useCallback(() => {
+    // Create quantum particle field for background
+    createQuantumParticleField();
+    
+    // Initialize quantum interference patterns
+    createInterferencePatterns();
+    
+    // Start reality coefficient pulsing
+    startRealityCoefficientPulse();
+  }, []);
+
+  // Create quantum particle field
+  const createQuantumParticleField = () => {
+    const container = document.getElementById('quantum-particle-field');
+    if (!container) return;
+    
+    for (let i = 0; i < 100; i++) {
+      const particle = document.createElement('div');
+      particle.className = 'quantum-particle-bg';
+      particle.style.setProperty('--x', `${Math.random() * 100}%`);
+      particle.style.setProperty('--y', `${Math.random() * 100}%`);
+      particle.style.setProperty('--duration', `${Math.random() * 10 + 5}s`);
+      particle.style.setProperty('--delay', `${Math.random() * 5}s`);
+      particle.style.setProperty('--size', `${Math.random() * 3 + 1}px`);
+      particle.style.setProperty('--hue', `${Math.random() * 360}`);
+      container.appendChild(particle);
+    }
+  };
+
+  // Create interference patterns
+  const createInterferencePatterns = () => {
+    const container = document.getElementById('interference-patterns');
+    if (!container) return;
+    
+    for (let i = 0; i < 5; i++) {
+      const pattern = document.createElement('div');
+      pattern.className = 'interference-pattern';
+      pattern.style.setProperty('--rotation', `${Math.random() * 360}deg`);
+      pattern.style.setProperty('--scale', `${Math.random() * 2 + 1}`);
+      pattern.style.setProperty('--opacity', `${Math.random() * 0.2 + 0.1}`);
+      container.appendChild(pattern);
+    }
+  };
+
+  // Start reality coefficient pulse
+  const startRealityCoefficientPulse = () => {
+    const pulseEffect = () => {
+      const pulse = document.createElement('div');
+      pulse.className = 'reality-pulse';
+      pulse.style.setProperty('--coefficient', realityCoefficient.toString());
+      document.body.appendChild(pulse);
+      
+      setTimeout(() => pulse.remove(), 2000);
+    };
+    
+    // Pulse periodically based on reality coefficient
+    setInterval(pulseEffect, 5000 / realityCoefficient);
+  };
+
+  // Start quantum visualization
+  const startQuantumVisualization = () => {
+    if (!canvasRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    particleSystemRef.current = {
+      particles: [],
+      attractors: [],
+      time: 0,
+      chaos: chaosLevel / 100,
+      quantumField: quantumField
+    };
+    
+    // Initialize quantum particles
+    for (let i = 0; i < 100; i++) {
+      particleSystemRef.current.particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 2,
+        vy: (Math.random() - 0.5) * 2,
+        radius: Math.random() * 4 + 2,
+        color: `hsla(${Math.random() * 360}, 100%, 70%, ${Math.random() * 0.5 + 0.3})`,
+        charge: Math.random() > 0.5 ? 1 : -1,
+        life: Math.random() * 200 + 100,
+        quantumState: Math.random() > 0.5 ? 'up' : 'down',
+        entangledWith: Math.random() > 0.8 ? Math.floor(Math.random() * 100) : null
+      });
+    }
+    
+    // Initialize strange attractors
+    for (let i = 0; i < 5; i++) {
+      particleSystemRef.current.attractors.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        strength: Math.random() * 0.8 + 0.2,
+        type: ['lorenz', 'rossler', 'aizawa', 'thomas', 'dadras'][i],
+        radius: Math.random() * 150 + 50
+      });
+    }
+    
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw quantum field background
+      drawQuantumFieldBackground(ctx, canvas);
+      
+      // Update and draw particles
+      updateQuantumParticles(ctx, canvas);
+      
+      // Draw attractors
+      drawQuantumAttractors(ctx, canvas);
+      
+      // Draw interference patterns
+      drawQuantumInterference(ctx, canvas);
+      
+      // Draw temporal effects
+      drawTemporalEffects(ctx, canvas);
+      
+      // Update system state
+      particleSystemRef.current.time += 0.01;
+      particleSystemRef.current.chaos = chaosLevel / 100;
+      particleSystemRef.current.quantumField = quantumField;
+      
+      animationRef.current = requestAnimationFrame(animate);
+    };
+    
+    animate();
+    
+    // Handle window resize
+    const handleResize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  };
+
+  // Draw quantum field background
+  const drawQuantumFieldBackground = (ctx, canvas) => {
+    const time = particleSystemRef.current.time;
+    const fieldStrength = quantumField * 100;
+    
+    // Create gradient background
+    const gradient = ctx.createRadialGradient(
+      canvas.width / 2,
+      canvas.height / 2,
+      0,
+      canvas.width / 2,
+      canvas.height / 2,
+      Math.max(canvas.width, canvas.height) / 2
     );
-  transform: translate(-50%, -50%) rotate(var(--rotation, 0deg)) scale(var(--scale, 1));
-  opacity: var(--opacity, 0.15);
-  animation: quantumInterferenceRotate 80s linear infinite;
-  filter: blur(5px);
-  mix-blend-mode: overlay;
-}
-
-@keyframes quantumInterferenceRotate {
-  from { transform: translate(-50%, -50%) rotate(0deg) scale(var(--scale, 1)); }
-  to { transform: translate(-50%, -50%) rotate(360deg) scale(var(--scale, 1)); }
-}
-
-/* ===== QUANTUM SPECIAL EFFECTS - ENHANCED ===== */
-.reality-pulse {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle, 
-    rgba(108, 92, 231, calc(0.2 * var(--coefficient, 1))) 0%, 
-    rgba(0, 206, 201, calc(0.1 * var(--coefficient, 1))) 50%,
-    transparent 70%);
-  transform: translate(-50%, -50%);
-  animation: quantumPulseExpand 3s ease-out forwards;
-  filter: blur(10px);
-  z-index: 9993;
-}
-
-.quantum-anomaly {
-  position: absolute;
-  width: 150px;
-  height: 150px;
-  background: radial-gradient(circle, 
-    rgba(225, 112, 85, calc(0.4 * var(--strength, 1))) 0%, 
-    rgba(255, 71, 87, calc(0.3 * var(--strength, 1))) 30%,
-    transparent 70%);
-  border-radius: 50%;
-  filter: blur(25px);
-  transform: translate(-50%, -50%);
-  animation: quantumAnomalyPulse 4s ease-out forwards;
-  z-index: 9992;
-  mix-blend-mode: screen;
-}
-
-.quantum-vortex {
-  position: absolute;
-  width: 300px;
-  height: 300px;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    var(--quantum-info) 90deg,
-    var(--quantum-temporal) 180deg,
-    var(--quantum-primary) 270deg,
-    transparent 360deg
-  );
-  border-radius: 50%;
-  filter: blur(15px);
-  transform: translate(-50%, -50%);
-  animation: quantumVortexSpin 8s linear infinite;
-  opacity: var(--strength, 0.7);
-  z-index: 9991;
-  mix-blend-mode: screen;
-}
-
-.quantum-effect {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 9990;
-  opacity: 0;
-  animation: quantumEffectFade 3s ease-out forwards;
-  mix-blend-mode: screen;
-}
-
-.quantum-click-effect {
-  position: fixed;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle, 
-    rgba(108, 92, 231, 0.7) 0%, 
-    rgba(0, 206, 201, 0.5) 30%,
-    transparent 70%);
-  transform: translate(-50%, -50%);
-  animation: quantumClickExpand 0.8s ease-out forwards;
-  filter: blur(10px);
-  z-index: 9989;
-}
-
-.quantum-copy-effect {
-  position: fixed;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle, 
-    rgba(0, 206, 201, 0.7) 0%, 
-    rgba(108, 92, 231, 0.5) 30%,
-    transparent 70%);
-  transform: translate(-50%, -50%);
-  animation: quantumCopyExpand 0.8s ease-out forwards;
-  filter: blur(15px);
-  z-index: 9988;
-}
-
-.quantum-drag-effect {
-  position: fixed;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: radial-gradient(circle, 
-    rgba(253, 121, 168, 0.7) 0%, 
-    rgba(108, 92, 231, 0.5) 50%,
-    transparent 70%);
-  transform: translate(-50%, -50%);
-  animation: quantumDragPulse 1.2s ease-out infinite;
-  filter: blur(8px);
-  z-index: 9987;
-}
-
-.quantum-drop-effect {
-  position: fixed;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle, 
-    rgba(108, 92, 231, 0.7) 0%, 
-    rgba(0, 206, 201, 0.5) 30%,
-    transparent 70%);
-  transform: translate(-50%, -50%);
-  animation: quantumDropExpand 0.6s ease-out forwards;
-  filter: blur(12px);
-  z-index: 9986;
-}
-
-/* Enhanced Quantum Effect Animations */
-@keyframes quantumPulseExpand {
-  0% { 
-    width: 0; 
-    height: 0; 
-    opacity: 1; 
-    filter: blur(10px);
-  }
-  100% { 
-    width: 100vw; 
-    height: 100vw; 
-    opacity: 0; 
-    filter: blur(50px);
-  }
-}
-
-@keyframes quantumAnomalyPulse {
-  0% { 
-    transform: translate(-50%, -50%) scale(0); 
-    opacity: 1; 
-    filter: blur(25px);
-  }
-  50% { 
-    opacity: 0.8; 
-    filter: blur(40px);
-  }
-  100% { 
-    transform: translate(-50%, -50%) scale(4); 
-    opacity: 0; 
-    filter: blur(60px);
-  }
-}
-
-@keyframes quantumVortexSpin {
-  from { 
-    transform: translate(-50%, -50%) rotate(0deg) scale(1);
-    filter: blur(15px) hue-rotate(0deg);
-  }
-  to { 
-    transform: translate(-50%, -50%) rotate(360deg) scale(1.2);
-    filter: blur(20px) hue-rotate(360deg);
-  }
-}
-
-@keyframes quantumEffectFade {
-  0% { opacity: 0.7; }
-  100% { opacity: 0; }
-}
-
-@keyframes quantumClickExpand {
-  0% { 
-    width: 0; 
-    height: 0; 
-    opacity: 1; 
-    filter: blur(10px);
-  }
-  100% { 
-    width: 300px; 
-    height: 300px; 
-    opacity: 0; 
-    filter: blur(30px);
-  }
-}
-
-@keyframes quantumCopyExpand {
-  0% { 
-    width: 0; 
-    height: 0; 
-    opacity: 1; 
-    filter: blur(15px);
-  }
-  100% { 
-    width: 400px; 
-    height: 400px; 
-    opacity: 0; 
-    filter: blur(40px);
-  }
-}
-
-@keyframes quantumDragPulse {
-  0%, 100% { 
-    transform: translate(-50%, -50%) scale(1); 
-    opacity: 0.6; 
-    filter: blur(8px);
-  }
-  50% { 
-    transform: translate(-50%, -50%) scale(1.8); 
-    opacity: 1; 
-    filter: blur(15px);
-  }
-}
-
-@keyframes quantumDropExpand {
-  0% { 
-    width: 0; 
-    height: 0; 
-    opacity: 1; 
-    filter: blur(12px);
-  }
-  100% { 
-    width: 200px; 
-    height: 200px; 
-    opacity: 0; 
-    filter: blur(25px);
-  }
-}
-
-/* ===== QUANTUM DROP ZONE - ENHANCED ===== */
-.quantum-drop-zone {
-  position: absolute;
-  border: 4px dashed var(--quantum-accent);
-  border-radius: 25px;
-  background: 
-    radial-gradient(circle at center, 
-      rgba(253, 121, 168, 0.15) 0%, 
-      transparent 70%),
-    repeating-linear-gradient(45deg,
-      transparent 0px,
-      transparent 10px,
-      rgba(253, 121, 168, 0.1) 10px,
-      rgba(253, 121, 168, 0.1) 20px);
-  pointer-events: none;
-  z-index: 20;
-  display: none;
-  box-shadow: 
-    0 0 50px rgba(253, 121, 168, 0.4),
-    inset 0 0 30px rgba(253, 121, 168, 0.2);
-  width: 180px;
-  height: 180px;
-  backdrop-filter: blur(10px);
-  transform-style: preserve-3d;
-}
-
-.quantum-drop-zone.drag-active {
-  display: block;
-  animation: quantumDropZonePulse 2s infinite;
-}
-
-.quantum-drop-zone .drop-message {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: var(--quantum-accent);
-  font-weight: 700;
-  text-align: center;
-  text-shadow: 0 0 10px var(--quantum-accent);
-  font-size: 14px;
-  padding: 20px;
-  width: 100%;
-}
-
-.drop-message i {
-  font-size: 24px;
-  display: block;
-  margin-bottom: 10px;
-  animation: quantumSpin 2s linear infinite;
-}
-
-@keyframes quantumDropZonePulse {
-  0%, 100% {
-    border-color: var(--quantum-accent);
-    box-shadow: 
-      0 0 30px rgba(253, 121, 168, 0.4),
-      inset 0 0 30px rgba(253, 121, 168, 0.2);
-    transform: scale(1);
-  }
-  50% {
-    border-color: var(--quantum-primary);
-    box-shadow: 
-      0 0 60px rgba(108, 92, 231, 0.6),
-      inset 0 0 40px rgba(108, 92, 231, 0.3);
-    transform: scale(1.05);
-  }
-}
-
-/* ===== QUANTUM DRAGGING INDICATOR - ENHANCED ===== */
-.quantum-dragging-indicator {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: 
-    linear-gradient(135deg, 
-      rgba(15, 20, 25, 0.98) 0%,
-      rgba(10, 15, 20, 0.95) 100%),
-    radial-gradient(circle at center,
-      rgba(108, 92, 231, 0.3) 0%,
-      transparent 70%);
-  backdrop-filter: blur(25px) saturate(180%);
-  border-radius: 20px;
-  padding: 20px 30px;
-  border: 2px solid var(--quantum-primary);
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  z-index: 10001;
-  box-shadow: 
-    var(--quantum-shadow-2xl),
-    var(--quantum-shadow-glow),
-    0 0 60px rgba(108, 92, 231, 0.5);
-  animation: quantumDraggingFloat 3s ease-in-out infinite;
-  transform-style: preserve-3d;
-}
-
-.quantum-dragging-icon {
-  font-size: 32px;
-  color: var(--quantum-primary);
-  animation: quantumDraggingSpin 3s linear infinite;
-  width: 60px;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(108, 92, 231, 0.2);
-  border-radius: 50%;
-  box-shadow: 
-    inset 0 0 20px rgba(108, 92, 231, 0.4),
-    0 0 40px var(--quantum-primary);
-}
-
-.quantum-dragging-text {
-  flex: 1;
-}
-
-.dragging-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--quantum-text-light);
-  margin-bottom: 6px;
-  text-shadow: var(--quantum-text-glow);
-}
-
-.dragging-mod {
-  font-size: 20px;
-  font-weight: 900;
-  color: var(--quantum-secondary);
-  margin-bottom: 4px;
-  text-shadow: 0 0 15px var(--quantum-secondary);
-}
-
-.quantum-dragging-text small {
-  font-size: 12px;
-  color: var(--quantum-text-gray);
-  opacity: 0.8;
-}
-
-.quantum-dragging-effects {
-  display: flex;
-  gap: 8px;
-}
-
-.dragging-effect {
-  width: 6px;
-  height: 30px;
-  background: linear-gradient(180deg, 
-    var(--quantum-accent) 0%,
-    transparent 100%);
-  border-radius: 3px;
-  animation: quantumDragEffectPulse 1.2s infinite;
-  box-shadow: 0 0 10px var(--quantum-accent);
-}
-
-.dragging-effect:nth-child(2) { animation-delay: 0.2s; }
-.dragging-effect:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes quantumDraggingFloat {
-  0%, 100% { 
-    transform: translate(-50%, -50%) translateY(0px);
-  }
-  50% { 
-    transform: translate(-50%, -50%) translateY(-10px);
-  }
-}
-
-@keyframes quantumDraggingSpin {
-  from { transform: rotate(0deg) scale(1); }
-  to { transform: rotate(360deg) scale(1.1); }
-}
-
-@keyframes quantumDragEffectPulse {
-  0%, 100% { 
-    transform: scaleY(1); 
-    opacity: 0.5;
-    box-shadow: 0 0 10px var(--quantum-accent);
-  }
-  50% { 
-    transform: scaleY(1.8); 
-    opacity: 1;
-    box-shadow: 0 0 20px var(--quantum-accent);
-  }
-}
-
-/* ===== QUANTUM EFFECTS DISPLAY - ENHANCED ===== */
-.quantum-effects-display {
-  position: fixed;
-  top: 120px;
-  right: 40px;
-  background: 
-    linear-gradient(135deg, 
-      rgba(15, 20, 25, 0.95) 0%,
-      rgba(10, 15, 20, 0.9) 100%),
-    radial-gradient(circle at top right,
-      rgba(108, 92, 231, 0.3) 0%,
-      transparent 50%);
-  backdrop-filter: blur(25px) saturate(180%);
-  border-radius: 20px;
-  padding: 20px;
-  border: 1px solid rgba(108, 92, 231, 0.4);
-  z-index: 1000;
-  min-width: 240px;
-  box-shadow: 
-    var(--quantum-shadow-xl),
-    var(--quantum-shadow-glow);
-  transform-style: preserve-3d;
-  animation: quantumEffectsEntrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes quantumEffectsEntrance {
-  from {
-    opacity: 0;
-    transform: translateX(50px) rotateY(45deg);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) rotateY(0deg);
-  }
-}
-
-.effects-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 15px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.effects-header i {
-  color: var(--quantum-accent);
-  font-size: 20px;
-  filter: drop-shadow(0 0 10px var(--quantum-accent));
-  animation: quantumEffectsIconPulse 2s infinite;
-}
-
-.effects-header span {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--quantum-text-light);
-  text-shadow: var(--quantum-text-glow);
-}
-
-.effects-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 300px;
-  overflow-y: auto;
-  padding-right: 5px;
-}
-
-.quantum-effect-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 15px;
-  background: linear-gradient(135deg, 
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.05) 100%);
-  border-radius: 12px;
-  border-left: 4px solid var(--quantum-primary);
-  box-shadow: 
-    inset 0 2px 4px rgba(255, 255, 255, 0.1),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.3);
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  transform-style: preserve-3d;
-}
-
-.quantum-effect-item:hover {
-  transform: translateY(-3px) scale(1.02);
-  box-shadow: 
-    0 8px 20px rgba(108, 92, 231, 0.3),
-    inset 0 2px 8px rgba(255, 255, 255, 0.15),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.3);
-  border-left-color: var(--quantum-accent);
-}
-
-.effect-type {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--quantum-text-light);
-  flex: 1;
-  text-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
-}
-
-.effect-intensity {
-  width: 100px;
-}
-
-.intensity-bar {
-  width: 100%;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-  overflow: hidden;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
-}
-
-.intensity-fill {
-  height: 100%;
-  background: linear-gradient(90deg, 
-    var(--quantum-primary) 0%,
-    var(--quantum-accent) 100%);
-  border-radius: 3px;
-  position: relative;
-  overflow: hidden;
-}
-
-.intensity-fill::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(90deg, 
-    transparent, 
-    rgba(255, 255, 255, 0.3), 
-    transparent);
-  animation: quantumIntensityShimmer 1.5s infinite;
-}
-
-@keyframes quantumEffectsIconPulse {
-  0%, 100% { 
-    transform: scale(1);
-    filter: drop-shadow(0 0 10px var(--quantum-accent));
-  }
-  50% { 
-    transform: scale(1.2);
-    filter: drop-shadow(0 0 20px var(--quantum-accent));
-  }
-}
-
-@keyframes quantumIntensityShimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
-/* ===== QUANTUM SESSION INDICATOR - ENHANCED ===== */
-.quantum-session-indicator {
-  position: fixed;
-  top: 30px;
-  right: 30px;
-  background: var(--quantum-gradient);
-  color: white;
-  padding: 12px 20px;
-  border-radius: 15px;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  font-size: 15px;
-  font-weight: 700;
-  z-index: 10001;
-  box-shadow: 
-    var(--quantum-shadow-xl),
-    var(--quantum-shadow-glow);
-  animation: quantumSessionBounce 3s infinite;
-  transform-style: preserve-3d;
-  backdrop-filter: blur(10px);
-}
-
-.indicator-content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.indicator-content i {
-  font-size: 18px;
-  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
-  animation: quantumSessionIconSpin 3s infinite;
-}
-
-.indicator-content span {
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-}
-
-.indicator-stats {
-  display: flex;
-  gap: 15px;
-  margin-left: 15px;
-  padding-left: 15px;
-  border-left: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.indicator-stats .stat {
-  font-size: 13px;
-  opacity: 0.9;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.quantum-session-indicator button {
-  background: linear-gradient(135deg, 
-    rgba(255, 255, 255, 0.2) 0%,
-    rgba(255, 255, 255, 0.1) 100%);
-  border: none;
-  color: white;
-  padding: 0;
-  font-size: 14px;
-  opacity: 0.8;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  box-shadow: 
-    inset 0 2px 4px rgba(255, 255, 255, 0.2),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.quantum-session-indicator button:hover {
-  opacity: 1;
-  background: linear-gradient(135deg, 
-    rgba(255, 255, 255, 0.3) 0%,
-    rgba(255, 255, 255, 0.2) 100%);
-  transform: scale(1.1) rotate(90deg);
-  box-shadow: 
-    0 0 15px rgba(255, 255, 255, 0.3),
-    inset 0 2px 8px rgba(255, 255, 255, 0.3),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.3);
-}
-
-@keyframes quantumSessionBounce {
-  0%, 100% { 
-    transform: translateY(0) scale(1);
-    box-shadow: 
-      var(--quantum-shadow-xl),
-      var(--quantum-shadow-glow);
-  }
-  50% { 
-    transform: translateY(-8px) scale(1.02);
-    box-shadow: 
-      0 20px 50px rgba(108, 92, 231, 0.6),
-      0 0 40px var(--quantum-primary);
-  }
-}
-
-@keyframes quantumSessionIconSpin {
-  0%, 100% { transform: rotate(0deg) scale(1); }
-  50% { transform: rotate(180deg) scale(1.2); }
-}
-
-/* ===== QUANTUM STATUS BAR - ENHANCED ===== */
-.quantum-status-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: 
-    linear-gradient(180deg, 
-      rgba(15, 20, 25, 0.95) 0%,
-      rgba(10, 15, 20, 0.98) 100%),
-    radial-gradient(ellipse at bottom center,
-      rgba(108, 92, 231, 0.3) 0%,
-      transparent 70%);
-  backdrop-filter: blur(25px) saturate(180%);
-  border-top: 1px solid rgba(108, 92, 231, 0.4);
-  padding: 12px 25px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  z-index: 90;
-  box-shadow: 
-    0 -10px 30px rgba(0, 0, 0, 0.6),
-    0 0 30px rgba(108, 92, 231, 0.3);
-  transform-style: preserve-3d;
-  animation: quantumStatusBarEntrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.4s both;
-}
-
-@keyframes quantumStatusBarEntrance {
-  from {
-    opacity: 0;
-    transform: translateY(100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.status-items {
-  display: flex;
-  gap: 30px;
-}
-
-.status-item {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 8px 15px;
-  background: linear-gradient(135deg, 
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.05) 100%);
-  border-radius: 12px;
-  border: 1px solid rgba(108, 92, 231, 0.3);
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  transform-style: preserve-3d;
-  min-width: 140px;
-}
-
-.status-item:hover {
-  transform: translateY(-5px) scale(1.05);
-  border-color: var(--quantum-primary);
-  box-shadow: 
-    0 10px 25px rgba(108, 92, 231, 0.3),
-    0 0 20px var(--quantum-primary);
-  background: linear-gradient(135deg, 
-    rgba(255, 255, 255, 0.12) 0%,
-    rgba(255, 255, 255, 0.08) 100%);
-}
-
-.status-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, 
-    rgba(108, 92, 231, 0.3) 0%,
-    rgba(108, 92, 231, 0.2) 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--quantum-primary);
-  font-size: 18px;
-  box-shadow: 
-    inset 0 2px 4px rgba(255, 255, 255, 0.2),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.3),
-    0 5px 15px rgba(108, 92, 231, 0.3);
-}
-
-.status-content {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-.status-label {
-  font-size: 11px;
-  color: var(--quantum-text-gray-light);
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  margin-bottom: 4px;
-  opacity: 0.8;
-}
-
-.status-value {
-  font-size: 18px;
-  font-weight: 900;
-  color: var(--quantum-secondary);
-  text-shadow: 0 0 10px var(--quantum-secondary);
-}
-
-.status-actions {
-  display: flex;
-  gap: 12px;
-}
-
-/* ===== QUANTUM INSTALL BUTTON - ENHANCED ===== */
-.quantum-install-button {
-  position: fixed;
-  bottom: 90px;
-  right: 40px;
-  z-index: 10000;
-  animation: quantumInstallButtonEntrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.6s both;
-}
-
-@keyframes quantumInstallButtonEntrance {
-  from {
-    opacity: 0;
-    transform: translateY(50px) scale(0.5);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.btn-quantum-install {
-  background: var(--quantum-gradient);
-  color: white;
-  border: none;
-  padding: 16px 30px;
-  border-radius: 60px;
-  font-weight: 900;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  box-shadow: 
-    var(--quantum-shadow-xl),
-    var(--quantum-shadow-glow),
-    0 10px 40px rgba(108, 92, 231, 0.5);
-  animation: quantumInstallPulse 3s infinite;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  position: relative;
-  overflow: hidden;
-  transform-style: preserve-3d;
-}
-
-.btn-quantum-install::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 60px;
-  padding: 3px;
-  background: linear-gradient(135deg, 
-    var(--quantum-primary) 0%,
-    var(--quantum-secondary) 50%,
-    var(--quantum-accent) 100%);
-  -webkit-mask: 
-    linear-gradient(#fff 0 0) content-box, 
-    linear-gradient(#fff 0 0);
-  mask: 
-    linear-gradient(#fff 0 0) content-box, 
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  z-index: -1;
-}
-
-.btn-quantum-install:hover::before {
-  opacity: 1;
-}
-
-.btn-quantum-install:hover {
-  transform: translateY(-5px) scale(1.08) rotateX(5deg);
-  box-shadow: 
-    0 20px 50px rgba(108, 92, 231, 0.7),
-    0 0 60px var(--quantum-primary),
-    0 0 100px var(--quantum-primary-light);
-  animation: none;
-}
-
-.install-button-quantum {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  position: relative;
-  z-index: 2;
-}
-
-.install-button-quantum i {
-  animation: quantumInstallIconSpin 2s linear infinite;
-  font-size: 20px;
-  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
-}
-
-.install-button-quantum span {
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-}
-
-@keyframes quantumInstallPulse {
-  0%, 100% { 
-    transform: scale(1);
-    box-shadow: 
-      var(--quantum-shadow-xl),
-      var(--quantum-shadow-glow),
-      0 10px 40px rgba(108, 92, 231, 0.5);
-  }
-  50% { 
-    transform: scale(1.05);
-    box-shadow: 
-      var(--quantum-shadow-xl),
-      var(--quantum-shadow-glow),
-      0 15px 50px rgba(108, 92, 231, 0.7);
-  }
-}
-
-@keyframes quantumInstallIconSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-/* ===== QUANTUM BACKGROUND CANVAS ===== */
-.quantum-background-canvas {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 0;
-  filter: blur(1px);
-}
-
-/* ===== QUANTUM ERROR FALLBACK - ENHANCED ===== */
-.quantum-error-fallback {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  background: 
-    linear-gradient(135deg, #1a1a2e 0%, #16213e 100%),
-    radial-gradient(circle at center,
-      rgba(255, 71, 87, 0.3) 0%,
-      transparent 50%);
-  color: white;
-  text-align: center;
-  padding: 50px;
-  border-radius: 10px;
-  position: relative;
-  z-index: 10;
-  animation: quantumErrorEntrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes quantumErrorEntrance {
-  from {
-    opacity: 0;
-    transform: scale(0.9) rotateX(15deg);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) rotateX(0deg);
-  }
-}
-
-.quantum-error-icon {
-  position: relative;
-  margin-bottom: 40px;
-}
-
-.quantum-error-icon i {
-  font-size: 80px;
-  color: var(--quantum-danger);
-  animation: quantumErrorIconSpin 4s linear infinite;
-  filter: drop-shadow(0 0 20px var(--quantum-danger));
-}
-
-.quantum-error-rings {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.quantum-error-rings .ring {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  border: 3px solid var(--quantum-danger);
-  border-radius: 50%;
-  opacity: 0.4;
-  transform: translate(-50%, -50%);
-}
-
-.quantum-error-rings .ring:nth-child(1) { 
-  width: 100px; height: 100px; 
-  animation: quantumErrorRingPulse 2.5s infinite; 
-}
-.quantum-error-rings .ring:nth-child(2) { 
-  width: 130px; height: 130px; 
-  animation: quantumErrorRingPulse 2.5s infinite 0.3s; 
-}
-.quantum-error-rings .ring:nth-child(3) { 
-  width: 160px; height: 160px; 
-  animation: quantumErrorRingPulse 2.5s infinite 0.6s; 
-}
-
-.quantum-error-fallback h3 {
-  margin: 0 0 25px 0;
-  font-size: 32px;
-  color: var(--quantum-text-light);
-  text-shadow: 
-    0 0 20px rgba(255, 255, 255, 0.5),
-    0 0 40px rgba(255, 71, 87, 0.5);
-}
-
-.error-message {
-  margin: 0 0 35px 0;
-  font-size: 18px;
-  color: var(--quantum-text-gray-light);
-  max-width: 700px;
-  line-height: 1.6;
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.4);
-  border-radius: 15px;
-  border-left: 4px solid var(--quantum-danger);
-  box-shadow: 
-    inset 0 2px 10px rgba(0, 0, 0, 0.5),
-    0 5px 20px rgba(0, 0, 0, 0.6);
-}
-
-.quantum-error-actions {
-  display: flex;
-  gap: 20px;
-  margin: 30px 0;
-}
-
-.quantum-tips {
-  margin-top: 40px;
-  text-align: left;
-  background: 
-    linear-gradient(135deg, 
-      rgba(255, 255, 255, 0.08) 0%,
-      rgba(255, 255, 255, 0.05) 100%);
-  padding: 25px;
-  border-radius: 15px;
-  border-left: 5px solid var(--quantum-warning);
-  max-width: 700px;
-  box-shadow: 
-    inset 0 2px 10px rgba(0, 0, 0, 0.5),
-    0 10px 30px rgba(0, 0, 0, 0.6);
-}
-
-.quantum-tips p {
-  margin: 0 0 20px 0;
-  font-weight: 800;
-  color: var(--quantum-warning);
-  font-size: 18px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.quantum-tips ul {
-  margin: 15px 0 0 25px;
-  list-style-type: none;
-}
-
-.quantum-tips li {
-  margin: 12px 0;
-  opacity: 0.9;
-  color: var(--quantum-text-gray-light);
-  position: relative;
-  padding-left: 25px;
-}
-
-.quantum-tips li::before {
-  content: '▶';
-  position: absolute;
-  left: 0;
-  color: var(--quantum-warning);
-  font-size: 12px;
-}
-
-.quantum-stats {
-  display: flex;
-  gap: 40px;
-  margin-top: 40px;
-}
-
-.quantum-stats .stat {
-  text-align: center;
-  padding: 15px 25px;
-  background: linear-gradient(135deg, 
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.05) 100%);
-  border-radius: 15px;
-  border: 1px solid rgba(108, 92, 231, 0.3);
-  min-width: 120px;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.quantum-stats .stat:hover {
-  transform: translateY(-5px) scale(1.05);
-  border-color: var(--quantum-primary);
-  box-shadow: 
-    0 10px 25px rgba(108, 92, 231, 0.3),
-    0 0 20px var(--quantum-primary);
-}
-
-.quantum-stats .stat-label {
-  display: block;
-  font-size: 13px;
-  color: var(--quantum-text-gray);
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.quantum-stats .stat-value {
-  display: block;
-  font-size: 28px;
-  font-weight: 900;
-  color: var(--quantum-secondary);
-  text-shadow: 0 0 15px var(--quantum-secondary);
-}
-
-@keyframes quantumErrorIconSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes quantumErrorRingPulse {
-  0%, 100% { 
-    transform: translate(-50%, -50%) scale(1); 
-    opacity: 0.4; 
-  }
-  50% { 
-    transform: translate(-50%, -50%) scale(1.3); 
-    opacity: 0.8; 
-  }
-}
-
-/* ===== QUANTUM LOADING STATES - ENHANCED ===== */
-.quantum-loading {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  background: 
-    radial-gradient(ellipse at center, 
-      rgba(10, 15, 26, 0.95) 0%,
-      rgba(5, 10, 15, 0.98) 100%),
-    repeating-linear-gradient(45deg,
-      transparent 0px,
-      transparent 2px,
-      rgba(108, 92, 231, 0.05) 2px,
-      rgba(108, 92, 231, 0.05) 4px);
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 1000;
-  animation: quantumLoadingEntrance 0.6s ease-out;
-}
-
-@keyframes quantumLoadingEntrance {
-  from {
-    opacity: 0;
-    backdrop-filter: blur(0px);
-  }
-  to {
-    opacity: 1;
-    backdrop-filter: blur(20px);
-  }
-}
-
-.quantum-spinner {
-  position: relative;
-  width: 120px;
-  height: 120px;
-  margin-bottom: 30px;
-  transform-style: preserve-3d;
-}
-
-.quantum-particle {
-  position: absolute;
-  width: 30px;
-  height: 30px;
-  background: radial-gradient(circle, 
-    var(--quantum-primary) 0%,
-    transparent 70%);
-  border-radius: 50%;
-  animation: quantumLoadingOrbit 3s linear infinite;
-  box-shadow: 0 0 20px var(--quantum-primary);
-  transform-style: preserve-3d;
-}
-
-.quantum-particle:nth-child(1) { 
-  top: 0; left: 45px; 
-  animation-delay: 0s; 
-  background: radial-gradient(circle, var(--quantum-primary) 0%, transparent 70%);
-}
-.quantum-particle:nth-child(2) { 
-  top: 45px; right: 0; 
-  animation-delay: 1s; 
-  background: radial-gradient(circle, var(--quantum-secondary) 0%, transparent 70%);
-}
-.quantum-particle:nth-child(3) { 
-  bottom: 0; left: 45px; 
-  animation-delay: 2s; 
-  background: radial-gradient(circle, var(--quantum-accent) 0%, transparent 70%);
-}
-.quantum-particle:nth-child(4) { 
-  top: 45px; left: 0; 
-  animation-delay: 0.5s; 
-  background: radial-gradient(circle, var(--quantum-info) 0%, transparent 70%);
-}
-.quantum-particle:nth-child(5) { 
-  top: 15px; left: 15px; 
-  animation-delay: 1.5s; 
-  background: radial-gradient(circle, var(--quantum-warning) 0%, transparent 70%);
-}
-.quantum-particle:nth-child(6) { 
-  top: 15px; right: 15px; 
-  animation-delay: 2.5s; 
-  background: radial-gradient(circle, var(--quantum-vortex) 0%, transparent 70%);
-}
-
-.quantum-loading p {
-  font-size: 20px;
-  color: var(--quantum-secondary);
-  font-weight: 800;
-  margin-top: 25px;
-  text-shadow: 
-    0 0 15px var(--quantum-secondary),
-    0 0 30px rgba(0, 206, 201, 0.5);
-  animation: quantumLoadingTextPulse 2s infinite;
-}
-
-@keyframes quantumLoadingOrbit {
-  0% { 
-    transform: 
-      rotate(0deg) 
-      translateX(60px) 
-      rotate(0deg) 
-      scale(1);
-    opacity: 0.8;
-  }
-  50% { 
-    opacity: 1;
-    filter: brightness(1.5);
-  }
-  100% { 
-    transform: 
-      rotate(360deg) 
-      translateX(60px) 
-      rotate(-360deg) 
-      scale(1.2);
-    opacity: 0.8;
-  }
-}
-
-@keyframes quantumLoadingTextPulse {
-  0%, 100% { 
-    opacity: 0.7;
-    transform: scale(1);
-  }
-  50% { 
-    opacity: 1;
-    transform: scale(1.05);
-  }
-}
-
-.quantum-loading-screen {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  background: 
-    radial-gradient(ellipse at top, 
-      var(--quantum-bg-dark) 0%, 
-      #000000 100%),
-    repeating-linear-gradient(45deg,
-      transparent 0px,
-      transparent 2px,
-      rgba(108, 92, 231, 0.05) 2px,
-      rgba(108, 92, 231, 0.05) 4px);
-  position: relative;
-  overflow: hidden;
-}
-
-.quantum-loading-screen::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: 
-    radial-gradient(circle at 50% 50%, 
-      rgba(108, 92, 231, 0.2) 0%, 
-      transparent 60%),
-    radial-gradient(circle at 30% 70%, 
-      rgba(0, 206, 201, 0.15) 0%, 
-      transparent 50%);
-  animation: quantumLoadingBgPulse 10s ease-in-out infinite;
-  filter: blur(50px);
-}
-
-.quantum-loading-animation {
-  position: relative;
-  width: 180px;
-  height: 180px;
-  margin-bottom: 40px;
-  transform-style: preserve-3d;
-}
-
-.quantum-loading-orb {
-  width: 180px;
-  height: 180px;
-  background: 
-    radial-gradient(circle at 30% 30%, 
-      rgba(255, 255, 255, 0.9) 0%,
-      var(--quantum-primary) 30%,
-      transparent 70%),
-    radial-gradient(circle at 70% 70%, 
-      var(--quantum-secondary) 0%,
-      transparent 70%),
-    var(--quantum-gradient);
-  border-radius: 50%;
-  animation: quantumLoadingOrbFloat 6s ease-in-out infinite;
-  box-shadow: 
-    inset 0 0 60px rgba(255, 255, 255, 0.4),
-    0 0 80px var(--quantum-primary),
-    0 0 160px var(--quantum-primary-light),
-    0 0 240px rgba(108, 92, 231, 0.5);
-  transform-style: preserve-3d;
-  position: relative;
-}
-
-.quantum-loading-orb::before {
-  content: '';
-  position: absolute;
-  top: -20px;
-  left: -20px;
-  right: -20px;
-  bottom: -20px;
-  background: conic-gradient(
-    from 0deg,
-    var(--quantum-primary),
-    var(--quantum-secondary),
-    var(--quantum-accent),
-    var(--quantum-info),
-    var(--quantum-primary)
-  );
-  border-radius: 50%;
-  animation: quantumLoadingOrbRotate 4s linear infinite;
-  filter: blur(30px);
-  opacity: 0.6;
-  z-index: -1;
-}
-
-.quantum-loading-rings {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  transform-style: preserve-3d;
-}
-
-.quantum-loading-rings .ring {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  border: 3px solid;
-  border-radius: 50%;
-  opacity: 0.3;
-  animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.quantum-loading-rings .ring:nth-child(1) { 
-  width: 220px; height: 220px; 
-  border-color: var(--quantum-secondary);
-  animation: quantumLoadingRingPulse 4s infinite;
-  filter: blur(2px);
-}
-.quantum-loading-rings .ring:nth-child(2) { 
-  width: 260px; height: 260px; 
-  border-color: var(--quantum-accent);
-  animation: quantumLoadingRingPulse 4s infinite 0.5s;
-  filter: blur(3px);
-}
-.quantum-loading-rings .ring:nth-child(3) { 
-  width: 300px; height: 300px; 
-  border-color: var(--quantum-primary);
-  animation: quantumLoadingRingPulse 4s infinite 1s;
-  filter: blur(4px);
-}
-
-.quantum-loading-particles {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.quantum-loading-particles .particle {
-  position: absolute;
-  width: 15px;
-  height: 15px;
-  background: radial-gradient(circle, 
-    var(--quantum-accent) 0%,
-    transparent 70%);
-  border-radius: 50%;
-  animation: quantumLoadingParticleOrbit 6s linear infinite;
-  box-shadow: 0 0 15px var(--quantum-accent);
-  filter: blur(2px);
-}
-
-.quantum-loading-text {
-  font-size: 24px;
-  color: var(--quantum-secondary);
-  font-weight: 900;
-  margin: 25px 0;
-  text-shadow: 
-    0 0 20px var(--quantum-secondary),
-    0 0 40px rgba(0, 206, 201, 0.7);
-  animation: quantumLoadingTextFloat 3s ease-in-out infinite;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-}
-
-.quantum-loading-stats {
-  display: flex;
-  gap: 50px;
-  margin-top: 40px;
-}
-
-.quantum-loading-stats .stat {
-  text-align: center;
-  padding: 15px 25px;
-  background: linear-gradient(135deg, 
-    rgba(255, 255, 255, 0.1) 0%,
-    rgba(255, 255, 255, 0.05) 100%);
-  border-radius: 15px;
-  border: 1px solid rgba(108, 92, 231, 0.3);
-  min-width: 140px;
-  animation: quantumLoadingStatPulse 2s infinite alternate;
-}
-
-.quantum-loading-stats .stat:nth-child(2) {
-  animation-delay: 0.5s;
-}
-
-.quantum-loading-stats .stat span:first-child {
-  display: block;
-  font-size: 14px;
-  color: var(--quantum-text-gray);
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.quantum-loading-stats .stat span:last-child {
-  display: block;
-  font-size: 24px;
-  font-weight: 900;
-  color: var(--quantum-primary);
-  text-shadow: 0 0 15px var(--quantum-primary);
-}
-
-@keyframes quantumLoadingBgPulse {
-  0%, 100% { 
-    transform: scale(1) rotate(0deg);
-    filter: blur(50px) hue-rotate(0deg);
-  }
-  50% { 
-    transform: scale(1.2) rotate(180deg);
-    filter: blur(60px) hue-rotate(180deg);
-  }
-}
-
-@keyframes quantumLoadingOrbFloat {
-  0%, 100% { 
-    transform: translateY(0px) rotateY(0deg) scale(1);
-    filter: brightness(1) hue-rotate(0deg);
-  }
-  33% { 
-    transform: translateY(-20px) rotateY(120deg) scale(1.1);
-    filter: brightness(1.3) hue-rotate(120deg);
-  }
-  66% { 
-    transform: translateY(10px) rotateY(240deg) scale(0.9);
-    filter: brightness(0.8) hue-rotate(240deg);
-  }
-}
-
-@keyframes quantumLoadingOrbRotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes quantumLoadingRingPulse {
-  0%, 100% { 
-    transform: translate(-50%, -50%) scale(1); 
-    opacity: 0.3; 
-  }
-  50% { 
-    transform: translate(-50%, -50%) scale(1.3); 
-    opacity: 0.6; 
-  }
-}
-
-@keyframes quantumLoadingParticleOrbit {
-  from { 
-    transform: 
-      rotate(0deg) 
-      translateX(90px) 
-      rotate(0deg) 
-      scale(1);
-    opacity: 0.8;
-  }
-  to { 
-    transform: 
-      rotate(360deg) 
-      translateX(90px) 
-      rotate(-360deg) 
-      scale(1.5);
-    opacity: 0.3;
-  }
-}
-
-@keyframes quantumLoadingTextFloat {
-  0%, 100% { 
-    transform: translateY(0px);
-    opacity: 0.8;
-  }
-  50% { 
-    transform: translateY(-10px);
-    opacity: 1;
-  }
-}
-
-@keyframes quantumLoadingStatPulse {
-  0% { 
-    transform: scale(1);
-    box-shadow: 
-      inset 0 2px 10px rgba(0, 0, 0, 0.5),
-      0 5px 20px rgba(0, 0, 0, 0.6);
-  }
-  100% { 
-    transform: scale(1.05);
-    box-shadow: 
-      inset 0 2px 15px rgba(0, 0, 0, 0.6),
-      0 8px 25px rgba(0, 0, 0, 0.7);
-  }
-}
-
-/* ===== QUANTUM ENTANGLEMENT LINES - ENHANCED ===== */
-.quantum-entanglement-line {
-  position: absolute;
-  height: 2px;
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    var(--quantum-primary) 20%,
-    var(--quantum-secondary) 50%,
-    var(--quantum-primary) 80%,
-    transparent 100%);
-  transform-origin: 0 0;
-  pointer-events: none;
-  z-index: 9997;
-  filter: blur(1px);
-  box-shadow: 
-    0 0 10px var(--quantum-primary),
-    0 0 20px var(--quantum-primary);
-  animation: quantumEntanglementPulse 1s infinite;
-}
-
-@keyframes quantumEntanglementPulse {
-  0%, 100% { 
-    opacity: 0.3;
-    transform: scaleX(1);
-  }
-  50% { 
-    opacity: 0.8;
-    transform: scaleX(1.2);
-  }
-}
-
-/* ===== QUANTUM SCROLLBARS - ENHANCED ===== */
-::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
-}
-
-::-webkit-scrollbar-track {
-  background: 
-    linear-gradient(135deg, 
-      rgba(255, 255, 255, 0.05) 0%,
-      rgba(255, 255, 255, 0.02) 100%);
-  border-radius: 6px;
-  box-shadow: 
-    inset 0 0 15px rgba(0, 0, 0, 0.7),
-    inset 0 2px 4px rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(108, 92, 231, 0.2);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--quantum-gradient);
-  border-radius: 6px;
-  border: 2px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 
-    0 0 15px var(--quantum-primary),
-    inset 0 0 15px rgba(255, 255, 255, 0.3),
-    inset 0 2px 4px rgba(255, 255, 255, 0.2);
-  position: relative;
-  overflow: hidden;
-}
-
-::-webkit-scrollbar-thumb::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(45deg, 
-    transparent 30%, 
-    rgba(255, 255, 255, 0.2) 50%, 
-    transparent 70%);
-  animation: quantumScrollbarShimmer 2s infinite;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--quantum-gradient-dark);
-  box-shadow: 
-    0 0 20px var(--quantum-primary),
-    inset 0 0 20px rgba(255, 255, 255, 0.4),
-    inset 0 2px 8px rgba(255, 255, 255, 0.3);
-  transform: scale(1.1);
-}
-
-@keyframes quantumScrollbarShimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
-/* ===== QUANTUM SIDEBAR & EDITOR PANEL - ENHANCED ===== */
-.quantum-sidebar {
-  width: 380px;
-  background: 
-    linear-gradient(135deg, 
-      rgba(15, 20, 25, 0.98) 0%,
-      rgba(10, 15, 20, 0.96) 100%),
-    radial-gradient(ellipse at top right,
-      rgba(108, 92, 231, 0.3) 0%,
-      transparent 50%);
-  backdrop-filter: blur(30px) saturate(200%);
-  border-right: 1px solid rgba(108, 92, 231, 0.4);
-  padding: 30px;
-  overflow-y: auto;
-  position: relative;
-  z-index: 50;
-  transform-style: preserve-3d;
-  box-shadow: 
-    15px 0 40px rgba(0, 0, 0, 0.7),
-    inset 2px 0 0 rgba(255, 255, 255, 0.1),
-    var(--quantum-shadow-glow);
-  animation: quantumSidebarEntrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both;
-}
-
-@keyframes quantumSidebarEntrance {
-  from {
-    opacity: 0;
-    transform: translateX(-100%) rotateY(45deg);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) rotateY(0deg);
-  }
-}
-
-.quantum-sidebar::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, 
-    transparent, 
-    var(--quantum-primary), 
-    transparent);
-  box-shadow: 0 0 25px var(--quantum-primary);
-  animation: quantumSidebarTopGlow 3s infinite;
-}
-
-.quantum-sidebar-header {
-  margin-bottom: 30px;
-  padding-bottom: 20px;
-  border-bottom: 2px solid rgba(0, 206, 201, 0.4);
-  position: relative;
-}
-
-.quantum-sidebar-header::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  width: 100px;
-  height: 2px;
-  background: linear-gradient(90deg, 
-    var(--quantum-secondary),
-    transparent);
-  animation: quantumSidebarHeaderGlow 3s infinite;
-}
-
-.quantum-sidebar-header h3 {
-  font-size: 22px;
-  color: var(--quantum-secondary);
-  margin-bottom: 20px;
-  text-shadow: 
-    0 0 15px rgba(0, 206, 201, 0.7),
-    0 0 30px rgba(0, 206, 201, 0.4);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.quantum-sidebar-stats {
-  display: flex;
-  gap: 20px;
-}
-
-.quantum-sidebar-stats .stat {
-  flex: 1;
-  background: linear-gradient(135deg, 
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.05) 100%);
-  padding: 15px;
-  border-radius: 12px;
-  text-align: center;
-  border: 1px solid rgba(108, 92, 231, 0.3);
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  transform-style: preserve-3d;
-}
-
-.quantum-sidebar-stats .stat:hover {
-  transform: translateY(-5px) scale(1.05);
-  border-color: var(--quantum-primary);
-  box-shadow: 
-    0 10px 25px rgba(108, 92, 231, 0.3),
-    0 0 20px var(--quantum-primary);
-}
-
-.stat-label {
-  display: block;
-  font-size: 13px;
-  color: var(--quantum-text-gray-light);
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-}
-
-.stat-value {
-  display: block;
-  font-size: 22px;
-  font-weight: 900;
-  color: var(--quantum-secondary);
-  text-shadow: 0 0 10px var(--quantum-secondary);
-}
-
-@keyframes quantumSidebarTopGlow {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
-}
-
-@keyframes quantumSidebarHeaderGlow {
-  0%, 100% { width: 100px; opacity: 0.5; }
-  50% { width: 200px; opacity: 1; }
-}
-
-.quantum-editor-panel {
-  width: 800px;
-  background: 
-    linear-gradient(135deg, 
-      rgba(10, 15, 20, 0.99) 0%,
-      rgba(5, 10, 15, 0.97) 100%),
-    radial-gradient(circle at top left,
-      rgba(108, 92, 231, 0.4) 0%,
-      transparent 50%);
-  backdrop-filter: blur(50px) saturate(200%);
-  border-left: 1px solid rgba(108, 92, 231, 0.5);
-  display: none;
-  flex-direction: column;
-  position: relative;
-  z-index: 60;
-  box-shadow: 
-    -20px 0 60px rgba(0, 0, 0, 0.8),
-    inset 2px 0 0 rgba(255, 255, 255, 0.1),
-    var(--quantum-shadow-glow);
-  transform-style: preserve-3d;
-}
-
-.quantum-editor-panel.active {
-  display: flex;
-  animation: quantumEditorSlideIn3D 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes quantumEditorSlideIn3D {
-  from { 
-    opacity: 0;
-    transform: translateX(100%) rotateY(45deg) scale(0.9);
-  }
-  to { 
-    opacity: 1;
-    transform: translateX(0) rotateY(0deg) scale(1);
-  }
-}
-
-/* ===== QUANTUM TAB CONTENT - ENHANCED ===== */
-.quantum-tab-content {
-  width: 100%;
-  height: 100%;
-  padding: 30px;
-  overflow-y: auto;
-  animation: quantumTabContentEntrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes quantumTabContentEntrance {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.quantum-tab-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 30px;
-  padding-bottom: 20px;
-  border-bottom: 2px solid rgba(108, 92, 231, 0.4);
-  position: relative;
-}
-
-.quantum-tab-header::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  width: 150px;
-  height: 2px;
-  background: linear-gradient(90deg, 
-    var(--quantum-primary),
-    transparent);
-  animation: quantumTabHeaderGlow 3s infinite;
-}
-
-.quantum-tab-header h2 {
-  font-size: 32px;
-  background: 
-    linear-gradient(45deg, 
-      var(--quantum-secondary) 0%,
-      var(--quantum-primary) 50%,
-      var(--quantum-info) 100%);
-  background-size: 300% 300%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 
-    0 0 30px rgba(0, 206, 201, 0.5),
-    0 0 60px rgba(108, 92, 231, 0.3);
-  animation: quantumTabTitleShimmer 4s linear infinite;
-}
-
-.quantum-tab-inner {
-  background: 
-    linear-gradient(135deg, 
-      rgba(15, 20, 25, 0.85) 0%,
-      rgba(10, 15, 20, 0.8) 100%),
-    radial-gradient(circle at top left,
-      rgba(108, 92, 231, 0.3) 0%,
-      transparent 50%);
-  backdrop-filter: blur(25px) saturate(180%);
-  border-radius: 25px;
-  padding: 30px;
-  border: 1px solid rgba(108, 92, 231, 0.4);
-  min-height: calc(100vh - 200px);
-  box-shadow: 
-    var(--quantum-shadow-xl),
-    var(--quantum-shadow-glow);
-}
-
-@keyframes quantumTabHeaderGlow {
-  0%, 100% { width: 150px; opacity: 0.5; }
-  50% { width: 300px; opacity: 1; }
-}
-
-@keyframes quantumTabTitleShimmer {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-/* ===== QUANTUM WORLD OVERLAY ===== */
-.quantum-world-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 2;
-  background: 
-    radial-gradient(circle at center, 
-      transparent 0%, 
-      rgba(0,0,0,0.8) 100%),
-    repeating-linear-gradient(45deg,
-      transparent 0px,
-      transparent 10px,
-      rgba(108, 92, 231, 0.05) 10px,
-      rgba(108, 92, 231, 0.05) 20px);
-  mix-blend-mode: overlay;
-  opacity: 0.5;
-}
-
-/* ===== QUANTUM USER SECTION ===== */
-.quantum-user-section {
-  display: flex;
-  align-items: center;
-  gap: 25px;
-  animation: quantumUserSectionEntrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.5s both;
-}
-
-@keyframes quantumUserSectionEntrance {
-  from {
-    opacity: 0;
-    transform: translateX(50px) rotateY(45deg);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) rotateY(0deg);
-  }
-}
-
-.quantum-world-actions {
-  display: flex;
-  gap: 12px;
-}
-
-/* ===== QUANTUM MAIN CONTAINER ===== */
-.quantum-app-container {
-  min-height: 100vh;
-  position: relative;
-  overflow: hidden;
-  transform-style: preserve-3d;
-}
-
-.quantum-main-container {
-  display: flex;
-  height: calc(100vh - 100px);
-  position: relative;
-  overflow: hidden;
-  transform-style: preserve-3d;
-}
-
-/* ===== QUANTUM CONTENT AREA ===== */
-.quantum-content-area {
-  flex: 1;
-  position: relative;
-  padding: 25px;
-  overflow: hidden;
-  transform-style: preserve-3d;
-}
-
-.quantum-content-area.quantum-full-width {
-  width: 100%;
-}
-
-/* ===== RESPONSIVE ADJUSTMENTS ===== */
-@media (max-width: 1400px) {
-  .quantum-editor-panel {
-    width: 600px;
-  }
-  
-  .quantum-sidebar {
-    width: 320px;
-  }
-  
-  .quantum-nav-links {
-    gap: 5px;
-  }
-  
-  .quantum-nav-link {
-    padding: 12px 20px;
-    font-size: 14px;
-  }
-}
-
-@media (max-width: 1200px) {
-  .quantum-header {
-    padding: 15px 30px;
-  }
-  
-  .quantum-logo-text {
-    font-size: 26px;
-  }
-  
-  .quantum-nav-links {
-    gap: 4px;
-  }
-  
-  .quantum-nav-link {
-    padding: 10px 18px;
-    font-size: 13px;
-  }
-  
-  .quantum-editor-panel {
-    width: 500px;
-  }
-  
-  .quantum-sidebar {
-    width: 280px;
-    padding: 20px;
-  }
-  
-  .status-items {
-    gap: 20px;
-  }
-  
-  .status-item {
-    min-width: 120px;
-    padding: 6px 12px;
-  }
-}
-
-@media (max-width: 1024px) {
-  .quantum-main-container {
-    flex-direction: column;
-  }
-  
-  .quantum-sidebar {
-    width: 100%;
-    height: 350px;
-    border-right: none;
-    border-bottom: 1px solid rgba(108, 92, 231, 0.4);
-  }
-  
-  .quantum-content-area {
-    height: calc(100vh - 450px);
-  }
-  
-  .quantum-editor-panel {
-    width: 100%;
-    height: 400px;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    border-left: none;
-    border-top: 1px solid rgba(108, 92, 231, 0.4);
-    z-index: 100;
-  }
-  
-  .quantum-editor-panel.active {
-    animation: quantumEditorSlideUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-  
-  @keyframes quantumEditorSlideUp {
-    from {
-      opacity: 0;
-      transform: translateY(100%);
+    
+    gradient.addColorStop(0, `hsla(270, 100%, 60%, ${0.05 * fieldStrength / 100})`);
+    gradient.addColorStop(0.3, `hsla(200, 100%, 50%, ${0.03 * fieldStrength / 100})`);
+    gradient.addColorStop(0.6, `hsla(150, 100%, 50%, ${0.02 * fieldStrength / 100})`);
+    gradient.addColorStop(1, 'transparent');
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  };
+
+  // Update quantum particles
+  const updateQuantumParticles = (ctx, canvas) => {
+    const particles = particleSystemRef.current.particles;
+    const attractors = particleSystemRef.current.attractors;
+    const time = particleSystemRef.current.time;
+    const chaos = particleSystemRef.current.chaos;
+    
+    particles.forEach((particle, index) => {
+      // Apply quantum fluctuations
+      particle.vx += Math.sin(time * 0.5 + particle.x * 0.01) * 0.1 * quantumField;
+      particle.vy += Math.cos(time * 0.5 + particle.y * 0.01) * 0.1 * quantumField;
+      
+      // Apply chaos
+      particle.vx += (Math.random() - 0.5) * chaos * 0.5;
+      particle.vy += (Math.random() - 0.5) * chaos * 0.5;
+      
+      // Apply attractor forces
+      attractors.forEach(attractor => {
+        const dx = attractor.x - particle.x;
+        const dy = attractor.y - particle.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < attractor.radius) {
+          const force = attractor.strength * (attractor.radius - distance) / attractor.radius;
+          const angle = Math.atan2(dy, dx);
+          
+          particle.vx += Math.cos(angle) * force * 0.05;
+          particle.vy += Math.sin(angle) * force * 0.05;
+        }
+      });
+      
+      // Apply entanglement effects
+      if (particle.entangledWith !== null) {
+        const entangledParticle = particles[particle.entangledWith];
+        if (entangledParticle) {
+          const dx = entangledParticle.x - particle.x;
+          const dy = entangledParticle.y - particle.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance < 200) {
+            const entanglementForce = 0.01 * (200 - distance) / 200;
+            particle.vx += dx * entanglementForce;
+            particle.vy += dy * entanglementForce;
+          }
+        }
+      }
+      
+      // Update position
+      particle.x += particle.vx * spatialDistortion;
+      particle.y += particle.vy * spatialDistortion;
+      
+      // Apply friction
+      particle.vx *= 0.98;
+      particle.vy *= 0.98;
+      
+      // Boundary checking with wrap-around
+      if (particle.x < 0) particle.x = canvas.width;
+      if (particle.x > canvas.width) particle.x = 0;
+      if (particle.y < 0) particle.y = canvas.height;
+      if (particle.y > canvas.height) particle.y = 0;
+      
+      // Draw particle with glow
+      ctx.beginPath();
+      ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+      
+      const glow = ctx.createRadialGradient(
+        particle.x, particle.y, 0,
+        particle.x, particle.y, particle.radius * 3
+      );
+      
+      glow.addColorStop(0, particle.color);
+      glow.addColorStop(0.5, particle.color.replace(')', ', 0.5)'));
+      glow.addColorStop(1, particle.color.replace(')', ', 0)'));
+      
+      ctx.fillStyle = glow;
+      ctx.fill();
+      
+      // Draw entanglement connections
+      if (particle.entangledWith !== null) {
+        const entangledParticle = particles[particle.entangledWith];
+        if (entangledParticle) {
+          const dx = entangledParticle.x - particle.x;
+          const dy = entangledParticle.y - particle.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance < 200) {
+            ctx.beginPath();
+            ctx.moveTo(particle.x, particle.y);
+            ctx.lineTo(entangledParticle.x, entangledParticle.y);
+            ctx.strokeStyle = `hsla(${time * 50 % 360}, 100%, 70%, ${0.3 * (1 - distance / 200)})`;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+        }
+      }
+      
+      // Update life
+      particle.life -= 0.5;
+      if (particle.life <= 0) {
+        // Quantum particle collapse and rebirth
+        particle.x = Math.random() * canvas.width;
+        particle.y = Math.random() * canvas.height;
+        particle.vx = (Math.random() - 0.5) * 2;
+        particle.vy = (Math.random() - 0.5) * 2;
+        particle.life = Math.random() * 200 + 100;
+        particle.quantumState = Math.random() > 0.5 ? 'up' : 'down';
+        particle.entangledWith = Math.random() > 0.8 ? Math.floor(Math.random() * 100) : null;
+      }
+    });
+  };
+
+  // Draw quantum attractors
+  const drawQuantumAttractors = (ctx, canvas) => {
+    const attractors = particleSystemRef.current.attractors;
+    const time = particleSystemRef.current.time;
+    
+    attractors.forEach(attractor => {
+      // Draw attractor core with pulsating effect
+      const pulse = Math.sin(time * 2) * 0.5 + 0.5;
+      
+      const coreGradient = ctx.createRadialGradient(
+        attractor.x, attractor.y, 0,
+        attractor.x, attractor.y, 20 + pulse * 10
+      );
+      
+      coreGradient.addColorStop(0, `hsla(${time * 100 % 360}, 100%, 70%, 1)`);
+      coreGradient.addColorStop(1, `hsla(${time * 100 % 360}, 100%, 70%, 0)`);
+      
+      ctx.beginPath();
+      ctx.arc(attractor.x, attractor.y, 10 + pulse * 5, 0, Math.PI * 2);
+      ctx.fillStyle = coreGradient;
+      ctx.fill();
+      
+      // Draw attractor field
+      ctx.beginPath();
+      ctx.arc(attractor.x, attractor.y, attractor.radius, 0, Math.PI * 2);
+      ctx.strokeStyle = `hsla(${time * 100 % 360}, 100%, 70%, 0.1)`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+  };
+
+  // Draw quantum interference
+  const drawQuantumInterference = (ctx, canvas) => {
+    const time = particleSystemRef.current.time;
+    
+    // Draw wave interference patterns
+    ctx.strokeStyle = `hsla(${time * 30 % 360}, 100%, 70%, 0.15)`;
+    ctx.lineWidth = 1;
+    
+    for (let i = 0; i < 50; i++) {
+      const frequency = 0.02 + i * 0.001;
+      ctx.beginPath();
+      
+      for (let x = 0; x < canvas.width; x += 10) {
+        const y = canvas.height / 2 + 
+                 Math.sin(x * frequency + time) * 50 * spatialDistortion +
+                 Math.sin(x * frequency * 2 + time * 1.5) * 30;
+        
+        if (x === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+      
+      ctx.stroke();
     }
-    to {
-      opacity: 1;
-      transform: translateY(0);
+  };
+
+  // Draw temporal effects
+  const drawTemporalEffects = (ctx, canvas) => {
+    const time = particleSystemRef.current.time;
+    
+    if (Math.abs(temporalDisplacement) > 10) {
+      // Draw time dilation effect
+      ctx.save();
+      
+      // Apply time distortion
+      const distortion = temporalDisplacement * 0.01;
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(time * distortion * 0.1);
+      ctx.scale(1 + distortion * 0.1, 1 - distortion * 0.05);
+      ctx.translate(-canvas.width / 2, -canvas.height / 2);
+      
+      // Draw temporal waves
+      ctx.strokeStyle = `hsla(200, 100%, 70%, ${0.1 * Math.abs(temporalDisplacement) / 50})`;
+      ctx.lineWidth = 2;
+      
+      for (let i = 0; i < 5; i++) {
+        const radius = 100 + i * 100 + Math.sin(time) * 50;
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2, canvas.height / 2, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      
+      ctx.restore();
     }
-  }
-  
-  .quantum-header {
-    padding: 12px 25px;
-    flex-wrap: wrap;
-  }
-  
-  .quantum-nav-links {
-    order: 3;
-    width: 100%;
-    margin-top: 15px;
-    justify-content: center;
-  }
-  
-  .quantum-user-section {
-    order: 2;
-    margin-left: auto;
-  }
-  
-  .quantum-world-header {
-    flex-direction: column;
-    gap: 15px;
-    padding: 15px 20px;
-  }
-  
-  .quantum-world-title {
-    font-size: 22px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-  
-  .status-items {
-    gap: 15px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-  
-  .status-item {
-    min-width: 100px;
-  }
-  
-  .quantum-stats-overlay {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
-  
-  .quantum-stat {
-    min-width: 140px;
-  }
-  
-  .quantum-effects-display {
-    top: 180px;
-    right: 20px;
-  }
-  
-  .quantum-install-button {
-    bottom: 120px;
-    right: 20px;
-  }
+  };
+
+  // Create quantum visual effects
+  const createQuantumVisualEffect = (type, intensity) => {
+    const effect = document.createElement('div');
+    effect.className = `quantum-effect quantum-effect-${type}`;
+    effect.style.setProperty('--intensity', `${intensity}%`);
+    
+    document.body.appendChild(effect);
+    
+    setTimeout(() => {
+      effect.style.opacity = '0';
+      setTimeout(() => effect.remove(), 1000);
+    }, 2000);
+  };
+
+  // Create anomaly effect
+  const createAnomalyEffect = (position, strength) => {
+    const anomaly = document.createElement('div');
+    anomaly.className = 'quantum-anomaly';
+    anomaly.style.left = `${Math.random() * 80 + 10}%`;
+    anomaly.style.top = `${Math.random() * 80 + 10}%`;
+    anomaly.style.setProperty('--strength', strength.toString());
+    
+    document.body.appendChild(anomaly);
+    
+    setTimeout(() => {
+      anomaly.style.transform = 'scale(0)';
+      anomaly.style.opacity = '0';
+      setTimeout(() => anomaly.remove(), 1000);
+    }, 3000);
+  };
+
+  // Create vortex effect
+  const createVortexEffect = (type, position, strength) => {
+    const vortex = document.createElement('div');
+    vortex.className = `quantum-vortex quantum-vortex-${type}`;
+    vortex.style.left = `${Math.random() * 70 + 15}%`;
+    vortex.style.top = `${Math.random() * 70 + 15}%`;
+    vortex.style.setProperty('--strength', strength.toString());
+    
+    document.body.appendChild(vortex);
+    
+    setTimeout(() => vortex.remove(), 5000);
+  };
+
+  // Handle PWA Installation Events
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      console.log('PWA installation available');
+      
+      // Show install button in status bar
+      addNotification('PWA installation available. Click install button.', 'info');
+    };
+
+    const handleAppInstalled = () => {
+      console.log('PWA installed successfully');
+      addNotification('Quantum Reality installed successfully!', 'success');
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  // Handle CWA Initialization
+  useEffect(() => {
+    const initializeCWA = async () => {
+      try {
+        // Dynamically import CWA installer using ~ alias for lib
+        const { CWAInstaller } = await import('~/cwa-installer');
+        const cwa = new CWAInstaller();
+        setCWAInstaller(cwa);
+        
+        // Initialize CWA if CWA mode is requested
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('cwa') === '1') {
+          const status = await cwa.init();
+          if (status.success) {
+            addNotification('CWA Mode Activated. Advanced optimizations enabled.', 'success');
+          }
+        }
+      } catch (error) {
+        console.warn('[CWA] Failed to initialize:', error);
+      }
+    };
+
+    initializeCWA();
+  }, []);
+
+  // Check WebGL support
+  const checkWebGLSupport = useCallback(() => {
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl2') || canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      return !!gl;
+    } catch (error) {
+      return false;
+    }
+  }, []);
+
+  // Handle WebGL errors from ThreeWorld
+  const handleWebGLError = useCallback((errorMessage) => {
+    setWebGLError(errorMessage);
+    addNotification(`Quantum Rendering Error: ${errorMessage}`, 'error');
+    
+    // Trigger quantum error event
+    quantumInstallation.triggerQuantumEvent('RENDERING_ERROR', {
+      error: errorMessage,
+      timestamp: Date.now()
+    });
+  }, []);
+
+  // Decrypt URL parameters on load
+  useEffect(() => {
+    const encrypted = searchParams.get('e');
+    if (encrypted) {
+      const decrypted = decryptData(encrypted);
+      if (decrypted) {
+        setEncryptedParams(decrypted);
+        
+        // Handle decrypted parameters
+        if (decrypted.tab) {
+          setActiveTab(decrypted.tab);
+        }
+        if (decrypted.world) {
+          setWorldName(decrypted.world);
+        }
+        if (decrypted.showEditor) {
+          setShowEditor(true);
+        }
+        
+        // Add notification about encrypted session
+        if (decrypted.source === 'shared') {
+          addNotification(`Loaded quantum-encrypted session from ${decrypted.owner || 'community'}`, 'info');
+        }
+        
+        // Trigger quantum event
+        quantumInstallation.triggerQuantumEvent('ENCRYPTED_SESSION_LOADED', decrypted);
+      }
+    }
+
+    // Check WebGL support on load
+    if (!checkWebGLSupport()) {
+      handleWebGLError('WebGL is not supported in your browser. Quantum rendering disabled.');
+    }
+
+    // Initialize quantum system
+    initializeQuantumSystem();
+
+    // Auto-detect if installer should be shown
+    if ('serviceWorker' in navigator && 
+        !window.matchMedia('(display-mode: standalone)').matches &&
+        !localStorage.getItem('quantum_installer_dismissed')) {
+      setShowQuantumInstaller(true);
+    }
+  }, [searchParams, checkWebGLSupport, handleWebGLError, initializeQuantumSystem]);
+
+  // Update URL when active tab changes (with quantum encryption)
+  useEffect(() => {
+    const data = {
+      tab: activeTab,
+      world: worldName,
+      timestamp: Date.now(),
+      session: Math.random().toString(36).substring(7),
+      quantumState: getQuantumStateSummary()
+    };
+    
+    const encrypted = encryptData(data);
+    if (encrypted) {
+      // Use replaceState to update URL without refresh
+      window.history.replaceState({}, '', `?e=${encrypted}`);
+      
+      // Trigger quantum navigation event
+      quantumInstallation.triggerQuantumEvent('QUANTUM_NAVIGATION', {
+        tab: activeTab,
+        world: worldName,
+        encryptedUrl: encrypted
+      });
+    }
+  }, [activeTab, worldName]);
+
+  // Global quantum effects with CWA integration
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const createGlobalParticles = () => {
+      const particleCount = 100;
+      const particlesContainer = document.getElementById('quantum-global-particles');
+      if (!particlesContainer) return;
+      
+      for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'quantum-global-particle';
+        particle.style.setProperty('--x', `${Math.random() * 100}vw`);
+        particle.style.setProperty('--y', `${Math.random() * 100}vh`);
+        particle.style.setProperty('--duration', `${Math.random() * 20 + 10}s`);
+        particle.style.setProperty('--delay', `${Math.random() * 10}s`);
+        particle.style.setProperty('--size', `${Math.random() * 6 + 2}px`);
+        particle.style.setProperty('--hue', `${Math.random() * 360}`);
+        particle.style.setProperty('--opacity', `${Math.random() * 0.3 + 0.1}`);
+        particlesContainer.appendChild(particle);
+      }
+    };
+
+    createGlobalParticles();
+    
+    setTimeout(() => {
+      addNotification('Welcome to Quantum Modz3.0! Reality coefficient stabilized.', 'info');
+      
+      // Trigger welcome quantum event
+      quantumInstallation.triggerQuantumEvent('SYSTEM_INITIALIZED', {
+        timestamp: Date.now(),
+        chaosLevel: chaosLevel,
+        quantumField: quantumField,
+        realityCoefficient: realityCoefficient
+      });
+    }, 1500);
+    
+    return () => {
+      // Clean up animation
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, []);
+
+  // REMOVED COMPLETELY: 3D Quantum Cursor Effect - All cursor-related code removed
+
+  // Create quantum click effect
+  const createQuantumClickEffect = (x, y) => {
+    const effect = document.createElement('div');
+    effect.className = 'quantum-click-effect';
+    effect.style.left = `${x}px`;
+    effect.style.top = `${y}px`;
+    effect.style.setProperty('--chaos', `${chaosLevel / 100}`);
+    effect.style.setProperty('--quantum', `${quantumField}`);
+    
+    document.body.appendChild(effect);
+    
+    setTimeout(() => {
+      effect.style.transform = 'scale(3)';
+      effect.style.opacity = '0';
+      setTimeout(() => effect.remove(), 500);
+    }, 100);
+  };
+
+  // Drag and drop handlers with quantum effects
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleGlobalDragOver = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (activeTab === 'world' && e.dataTransfer.types.includes('application/mod-data')) {
+        setIsDraggingOverWorld(true);
+        const dropZone = document.getElementById('dropZone');
+        if (dropZone) {
+          dropZone.classList.add('drag-active');
+          dropZone.innerHTML = '<div class="drop-message"><i class="fas fa-atom"></i> Quantum entanglement in progress...</div>';
+          
+          // Add quantum drag effect
+          createQuantumDragEffect(e.clientX, e.clientY);
+        }
+      }
+    };
+
+    const handleGlobalDragLeave = (e) => {
+      if (activeTab === 'world') {
+        setIsDraggingOverWorld(false);
+        const dropZone = document.getElementById('dropZone');
+        if (dropZone) {
+          dropZone.classList.remove('drag-active');
+          dropZone.innerHTML = '';
+        }
+      }
+    };
+
+    const handleGlobalDrop = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (activeTab === 'world') {
+        setIsDraggingOverWorld(false);
+        const dropZone = document.getElementById('dropZone');
+        if (dropZone) {
+          dropZone.classList.remove('drag-active');
+          dropZone.innerHTML = '';
+          
+          // Create quantum drop effect
+          createQuantumDropEffect(e.clientX, e.clientY);
+        }
+      }
+    };
+
+    document.addEventListener('dragover', handleGlobalDragOver);
+    document.addEventListener('dragleave', handleGlobalDragLeave);
+    document.addEventListener('drop', handleGlobalDrop);
+
+    return () => {
+      document.removeEventListener('dragover', handleGlobalDragOver);
+      document.removeEventListener('dragleave', handleGlobalDragLeave);
+      document.removeEventListener('drop', handleGlobalDrop);
+    };
+  }, [activeTab, chaosLevel]);
+
+  // Create quantum drag effect
+  const createQuantumDragEffect = (x, y) => {
+    const effect = document.createElement('div');
+    effect.className = 'quantum-drag-effect';
+    effect.style.left = `${x}px`;
+    effect.style.top = `${y}px`;
+    effect.style.setProperty('--chaos', `${chaosLevel / 100}`);
+    
+    document.body.appendChild(effect);
+    
+    setTimeout(() => effect.remove(), 1000);
+  };
+
+  // Create quantum drop effect
+  const createQuantumDropEffect = (x, y) => {
+    const effect = document.createElement('div');
+    effect.className = 'quantum-drop-effect';
+    effect.style.left = `${x}px`;
+    effect.style.top = `${y}px`;
+    
+    document.body.appendChild(effect);
+    
+    setTimeout(() => {
+      effect.style.transform = 'scale(2)';
+      effect.style.opacity = '0';
+      setTimeout(() => effect.remove(), 500);
+    }, 100);
+  };
+
+  // Add notification with quantum styling
+  const addNotification = (message, type = 'info') => {
+    const id = Date.now();
+    const quantumType = type === 'info' ? 'quantum' : type;
+    
+    setNotifications(prev => [...prev, { 
+      id, 
+      message, 
+      type: quantumType,
+      timestamp: Date.now(),
+      chaosLevel: chaosLevel 
+    }]);
+    
+    // Trigger quantum notification event
+    quantumInstallation.triggerQuantumEvent('NOTIFICATION_ADDED', {
+      message,
+      type: quantumType,
+      timestamp: Date.now()
+    });
+    
+    // Auto-remove notification with quantum decay
+    const decayTime = 3000 * (1 + chaosLevel / 100);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, decayTime);
+  };
+
+  // Handle ThreeWorld initialization
+  const handleThreeWorldReady = useCallback(() => {
+    setIsThreeWorldReady(true);
+    addNotification('Quantum Reality Field stabilized. 3D World ready!', 'success');
+    
+    // Trigger quantum world ready event
+    quantumInstallation.triggerQuantumEvent('WORLD_READY', {
+      timestamp: Date.now(),
+      worldName: worldName,
+      realityCoefficient: realityCoefficient
+    });
+  }, [worldName, realityCoefficient]);
+
+  // Handle mod drag from ModManager
+  const handleModDragStart = (mod) => {
+    setDraggedMod(mod);
+    addNotification(`Quantum entanglement established with ${mod.name}`, 'info');
+    
+    // Trigger quantum drag event
+    quantumInstallation.triggerQuantumEvent('MOD_DRAG_START', {
+      mod: mod,
+      timestamp: Date.now()
+    });
+  };
+
+  // Handle mod drop into world
+  const handleModDropIntoWorld = useCallback((position) => {
+    if (draggedMod) {
+      window.dispatchEvent(new CustomEvent('add-mod-to-world', {
+        detail: {
+          mod: draggedMod,
+          position: position,
+          quantumEffects: {
+            chaosLevel: chaosLevel,
+            realityCoefficient: realityCoefficient,
+            quantumField: quantumField
+          }
+        }
+      }));
+      
+      addNotification(`Quantum manifestation: ${draggedMod.name} materialized in reality`, 'success');
+      
+      // Trigger quantum manifestation event
+      quantumInstallation.triggerQuantumEvent('MOD_MANIFESTED', {
+        mod: draggedMod,
+        position: position,
+        timestamp: Date.now(),
+        quantumState: getQuantumStateSummary()
+      });
+      
+      setDraggedMod(null);
+    }
+  }, [draggedMod, chaosLevel, realityCoefficient, quantumField]);
+
+  // Navigation functions with quantum encryption
+  const navigateToTab = (tab) => {
+    setActiveTab(tab);
+    setWebGLError(null);
+    
+    // Create quantum shareable URL
+    const data = {
+      tab,
+      world: worldName,
+      timestamp: Date.now(),
+      session: Math.random().toString(36).substring(7),
+      quantumState: getQuantumStateSummary()
+    };
+    
+    const encrypted = encryptData(data);
+    if (encrypted) {
+      const url = `${window.location.origin}${window.location.pathname}?e=${encrypted}`;
+      console.log('Quantum URL:', url);
+      
+      // Trigger quantum navigation event
+      quantumInstallation.triggerQuantumEvent('TAB_CHANGE', {
+        tab: tab,
+        encryptedUrl: encrypted,
+        timestamp: Date.now()
+      });
+    }
+  };
+
+  const generateQuantumShareLink = () => {
+    const data = {
+      tab: activeTab,
+      world: worldName,
+      timestamp: Date.now(),
+      source: 'quantum_shared',
+      owner: 'Quantum User',
+      quantumState: getQuantumStateSummary(),
+      chaosLevel: chaosLevel,
+      realityCoefficient: realityCoefficient,
+      secure: true
+    };
+    
+    const encrypted = encryptData(data);
+    if (encrypted) {
+      const shareUrl = `${window.location.origin}${window.location.pathname}?e=${encrypted}`;
+      
+      // Copy to clipboard with quantum effect
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        addNotification('Quantum share link copied to clipboard! Reality entanglement established.', 'success');
+        
+        // Create quantum copy effect
+        createQuantumCopyEffect();
+      }).catch(() => {
+        // Fallback: show in prompt with quantum styling
+        prompt('Quantum Share Link (Encrypted):', shareUrl);
+      });
+      
+      return shareUrl;
+    }
+    return null;
+  };
+
+  // Create quantum copy effect
+  const createQuantumCopyEffect = () => {
+    const effect = document.createElement('div');
+    effect.className = 'quantum-copy-effect';
+    effect.style.left = '50%';
+    effect.style.top = '50%';
+    
+    document.body.appendChild(effect);
+    
+    setTimeout(() => {
+      effect.style.transform = 'scale(1.5)';
+      effect.style.opacity = '0';
+      setTimeout(() => effect.remove(), 500);
+    }, 100);
+  };
+
+  // Handle world actions with quantum effects
+  const handleNewWorld = () => {
+    const name = prompt('Enter quantum world name:', `Reality-${Date.now().toString(36)}`);
+    if (name) {
+      setWorldName(name);
+      addNotification(`Quantum world "${name}" created. Reality field initialized.`, 'success');
+      
+      // Update URL with quantum world data
+      const data = {
+        tab: activeTab,
+        world: name,
+        timestamp: Date.now(),
+        action: 'quantum_world_created',
+        quantumState: getQuantumStateSummary()
+      };
+      
+      const encrypted = encryptData(data);
+      if (encrypted) {
+        window.history.replaceState({}, '', `?e=${encrypted}`);
+      }
+      
+      // Trigger quantum world creation event
+      quantumInstallation.triggerQuantumEvent('WORLD_CREATED', {
+        worldName: name,
+        timestamp: Date.now()
+      });
+    }
+  };
+
+  const handleClearWorld = () => {
+    if (confirm('Collapse quantum superposition? This will clear the entire reality field.')) {
+      window.dispatchEvent(new CustomEvent('clear-world'));
+      addNotification('Quantum reality field collapsed. World cleared.', 'success');
+      
+      // Trigger quantum clear event
+      quantumInstallation.triggerQuantumEvent('WORLD_CLEARED', {
+        timestamp: Date.now()
+      });
+    }
+  };
+
+  const handleImportWorld = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.modz3,.zip,.json,.quantum';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        addNotification(`Quantum import initiated: ${file.name}...`, 'info');
+        window.dispatchEvent(new CustomEvent('import-world', { 
+          detail: { 
+            file: file,
+            quantumSignature: quantumInstallation.quantumState?.quantumSignature 
+          } 
+        }));
+      }
+    };
+    input.click();
+  };
+
+  const handleExportWorld = () => {
+    addNotification('Quantum reality export in progress...', 'info');
+    window.dispatchEvent(new CustomEvent('export-world', {
+      detail: {
+        quantumState: getQuantumStateSummary(),
+        chaosLevel: chaosLevel
+      }
+    }));
+  };
+
+  const handleShareWorld = () => {
+    const shareLink = generateQuantumShareLink();
+    if (shareLink) {
+      // Show quantum share dialog
+      if (navigator.share) {
+        navigator.share({
+          title: `Quantum World: ${worldName}`,
+          text: `Explore my quantum reality in Modz3.0! Reality Coefficient: ${realityCoefficient.toFixed(2)}`,
+          url: shareLink
+        });
+      }
+    }
+  };
+
+  // ========== FIXED INSTALLATION FUNCTIONS ==========
+
+  // Handle PWA installation (REAL implementation)
+  const handlePWAInstall = async () => {
+    if (deferredPrompt) {
+      try {
+        // Show the browser's native install prompt
+        deferredPrompt.prompt();
+        
+        // Wait for the user to respond to the prompt
+        const { outcome } = await deferredPrompt.userChoice;
+        
+        if (outcome === 'accepted') {
+          addNotification('Quantum PWA installation started!', 'success');
+          console.log('User accepted the PWA install prompt');
+        } else {
+          addNotification('PWA installation cancelled', 'info');
+          console.log('User dismissed the PWA install prompt');
+        }
+        
+        // Clear the deferredPrompt variable
+        setDeferredPrompt(null);
+      } catch (error) {
+        console.error('PWA installation failed:', error);
+        addNotification('PWA installation failed. Please try manual installation.', 'error');
+      }
+    } else {
+      // Fallback for browsers without beforeinstallprompt event
+      addNotification('Manual PWA installation required. Use browser menu.', 'info');
+      showManualInstallInstructions('pwa');
+    }
+  };
+
+  // Handle CWA installation (REAL implementation)
+  const handleCWAInstall = async () => {
+    try {
+      // Load CWA installer if not loaded
+      if (!cwaInstaller) {
+        const { CWAInstaller } = await import('~/cwa-installer');
+        const cwa = new CWAInstaller();
+        setCWAInstaller(cwa);
+      }
+      
+      // Start CWA installation
+      addNotification('Starting CWA installation...', 'info');
+      
+      // Create CWA shortcut
+      if (cwaInstaller) {
+        const result = await cwaInstaller.installCWA();
+        
+        if (result.success) {
+          addNotification('CWA installed successfully! Advanced features enabled.', 'success');
+          
+          // Reload in CWA mode
+          setTimeout(() => {
+            window.location.href = '/?cwa=1';
+          }, 2000);
+        } else {
+          throw new Error(result.error || 'CWA installation failed');
+        }
+      } else {
+        throw new Error('CWA installer not available');
+      }
+    } catch (error) {
+      console.error('CWA installation failed:', error);
+      addNotification(`CWA installation failed: ${error.message}`, 'error');
+      
+      // Fallback to manual CWA installation
+      showManualInstallInstructions('cwa');
+    }
+  };
+
+  // Show manual installation instructions
+  const showManualInstallInstructions = (type) => {
+    const instructions = type === 'cwa' 
+      ? `
+        To install CWA manually:
+        1. Click ⋮ (Menu) in your browser
+        2. Select "Add to Home Screen" or "Install App"
+        3. For school Chromebooks, you may need to:
+           - Enable developer mode
+           - Use "Add to desktop" instead
+           - Visit https://modz3-0.vercel.app/?cwa=1 first
+      `
+      : `
+        To install PWA manually:
+        1. Click ⋮ (Menu) in your browser
+        2. Look for "Install Modz Quantum" option
+        3. Or click "Add to Home Screen"
+        4. Some browsers may show an install icon in the address bar
+      `;
+    
+    const modal = document.createElement('div');
+    modal.className = 'quantum-instruction-modal';
+    modal.innerHTML = `
+      <div class="instruction-content">
+        <h3>${type === 'cwa' ? '⚡ CWA Installation' : '📱 PWA Installation'}</h3>
+        <pre>${instructions}</pre>
+        <div class="instruction-actions">
+          <button class="btn-instruction-close">Close</button>
+          ${type === 'cwa' ? '<button class="btn-instruction-retry">Retry CWA</button>' : ''}
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Add styles
+    const styles = document.createElement('style');
+    styles.textContent = `
+      .quantum-instruction-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(10px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10001;
+      }
+      .instruction-content {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border: 1px solid #6c5ce7;
+        border-radius: 15px;
+        padding: 30px;
+        max-width: 500px;
+        color: white;
+      }
+      .instruction-content h3 {
+        color: #6c5ce7;
+        margin-bottom: 20px;
+      }
+      .instruction-content pre {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 15px;
+        border-radius: 10px;
+        font-size: 14px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+      }
+      .instruction-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+      }
+      .btn-instruction-close, .btn-instruction-retry {
+        padding: 10px 20px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      .btn-instruction-close {
+        background: #666;
+        color: white;
+      }
+      .btn-instruction-retry {
+        background: #6c5ce7;
+        color: white;
+      }
+    `;
+    document.head.appendChild(styles);
+    
+    // Add event listeners
+    modal.querySelector('.btn-instruction-close').addEventListener('click', () => {
+      modal.remove();
+      styles.remove();
+    });
+    
+    if (type === 'cwa') {
+      modal.querySelector('.btn-instruction-retry').addEventListener('click', () => {
+        modal.remove();
+        styles.remove();
+        handleCWAInstall();
+      });
+    }
+  };
+
+  // Dismiss quantum installer
+  const dismissQuantumInstaller = () => {
+    setShowQuantumInstaller(false);
+    localStorage.setItem('quantum_installer_dismissed', 'true');
+    addNotification('Quantum installer dismissed. You can install later from the status bar.', 'info');
+  };
+
+  // Toggle quantum editor
+  const toggleQuantumEditor = () => {
+    setShowEditor(!showEditor);
+    if (!showEditor) {
+      addNotification('Quantum code editor activated. Reality manipulation enabled.', 'info');
+    }
+  };
+
+  // Render active tab content with quantum enhancements
+  const renderActiveTab = () => {
+    switch (activeTab) {
+      case 'world':
+        return (
+          <ThreeWorld 
+            addNotification={addNotification} 
+            worldName={worldName}
+            onModDrop={handleModDropIntoWorld}
+            isDraggingOverWorld={isDraggingOverWorld}
+            onReady={handleThreeWorldReady}
+            onError={handleWebGLError}
+            quantumEffects={{
+              chaosLevel,
+              realityCoefficient,
+              temporalDisplacement,
+              spatialDistortion,
+              quantumField
+            }}
+          />
+        );
+      case 'community':
+        return <Community addNotification={addNotification} encryptedParams={encryptedParams} />;
+      case 'profile':
+        return <Profile addNotification={addNotification} quantumState={quantumState} />;
+      default:
+        return (
+          <ThreeWorld 
+            addNotification={addNotification} 
+            worldName={worldName}
+            onReady={handleThreeWorldReady}
+            onError={handleWebGLError}
+            quantumEffects={{
+              chaosLevel,
+              realityCoefficient,
+              temporalDisplacement,
+              spatialDistortion,
+              quantumField
+            }}
+          />
+        );
+    }
+  };
+
+  // Quantum error fallback
+  const renderQuantumErrorFallback = () => (
+    <div className="quantum-error-fallback">
+      <div className="quantum-error-icon">
+        <i className="fas fa-atom fa-spin"></i>
+        <div className="quantum-error-rings">
+          <div className="ring"></div>
+          <div className="ring"></div>
+          <div className="ring"></div>
+        </div>
+      </div>
+      <h3>Quantum Reality Unstable</h3>
+      <p className="error-message">{webGLError}</p>
+      <div className="quantum-error-actions">
+        <button 
+          className="btn btn-quantum"
+          onClick={() => window.location.reload()}
+          style={{
+            background: `linear-gradient(135deg, var(--quantum-primary), var(--quantum-accent))`
+          }}
+        >
+          <i className="fas fa-redo"></i> Quantum Reboot
+        </button>
+        <button 
+          className="btn btn-secondary"
+          onClick={() => navigateToTab('community')}
+        >
+          <i className="fas fa-share-alt"></i> Quantum Community
+        </button>
+      </div>
+      <div className="quantum-tips">
+        <p><strong>Quantum Tips:</strong></p>
+        <ul>
+          <li>Ensure quantum entanglement (WebGL) is enabled</li>
+          <li>Update quantum drivers (Graphics drivers)</li>
+          <li>Check reality field stability (Browser compatibility)</li>
+          <li>Adjust quantum coherence settings (Disable hardware acceleration blockers)</li>
+        </ul>
+      </div>
+      <div className="quantum-stats">
+        <div className="stat">
+          <span className="stat-label">Reality Coefficient</span>
+          <span className="stat-value">{realityCoefficient.toFixed(2)}</span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Chaos Level</span>
+          <span className="stat-value">{Math.round(chaosLevel)}%</span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Quantum Field</span>
+          <span className="stat-value">{Math.round(quantumField * 100)}%</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="quantum-app-container" suppressHydrationWarning>
+      {/* Quantum Background Canvas */}
+      <canvas 
+        ref={canvasRef} 
+        className="quantum-background-canvas"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+          zIndex: 0
+        }}
+      />
+
+      {/* Quantum Visual Effects Containers */}
+      <div className="quantum-visual-effects">
+        <div id="quantum-particle-field" className="quantum-particle-field"></div>
+        <div id="interference-patterns" className="interference-patterns"></div>
+        <div id="quantum-global-particles" className="quantum-global-particles"></div>
+      </div>
+
+      {/* REMOVED COMPLETELY: Quantum Cursor System */}
+
+      {/* Quantum Visual Effects */}
+      <div className="quantum-scan-line"></div>
+      <div className="quantum-hologram-effect"></div>
+      <div className="quantum-distortion-field"></div>
+
+      {/* Quantum Header */}
+      <header className="quantum-header">
+        <div className="quantum-logo">
+          <div className="logo-quantum-animation">
+            <div className="quantum-logo-orb"></div>
+            <div className="quantum-logo-rings">
+              <div className="logo-ring"></div>
+              <div className="logo-ring"></div>
+              <div className="logo-ring"></div>
+            </div>
+          </div>
+          <h1 className="quantum-logo-text">
+            <span className="logo-text-modz">Modz</span>
+            <span className="logo-text-quantum">Quantum</span>
+          </h1>
+        </div>
+        
+        <nav className="quantum-nav-links">
+          <button 
+            className={`quantum-nav-link ${activeTab === 'world' ? 'active' : ''}`}
+            onClick={() => navigateToTab('world')}
+            data-quantum="world"
+          >
+            <div className="nav-link-quantum">
+              <i className="fas fa-globe-americas"></i>
+              <span>Quantum World</span>
+              {webGLError && activeTab === 'world' && (
+                <span className="quantum-error-badge">
+                  <i className="fas fa-radiation"></i>
+                </span>
+              )}
+              {chaosLevel > 50 && (
+                <span className="quantum-chaos-indicator" style={{
+                  '--chaos': `${chaosLevel}%`
+                }}></span>
+              )}
+            </div>
+          </button>
+          <button 
+            className="quantum-nav-link"
+            onClick={toggleQuantumEditor}
+            data-quantum="editor"
+          >
+            <div className="nav-link-quantum">
+              <i className="fas fa-atom"></i>
+              <span>Quantum Editor</span>
+            </div>
+          </button>
+          <button 
+            className={`quantum-nav-link ${activeTab === 'community' ? 'active' : ''}`}
+            onClick={() => navigateToTab('community')}
+            data-quantum="community"
+          >
+            <div className="nav-link-quantum">
+              <i className="fas fa-share-alt"></i>
+              <span>Quantum Community</span>
+            </div>
+          </button>
+          <button 
+            className={`quantum-nav-link ${activeTab === 'profile' ? 'active' : ''}`}
+            onClick={() => navigateToTab('profile')}
+            data-quantum="profile"
+          >
+            <div className="nav-link-quantum">
+              <i className="fas fa-user-astronaut"></i>
+              <span>Quantum Profile</span>
+            </div>
+          </button>
+        </nav>
+        
+        <div className="quantum-user-section">
+          <div className="quantum-world-actions">
+            <button className="btn btn-quantum-secondary" onClick={handleImportWorld} data-action="import">
+              <i className="fas fa-folder-open"></i>
+              <span>Quantum Import</span>
+            </button>
+            <button className="btn btn-quantum-primary" onClick={handleExportWorld} data-action="export">
+              <i className="fas fa-download"></i>
+              <span>Quantum Export</span>
+            </button>
+            <button className="btn btn-quantum-accent" onClick={handleShareWorld} data-action="share">
+              <i className="fas fa-share"></i>
+              <span>Quantum Share</span>
+            </button>
+          </div>
+          <div className="quantum-avatar-container">
+            <div className="quantum-avatar-glow"></div>
+            <div className="quantum-avatar-halo"></div>
+            <div className="quantum-avatar-3d" title="Quantum Profile" onClick={() => navigateToTab('profile')}>
+              <div className="avatar-quantum-core"></div>
+              <i className="fas fa-robot"></i>
+              {quantumState && (
+                <div className="avatar-quantum-stats">
+                  <div className="avatar-stat" title={`Chaos: ${Math.round(chaosLevel)}%`}>
+                    <div className="stat-bar">
+                      <div className="stat-fill" style={{width: `${chaosLevel}%`}}></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Quantum Main Container */}
+      <div className="quantum-main-container">
+        {/* Quantum Sidebar - Enhanced */}
+        {activeTab === 'world' && (
+          <div className="quantum-sidebar">
+            <div className="quantum-sidebar-header">
+              <h3>Quantum Mod Manager</h3>
+              <div className="quantum-sidebar-stats">
+                <div className="stat">
+                  <span className="stat-label">Reality</span>
+                  <span className="stat-value">{realityCoefficient.toFixed(2)}</span>
+                </div>
+                <div className="stat">
+                  <span className="stat-label">Chaos</span>
+                  <span className="stat-value">{Math.round(chaosLevel)}%</span>
+                </div>
+              </div>
+            </div>
+            <ModManager 
+              addNotification={addNotification} 
+              onModDragStart={handleModDragStart}
+              isWorldReady={isThreeWorldReady && !webGLError}
+              quantumEffects={{
+                chaosLevel,
+                realityCoefficient,
+                quantumField
+              }}
+            />
+          </div>
+        )}
+
+        {/* Quantum Content Area */}
+        <div className={`quantum-content-area ${activeTab !== 'world' ? 'quantum-full-width' : ''}`}>
+          {activeTab === 'world' ? (
+            <>
+              <div className="quantum-world-wrapper">
+                <div className="quantum-world-header">
+                  <h2 className="quantum-world-title" id="quantumWorldTitle">
+                    <span className="world-name">Quantum Reality: {worldName}</span>
+                    {encryptedParams.source === 'shared' && (
+                      <span className="quantum-shared-badge" title="Quantum Shared via encrypted link">
+                        <i className="fas fa-lock"></i> Quantum Encrypted
+                      </span>
+                    )}
+                    {webGLError && (
+                      <span className="quantum-error-badge-global" title="Quantum Rendering Error">
+                        <i className="fas fa-radiation"></i> Reality Unstable
+                      </span>
+                    )}
+                    {quantumEffects.length > 0 && (
+                      <span className="quantum-effects-indicator">
+                        <i className="fas fa-bolt"></i> {quantumEffects.length} Active Effects
+                      </span>
+                    )}
+                  </h2>
+                  <div className="quantum-world-actions">
+                    <button className="btn btn-quantum-secondary" id="quantumToggleGrid" onClick={() => addNotification('Quantum Grid Manipulation - Coming soon', 'info')}>
+                      <i className="fas fa-th"></i>
+                      <span>Quantum Grid</span>
+                    </button>
+                    <button className="btn btn-quantum-danger" id="quantumClearWorld" onClick={handleClearWorld}>
+                      <i className="fas fa-trash"></i>
+                      <span>Collapse Reality</span>
+                    </button>
+                    <button className="btn btn-quantum-success" id="quantumNewWorld" onClick={handleNewWorld}>
+                      <i className="fas fa-plus"></i>
+                      <span>New Reality</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="quantum-world-overlay"></div>
+                {webGLError ? renderQuantumErrorFallback() : renderActiveTab()}
+                <div className="quantum-drop-zone" id="dropZone"></div>
+
+                {/* Quantum Stats Overlay */}
+                {quantumState && (
+                  <div className="quantum-stats-overlay">
+                    <div className="quantum-stat">
+                      <div className="stat-label">Quantum Field</div>
+                      <div className="stat-value">{Math.round(quantumField * 100)}%</div>
+                      <div className="stat-bar">
+                        <div className="stat-fill" style={{width: `${quantumField * 100}%`}}></div>
+                      </div>
+                    </div>
+                    <div className="quantum-stat">
+                      <div className="stat-label">Temporal Displacement</div>
+                      <div className="stat-value">{temporalDisplacement.toFixed(1)}</div>
+                      <div className="stat-indicator" style={{
+                        left: `${50 + temporalDisplacement * 5}%`
+                      }}></div>
+                    </div>
+                    <div className="quantum-stat">
+                      <div className="stat-label">Spatial Distortion</div>
+                      <div className="stat-value">{spatialDistortion.toFixed(2)}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Quantum Code Editor */}
+              {showEditor && (
+                <div className="quantum-editor-panel active">
+                  <CodeEditor 
+                    onClose={() => setShowEditor(false)}
+                    addNotification={addNotification}
+                    quantumMode={true}
+                    quantumState={quantumState}
+                  />
+                </div>
+              )}
+            </>
+          ) : (
+            <div className={`quantum-tab-content ${activeTab}-tab`}>
+              <div className="quantum-tab-header">
+                <h2>
+                  {activeTab === 'community' && 'Quantum Community Hub'}
+                  {activeTab === 'profile' && 'Quantum Reality Profile'}
+                </h2>
+                {activeTab === 'community' && (
+                  <button className="btn btn-quantum-accent" onClick={handleShareWorld}>
+                    <i className="fas fa-share"></i> Share Quantum Reality
+                  </button>
+                )}
+              </div>
+              <div className="quantum-tab-inner">
+                {renderActiveTab()}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ========== FIXED: Quantum Installer Component - Now Actually Works ========== */}
+      {showQuantumInstaller && (
+        <div className="quantum-installer-modal">
+          <div className="quantum-installer-content">
+            <div className="installer-header">
+              <div className="installer-quantum-icon">
+                <i className="fas fa-atom fa-spin"></i>
+              </div>
+              <h2>🚀 Install Modz Quantum</h2>
+              <p>Choose your installation method:</p>
+              <button 
+                className="installer-close-btn"
+                onClick={dismissQuantumInstaller}
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="installer-options">
+              {/* Option 1: Standard PWA - Now with real installation */}
+              <div className="installer-option installer-option-pwa">
+                <div className="option-icon">
+                  <i className="fas fa-mobile-alt"></i>
+                </div>
+                <div className="option-content">
+                  <h3>Standard PWA</h3>
+                  <p>Basic Progressive Web App installation</p>
+                  <div className="option-features">
+                    <span><i className="fas fa-check"></i> Works everywhere</span>
+                    <span><i className="fas fa-check"></i> Offline support</span>
+                    <span><i className="fas fa-check"></i> Auto-updates</span>
+                  </div>
+                  {deferredPrompt && (
+                    <div className="option-available">
+                      <i className="fas fa-bell"></i> Installation available
+                    </div>
+                  )}
+                </div>
+                <button 
+                  className="option-btn btn-pwa"
+                  onClick={handlePWAInstall}
+                  disabled={!deferredPrompt}
+                >
+                  {deferredPrompt ? 'Install PWA Now' : 'Manual Install'}
+                </button>
+              </div>
+              
+              {/* Option 2: Advanced CWA - Now with real installation */}
+              <div className="installer-option installer-option-cwa">
+                <div className="option-icon">
+                  <i className="fas fa-bolt"></i>
+                </div>
+                <div className="option-content">
+                  <h3>Advanced CWA <span className="cwa-badge">⚡ NEW</span></h3>
+                  <p>ChromeBook Web App with advanced optimizations</p>
+                  <div className="option-features">
+                    <span><i className="fas fa-check"></i> 40FPS Performance</span>
+                    <span><i className="fas fa-check"></i> School Bypass</span>
+                    <span><i className="fas fa-check"></i> Stealth Mode</span>
+                    <span><i className="fas fa-check"></i> Memory Optimized</span>
+                  </div>
+                  {(() => {
+                    const ua = navigator.userAgent.toLowerCase();
+                    const isChromeOS = ua.includes('cros');
+                    const isManaged = navigator.managed !== undefined;
+                    
+                    if (isChromeOS || isManaged) {
+                      return (
+                        <div className="cwa-school-note">
+                          <i className="fas fa-school"></i> School device detected - Stealth mode recommended
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+                <button 
+                  className="option-btn btn-cwa"
+                  onClick={handleCWAInstall}
+                >
+                  Install CWA
+                </button>
+              </div>
+            </div>
+            
+            <div className="installer-footer">
+              <p className="installer-tip">
+                <i className="fas fa-lightbulb"></i> 
+                <strong>Tip:</strong> CWA is recommended for school Chromebooks & better performance
+              </p>
+              <div className="installer-stats">
+                <div className="stat">
+                  <span className="stat-label">Reality Coeff:</span>
+                  <span className="stat-value">{realityCoefficient.toFixed(2)}</span>
+                </div>
+                <div className="stat">
+                  <span className="stat-label">Chaos Level:</span>
+                  <span className="stat-value">{Math.round(chaosLevel)}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quantum Notifications */}
+      <div className="quantum-notification-container" id="quantumNotificationContainer">
+        {notifications.map((notification) => (
+          <div 
+            key={notification.id} 
+            className={`quantum-notification show ${notification.type}`}
+            data-chaos={notification.chaosLevel}
+          >
+            <div className="quantum-notification-header">
+              <div className="notification-quantum-icon">
+                <i className={`fas fa-${
+                  notification.type === 'success' ? 'atom' :
+                  notification.type === 'error' ? 'radiation' :
+                  notification.type === 'warning' ? 'exclamation-triangle' : 
+                  notification.type === 'quantum' ? 'bolt' : 'info-circle'
+                }`}></i>
+              </div>
+              <div className="quantum-notification-title">
+                {notification.type === 'quantum' ? 'Quantum Event' : 
+                 notification.type.charAt(0).toUpperCase() + notification.type.slice(1)}
+              </div>
+              <div className="quantum-notification-time">
+                {new Date(notification.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+              </div>
+            </div>
+            <div className="quantum-notification-message">{notification.message}</div>
+            <div className="quantum-notification-progress"></div>
+          </div>
+        ))}
+      </div>
+
+      {/* Quantum Dragging Indicator */}
+      {draggedMod && (
+        <div className="quantum-dragging-indicator">
+          <div className="quantum-dragging-icon">
+            <i className="fas fa-atom fa-spin"></i>
+          </div>
+          <div className="quantum-dragging-text">
+            <div className="dragging-title">Quantum Entanglement Active</div>
+            <div className="dragging-mod">{draggedMod.name}</div>
+            <small>Drop into quantum reality field</small>
+          </div>
+          <div className="quantum-dragging-effects">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="dragging-effect"></div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Quantum Effects Display */}
+      {quantumEffects.length > 0 && (
+        <div className="quantum-effects-display">
+          <div className="effects-header">
+            <i className="fas fa-bolt"></i>
+            <span>Active Quantum Effects</span>
+          </div>
+          <div className="effects-list">
+            {quantumEffects.map(effect => (
+              <div key={effect.id} className="quantum-effect-item">
+                <div className="effect-type">{effect.type}</div>
+                <div className="effect-intensity">
+                  <div className="intensity-bar">
+                    <div className="intensity-fill" style={{width: `${effect.intensity}%`}}></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Quantum Session Indicators */}
+      {encryptedParams.source === 'shared' && (
+        <div className="quantum-session-indicator">
+          <div className="indicator-content">
+            <i className="fas fa-lock"></i>
+            <span>Quantum Encrypted Session</span>
+            <div className="indicator-stats">
+              <span className="stat">RC: {realityCoefficient.toFixed(2)}</span>
+              <span className="stat">CL: {Math.round(chaosLevel)}%</span>
+            </div>
+          </div>
+          <button onClick={() => window.location.href = window.location.pathname}>
+            <i className="fas fa-times"></i>
+          </button>
+        </div>
+      )}
+
+          {/* Quantum Status Bar */}
+      <div className="quantum-status-bar">
+        <div className="status-items">
+          <div className="status-item">
+            <div className="status-icon">
+              <i className="fas fa-atom"></i>
+            </div>
+            <div className="status-content">
+              <div className="status-label">Quantum Field</div>
+              <div className="status-value">{Math.round(quantumField * 100)}%</div>
+            </div>
+          </div>
+          <div className="status-item">
+            <div className="status-icon">
+              <i className="fas fa-fire"></i>
+            </div>
+            <div className="status-content">
+              <div className="status-label">Chaos Level</div>
+              <div className="status-value">{Math.round(chaosLevel)}%</div>
+            </div>
+          </div>
+          <div className="status-item">
+            <div className="status-icon">
+              <i className="fas fa-globe-americas"></i>
+            </div>
+            <div className="status-content">
+              <div className="status-label">Reality Coeff</div>
+              <div className="status-value">{realityCoefficient.toFixed(2)}</div>
+            </div>
+          </div>
+          <div className="status-item">
+            <div className="status-icon">
+              <i className="fas fa-clock"></i>
+            </div>
+            <div className="status-content">
+              <div className="status-label">Time Shift</div>
+              <div className="status-value">{temporalDisplacement.toFixed(1)}</div>
+            </div>
+          </div>
+        </div>
+        <div className="status-actions">
+          <button className="btn btn-quantum-small" onClick={() => setShowQuantumInstaller(true)}>
+            <i className="fas fa-download"></i>
+          </button>
+          <button className="btn btn-quantum-small" onClick={generateQuantumShareLink}>
+            <i className="fas fa-share"></i>
+          </button>
+        </div>
+      </div>
+
+      {/* Quantum Installation Button */}
+      {typeof window !== 'undefined' && 
+       !window.matchMedia('(display-mode: standalone)').matches &&
+       'serviceWorker' in navigator && (
+        <div className="quantum-install-button">
+          <button 
+            className="btn btn-quantum-primary btn-quantum-install"
+            onClick={() => setShowQuantumInstaller(true)}
+          >
+            <div className="install-button-quantum">
+              <i className="fas fa-atom fa-spin"></i>
+              <span>Install Quantum Reality</span>
+            </div>
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
-@media (max-width: 768px) {
-  .quantum-header {
-    padding: 10px 20px;
-  }
-  
-  .quantum-logo-text {
-    font-size: 22px;
-  }
-  
-  .quantum-logo {
-    gap: 10px;
-  }
-  
-  .quantum-nav-link {
-    padding: 8px 15px;
-    font-size: 12px;
-  }
-  
-  .quantum-nav-link i {
-    font-size: 14px;
-  }
-  
-  .btn {
-    padding: 10px 18px;
-    font-size: 13px;
-  }
-  
-  .quantum-user-section {
-    gap: 15px;
-  }
-  
-  .quantum-world-actions {
-    gap: 8px;
-  }
-  
-  .quantum-avatar-container {
-    width: 50px;
-    height: 50px;
-  }
-  
-  .quantum-content-area {
-    padding: 15px;
-  }
-  
-  .quantum-sidebar {
-    height: 300px;
-    padding: 15px;
-  }
-  
-  .quantum-tab-content {
-    padding: 20px;
-  }
-  
-  .quantum-tab-header h2 {
-    font-size: 24px;
-  }
-  
-  .quantum-tab-inner {
-    padding: 20px;
-  }
-  
-  .status-items {
-    gap: 10px;
-  }
-  
-  .status-item {
-    min-width: 90px;
-    padding: 5px 10px;
-  }
-  
-  .status-icon {
-    width: 30px;
-    height: 30px;
-    font-size: 16px;
-  }
-  
-  .status-label {
-    font-size: 10px;
-  }
-  
-  .status-value {
-    font-size: 16px;
-  }
-  
-  .quantum-notification-container {
-    bottom: 20px;
-    right: 20px;
-    max-width: 350px;
-  }
-  
-  .quantum-effects-display {
-    min-width: 180px;
-    padding: 15px;
-    top: 150px;
-  }
-  
-  .quantum-install-button {
-    bottom: 100px;
-    right: 15px;
-  }
-  
-  .btn-quantum-install {
-    padding: 12px 20px;
-    font-size: 13px;
-  }
-}
-
-@media (max-width: 480px) {
-  .quantum-header {
-    padding: 8px 15px;
-  }
-  
-  .quantum-logo-text {
-    font-size: 18px;
-  }
-  
-  .quantum-logo {
-    gap: 8px;
-  }
-  
-  .logo-quantum-animation {
-    width: 40px;
-    height: 40px;
-  }
-  
-  .quantum-logo-orb {
-    width: 40px;
-    height: 40px;
-  }
-  
-  .quantum-nav-links {
-    padding: 5px;
-    gap: 3px;
-  }
-  
-  .quantum-nav-link {
-    padding: 6px 12px;
-    font-size: 11px;
-    gap: 6px;
-  }
-  
-  .quantum-nav-link i {
-    font-size: 12px;
-  }
-  
-  .btn {
-    padding: 8px 15px;
-    font-size: 12px;
-    gap: 8px;
-  }
-  
-  .quantum-user-section {
-    gap: 10px;
-  }
-  
-  .quantum-avatar-container {
-    width: 45px;
-    height: 45px;
-  }
-  
-  .quantum-content-area {
-    padding: 10px;
-  }
-  
-  .quantum-sidebar {
-    padding: 12px;
-  }
-  
-  .quantum-sidebar-header h3 {
-    font-size: 18px;
-  }
-  
-  .quantum-sidebar-stats {
-    gap: 10px;
-  }
-  
-  .quantum-sidebar-stats .stat {
-    padding: 10px;
-  }
-  
-  .quantum-tab-content {
-    padding: 15px;
-  }
-  
-  .quantum-tab-header h2 {
-    font-size: 20px;
-  }
-  
-  .quantum-tab-inner {
-    padding: 15px;
-  }
-  
-  .quantum-world-header {
-    padding: 12px 15px;
-  }
-  
-  .quantum-world-title {
-    font-size: 18px;
-  }
-  
-  .status-items {
-    flex-direction: column;
-    gap: 8px;
-  }
-  
-  .status-item {
-    width: 100%;
-    min-width: auto;
-  }
-  
-  .status-actions {
-    gap: 8px;
-  }
-  
-  .quantum-notification-container {
-    bottom: 15px;
-    right: 15px;
-    left: 15px;
-    max-width: none;
-  }
-  
-  .quantum-notification {
-    padding: 15px;
-  }
-  
-  .quantum-effects-display {
-    top: 130px;
-    right: 15px;
-    left: 15px;
-    min-width: auto;
-  }
-  
-  .quantum-install-button {
-    bottom: 80px;
-    right: 15px;
-    left: 15px;
-  }
-  
-  .btn-quantum-install {
-    width: 100%;
-    justify-content: center;
-  }
-  
-  .quantum-stats-overlay {
-    left: 15px;
-    right: 15px;
-    bottom: 15px;
-  }
-  
-  .quantum-stat {
-    width: 100%;
-    min-width: auto;
-  }
-  
-  .quantum-error-fallback {
-    padding: 30px 20px;
-  }
-  
-  .quantum-error-fallback h3 {
-    font-size: 24px;
-  }
-  
-  .error-message {
-    font-size: 16px;
-  }
-  
-  .quantum-error-actions {
-    flex-direction: column;
-    gap: 10px;
-  }
-  
-  .quantum-tips {
-    padding: 15px;
-  }
-  
-  .quantum-stats {
-    flex-direction: column;
-    gap: 15px;
-  }
-  
-  .quantum-loading-text {
-    font-size: 18px;
-  }
-  
-  .quantum-loading-animation {
-    width: 120px;
-    height: 120px;
-  }
-  
-  .quantum-loading-orb {
-    width: 120px;
-    height: 120px;
-  }
-  
-  .quantum-loading-stats {
-    flex-direction: column;
-    gap: 15px;
-  }
-}
-
-/* ===== PERFORMANCE OPTIMIZATIONS ===== */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* ===== DARK/LIGHT MODE SUPPORT (Future Enhancement) ===== */
-@media (prefers-color-scheme: light) {
-  :root {
-    --quantum-bg-dark: #f0f2f5;
-    --quantum-bg-darker: #e4e6ef;
-    --quantum-bg-light: #ffffff;
-    --quantum-bg-lighter: #f8f9fa;
-    --quantum-text-light: #1a1a2e;
-    --quantum-text-gray: #636e72;
-    --quantum-text-gray-light: #2d3436;
-  }
-  
-  .quantum-header,
-  .quantum-sidebar,
-  .quantum-editor-panel,
-  .quantum-tab-inner,
-  .quantum-stat,
-  .quantum-notification,
-  .quantum-effects-display,
-  .quantum-error-fallback,
-  .quantum-tips,
-  .quantum-loading,
-  .quantum-loading-screen,
-  .quantum-world-wrapper {
-    background: rgba(255, 255, 255, 0.95);
-    color: var(--quantum-text-light);
-  }
-  
-  .quantum-header,
-  .quantum-sidebar,
-  .quantum-editor-panel,
-  .quantum-tab-inner,
-  .quantum-stat,
-  .quantum-notification,
-  .quantum-effects-display {
-    border-color: rgba(108, 92, 231, 0.2);
-  }
-}
-
-/* ===== PRINT STYLES ===== */
-@media print {
-  .quantum-header,
-  .quantum-sidebar,
-  .quantum-status-bar,
-  .quantum-install-button,
-  .quantum-notification-container,
-  .quantum-effects-display,
-  .quantum-session-indicator,
-  .quantum-dragging-indicator,
-  .quantum-visual-effects,
-  .quantum-scan-line,
-  .quantum-hologram-effect,
-  .quantum-distortion-field,
-  .quantum-world-overlay {
-    display: none !important;
-  }
-  
-  body {
-    background: white !important;
-    color: black !important;
-  }
-  
-  .quantum-app-container,
-  .quantum-main-container,
-  .quantum-content-area,
-  .quantum-world-wrapper {
-    position: static !important;
-    overflow: visible !important;
-    height: auto !important;
-    min-height: auto !important;
-    background: white !important;
-    color: black !important;
-    box-shadow: none !important;
-    border: 1px solid #ddd !important;
-  }
-}
-
-/* ===== ACCESSIBILITY ENHANCEMENTS ===== */
-@media (prefers-reduced-transparency: reduce) {
-  .quantum-header,
-  .quantum-sidebar,
-  .quantum-editor-panel,
-  .quantum-tab-inner,
-  .quantum-stat,
-  .quantum-notification,
-  .quantum-effects-display,
-  .quantum-status-bar,
-  .quantum-nav-links,
-  .quantum-dragging-indicator,
-  .quantum-session-indicator {
-    backdrop-filter: none;
-    background: var(--quantum-bg-dark) !important;
-  }
-}
-
-@media (inverted-colors: inverted) {
-  .quantum-header,
-  .quantum-sidebar,
-  .quantum-editor-panel,
-  .quantum-tab-inner,
-  .quantum-stat,
-  .quantum-notification,
-  .quantum-effects-display,
-  .quantum-status-bar,
-  .quantum-loading,
-  .quantum-loading-screen,
-  .quantum-error-fallback,
-  .quantum-world-wrapper {
-    filter: invert(1) hue-rotate(180deg);
-  }
-}
-
-/* ===== HIGH CONTRAST MODE ===== */
-@media (prefers-contrast: high) {
-  :root {
-    --quantum-primary: #0000ff;
-    --quantum-secondary: #00ff00;
-    --quantum-accent: #ff0000;
-    --quantum-success: #008000;
-    --quantum-danger: #800000;
-    --quantum-warning: #808000;
-    --quantum-info: #008080;
-  }
-  
-  .quantum-header,
-  .quantum-sidebar,
-  .quantum-editor-panel,
-  .quantum-tab-inner,
-  .quantum-stat,
-  .quantum-notification,
-  .quantum-effects-display,
-  .quantum-status-bar {
-    border-width: 2px;
-    border-style: solid;
-  }
-  
-  .btn,
-  .quantum-nav-link {
-    border-width: 2px;
-    border-style: solid;
-  }
-}
-
-/* ===== TOUCH DEVICE OPTIMIZATIONS ===== */
-@media (hover: none) and (pointer: coarse) {
-  /* REMOVED: quantum-cursor, quantum-cursor-tracer hiding */
-  
-  body {
-    cursor: default;
-  }
-  
-  .btn,
-  .quantum-nav-link {
-    min-height: 44px;
-    min-width: 44px;
-  }
-  
-  .quantum-nav-link span {
-    font-size: 16px;
-  }
-  
-  .quantum-effects-display,
-  .quantum-stats-overlay,
-  .quantum-notification-container {
-    position: absolute;
-    top: auto;
-    bottom: 120px;
-    right: 20px;
-    left: 20px;
-    max-width: none;
-  }
-  
-  .quantum-install-button {
-    bottom: 180px;
-    right: 20px;
-    left: 20px;
-  }
+// Main export with Suspense boundary
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="quantum-loading-screen">
+        <div className="quantum-loading-animation">
+          <div className="quantum-loading-orb"></div>
+          <div className="quantum-loading-rings">
+            <div className="ring"></div>
+            <div className="ring"></div>
+            <div className="ring"></div>
+          </div>
+          <div className="quantum-loading-particles">
+            {[...Array(12)].map((_, i) => (
+              <div key={i} className="particle"></div>
+            ))}
+          </div>
+        </div>
+        <p className="quantum-loading-text">Initializing Quantum Reality Field...</p>
+        <div className="quantum-loading-stats">
+          <div className="stat">
+            <span>Chaos Field</span>
+            <span>{(Math.random() * 100).toFixed(0)}%</span>
+          </div>
+          <div className="stat">
+            <span>Reality Coeff</span>
+            <span>{(Math.random() * 2).toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+    }>
+      <AppContent />
+    </Suspense>
+  );
 }
