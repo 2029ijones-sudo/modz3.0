@@ -1085,7 +1085,7 @@ export default function Community({
           .from('profiles')
           .insert([newProfile])
           .select()
-          .single();
+            .maybeSingle();  
 
         if (insertError) throw insertError;
         profile = insertedProfile;
@@ -1200,7 +1200,7 @@ export default function Community({
           .from('profiles')
           .select('username, avatar_url')
           .eq('user_id', repo.user_id)
-          .single();
+          .maybeSingle();  
 
         // Get stats
         const { count: starCount } = await supabase
@@ -1233,7 +1233,7 @@ export default function Community({
             .select('id')
             .eq('repo_id', repo.id)
             .eq('user_id', user.id)
-            .single();
+           .maybeSingle();  
           isStarred = !!data;
         }
 
@@ -1344,7 +1344,7 @@ export default function Community({
           updated_at: new Date().toISOString()
         }])
         .select()
-        .single();
+         .maybeSingle();  
 
       if (error) throw error;
 
@@ -1381,8 +1381,7 @@ export default function Community({
         .from('repositories')
         .select('*')
         .eq('id', repo.id)
-        .single();
-
+         .maybeSingle();  
       if (error) throw error;
 
       setRepoContent(data.content || { files: [], structure: {} });
@@ -1814,7 +1813,7 @@ export default function Community({
           updated_at: new Date().toISOString()
         }])
         .select()
-        .single();
+    .maybeSingle();  
 
       if (error) throw error;
 
@@ -1933,7 +1932,7 @@ export default function Community({
             updated_at: new Date().toISOString()
           }])
           .select()
-          .single();
+            .maybeSingle();  
 
         if (error) throw error;
 
