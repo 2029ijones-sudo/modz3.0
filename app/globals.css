@@ -4617,16 +4617,24 @@ body {
     left: 20px;
   }
 }
-/* Add this to make buttons clickable while keeping quantum cursor */
-.btn, 
-.quantum-nav-link, 
+/* Fix for clickable buttons with custom cursor */
+.btn,
+.quantum-nav-link,
 .quantum-avatar-container,
-button, 
-a, 
-input, 
+button,
+a,
+input,
 select,
 [role="button"] {
+  /* Force default cursor to appear ONLY when hovering buttons */
   cursor: pointer !important;
   position: relative;
-  z-index: 10001;
+}
+
+/* Hide custom cursor when over buttons */
+.btn:hover ~ .quantum-cursor,
+.quantum-nav-link:hover ~ .quantum-cursor,
+button:hover ~ .quantum-cursor {
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
