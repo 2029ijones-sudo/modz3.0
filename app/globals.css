@@ -4617,3 +4617,11 @@ body {
     left: 20px;
   }
 }
+/* Quick cursor fix - add this at the end of the file */
+body {
+  cursor: auto !important;
+}
+
+button, a, .btn, .quantum-nav-link, .quantum-avatar-container {
+  cursor: pointer !important;
+}
