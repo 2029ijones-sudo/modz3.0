@@ -1053,13 +1053,13 @@ function AppContent() {
           className="btn btn-quantum"
           onClick={() => window.location.reload()}
           style={{
-            background: `linear-gradient(135deg, var(--quantum-primary), var(--quantum-accent))`
+            background: `linear-gradient(135deg, var(--quantum-plasma), var(--quantum-hyperpurple))`
           }}
         >
           <i className="fas fa-redo"></i> Quantum Reboot
         </button>
         <button 
-          className="btn btn-secondary"
+          className="btn btn-quantum-secondary"
           onClick={() => navigateToTab('community')}
         >
           <i className="fas fa-share-alt"></i> Quantum Community
@@ -1125,7 +1125,7 @@ function AppContent() {
       <header className="quantum-header">
         <div className="quantum-logo">
           <div className="logo-quantum-animation">
-            <div className="quantum-logo-orb"></div>
+            <div className="quantum-logo-singularity"></div>
             <div className="quantum-logo-rings">
               <div className="logo-ring"></div>
               <div className="logo-ring"></div>
@@ -1138,7 +1138,7 @@ function AppContent() {
           </h1>
         </div>
         
-        {/* NAVIGATION - NOW WORKING */}
+        {/* NAVIGATION - FIXED TO MATCH CSS */}
         <nav className="quantum-nav-links">
           <button 
             className={`quantum-nav-link ${activeTab === 'world' ? 'active' : ''}`}
@@ -1360,62 +1360,80 @@ function AppContent() {
         </div>
       </div>
 
-      {/* Quantum Installer Modal */}
+      {/* Quantum Installer Modal - Using existing CSS classes */}
       {showQuantumInstaller && (
-        <div className="quantum-installer-modal">
-          <div className="quantum-installer-content">
-            <div className="installer-header">
-              <div className="installer-quantum-icon">
-                <i className="fas fa-atom fa-spin"></i>
-              </div>
-              <h2>🚀 Install Modz Quantum</h2>
-              <p>Choose your installation method:</p>
-              <button 
-                className="installer-close-btn"
-                onClick={dismissQuantumInstaller}
-              >
-                <i className="fas fa-times"></i>
-              </button>
+        <div className="quantum-notification quantum-notification show info" style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 10002,
+          maxWidth: '600px',
+          width: '90%'
+        }}>
+          <div className="quantum-notification-header">
+            <div className="notification-quantum-icon">
+              <i className="fas fa-atom fa-spin"></i>
             </div>
+            <div className="quantum-notification-title">
+              🚀 Install Modz Quantum
+            </div>
+            <button 
+              className="quantum-notification-time"
+              onClick={dismissQuantumInstaller}
+              style={{background: 'none', border: 'none', color: 'inherit', cursor: 'pointer'}}
+            >
+              <i className="fas fa-times"></i>
+            </button>
+          </div>
+          <div className="quantum-notification-message">
+            <p>Choose your installation method:</p>
             
-            <div className="installer-options">
+            <div className="installer-options" style={{marginTop: '20px'}}>
               {/* PWA Option */}
-              <div className="installer-option installer-option-pwa">
-                <div className="option-icon">
-                  <i className="fas fa-mobile-alt"></i>
-                </div>
-                <div className="option-content">
-                  <h3>Standard PWA</h3>
-                  <p>Basic Progressive Web App installation</p>
-                  <div className="option-features">
+              <div className="quantum-effect-item" style={{marginBottom: '15px'}}>
+                <div style={{flex: 1}}>
+                  <h4 style={{margin: '0 0 5px 0'}}>
+                    <i className="fas fa-mobile-alt" style={{marginRight: '10px'}}></i>
+                    Standard PWA
+                  </h4>
+                  <p style={{margin: '0', fontSize: '14px', opacity: 0.8}}>
+                    Basic Progressive Web App installation
+                  </p>
+                  <div style={{display: 'flex', gap: '10px', marginTop: '10px', fontSize: '12px'}}>
                     <span><i className="fas fa-check"></i> Works everywhere</span>
                     <span><i className="fas fa-check"></i> Offline support</span>
                     <span><i className="fas fa-check"></i> Auto-updates</span>
                   </div>
-                  {deferredPrompt && (
-                    <div className="option-available">
-                      <i className="fas fa-bell"></i> Installation available
-                    </div>
-                  )}
                 </div>
                 <button 
-                  className="option-btn btn-pwa"
+                  className="btn btn-quantum-small"
                   onClick={handlePWAInstall}
                   disabled={!deferredPrompt}
+                  style={{minWidth: '120px'}}
                 >
-                  {deferredPrompt ? 'Install PWA Now' : 'Manual Install'}
+                  {deferredPrompt ? 'Install PWA' : 'Manual Install'}
                 </button>
               </div>
               
               {/* CWA Option */}
-              <div className="installer-option installer-option-cwa">
-                <div className="option-icon">
-                  <i className="fas fa-bolt"></i>
-                </div>
-                <div className="option-content">
-                  <h3>Advanced CWA <span className="cwa-badge">⚡ NEW</span></h3>
-                  <p>ChromeBook Web App with advanced optimizations</p>
-                  <div className="option-features">
+              <div className="quantum-effect-item" style={{borderLeftColor: 'var(--quantum-warning)'}}>
+                <div style={{flex: 1}}>
+                  <h4 style={{margin: '0 0 5px 0'}}>
+                    <i className="fas fa-bolt" style={{marginRight: '10px'}}></i>
+                    Advanced CWA <span style={{
+                      background: 'var(--quantum-warning)',
+                      color: 'var(--quantum-whitehole)',
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      fontSize: '10px',
+                      marginLeft: '5px'
+                    }}>⚡ NEW</span>
+                  </h4>
+                  <p style={{margin: '0', fontSize: '14px', opacity: 0.8}}>
+                    ChromeBook Web App with advanced optimizations
+                  </p>
+                  <div style={{display: 'flex', gap: '10px', marginTop: '10px', fontSize: '12px', flexWrap: 'wrap'}}>
                     <span><i className="fas fa-check"></i> 40FPS Performance</span>
                     <span><i className="fas fa-check"></i> School Bypass</span>
                     <span><i className="fas fa-check"></i> Stealth Mode</span>
@@ -1423,26 +1441,30 @@ function AppContent() {
                   </div>
                 </div>
                 <button 
-                  className="option-btn btn-cwa"
+                  className="btn btn-quantum-small"
                   onClick={handleCWAInstall}
+                  style={{
+                    minWidth: '120px',
+                    background: 'linear-gradient(135deg, var(--quantum-warning), #ffaa00)'
+                  }}
                 >
                   Install CWA
                 </button>
               </div>
             </div>
             
-            <div className="installer-footer">
-              <p className="installer-tip">
+            <div style={{marginTop: '20px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)'}}>
+              <p style={{margin: '0 0 10px 0', fontSize: '12px', opacity: 0.8}}>
                 <i className="fas fa-lightbulb"></i> 
-                <strong>Tip:</strong> CWA is recommended for school Chromebooks & better performance
+                <strong> Tip:</strong> CWA is recommended for school Chromebooks & better performance
               </p>
-              <div className="installer-stats">
-                <div className="stat">
-                  <span className="stat-label">Reality Coeff:</span>
+              <div className="quantum-sidebar-stats" style={{justifyContent: 'center', gap: '30px'}}>
+                <div className="stat" style={{minWidth: 'auto'}}>
+                  <span className="stat-label">Reality Coeff</span>
                   <span className="stat-value">{realityCoefficient.toFixed(2)}</span>
                 </div>
-                <div className="stat">
-                  <span className="stat-label">Chaos Level:</span>
+                <div className="stat" style={{minWidth: 'auto'}}>
+                  <span className="stat-label">Chaos Level</span>
                   <span className="stat-value">{Math.round(chaosLevel)}%</span>
                 </div>
               </div>
@@ -1616,7 +1638,7 @@ export default function Home() {
     <Suspense fallback={
       <div className="quantum-loading-screen">
         <div className="quantum-loading-animation">
-          <div className="quantum-loading-orb"></div>
+          <div className="quantum-loading-singularity"></div>
           <div className="quantum-loading-rings">
             <div className="ring"></div>
             <div className="ring"></div>
