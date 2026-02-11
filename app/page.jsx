@@ -31,13 +31,13 @@ const ModManager = dynamic(() => import('@/ModManager'), { ssr: false });
 const Community = dynamic(() => import('@/Community'), { ssr: false });
 const Profile = dynamic(() => import('@/Profile'), { ssr: false });
 
-// ✅ FIXED: Dynamically import installers with correct variable names
-const CWAInstaller = dynamic(() => import('@/components/CWAInstaller'), { 
+// ✅ FIXED: Remove the /components/ prefix since @/ already maps to components/
+const CWAInstaller = dynamic(() => import('@/CWAInstaller'), { 
   ssr: false,
   loading: () => null
 });
 
-const QuantumPWAInstaller = dynamic(() => import('@/components/PWAInstaller'), { 
+const QuantumPWAInstaller = dynamic(() => import('@/PWAInstaller'), { 
   ssr: false,
   loading: () => null
 });
