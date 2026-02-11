@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import CryptoJS from 'crypto-js';
 import './globals.css';
 
-// Dynamically import components for better performance
-const ThreeWorld = dynamic(() => import('../components/ThreeWorld'), { 
+// Use your alias structure for imports
+// @ for components, # for app, ~ for lib, $ for public
+const ThreeWorld = dynamic(() => import('@/ThreeWorld'), { 
   ssr: false,
   loading: () => (
     <div className="quantum-loading">
@@ -20,12 +21,12 @@ const ThreeWorld = dynamic(() => import('../components/ThreeWorld'), {
   )
 });
 
-const CodeEditor = dynamic(() => import('../components/CodeEditor'), { ssr: false });
-const ModManager = dynamic(() => import('../components/ModManager'), { ssr: false });
-const Community = dynamic(() => import('../components/Community'), { ssr: false });
-const Profile = dynamic(() => import('../components/Profile'), { ssr: false });
+const CodeEditor = dynamic(() => import('@/CodeEditor'), { ssr: false });
+const ModManager = dynamic(() => import('@/ModManager'), { ssr: false });
+const Community = dynamic(() => import('@/Community'), { ssr: false });
+const Profile = dynamic(() => import('@/Profile'), { ssr: false });
 
-// Quantum Installation System
+// Quantum Installation System - use ~ alias for lib
 import { quantumInstallation, getQuantumStateSummary } from '~/quantum-installation';
 
 // Encryption key (in production, store in environment variables)
@@ -69,8 +70,7 @@ function AppContent() {
   const [notifications, setNotifications] = useState([]);
   const [worldName, setWorldName] = useState('Quantum Metaverse');
   const [encryptedParams, setEncryptedParams] = useState({});
-  const cursorRef = useRef(null);
-  const cursorTracerRef = useRef(null);
+  // REMOVED: cursorRef, cursorTracerRef
   const [showQuantumInstaller, setShowQuantumInstaller] = useState(true);
   const [draggedMod, setDraggedMod] = useState(null);
   const [isDraggingOverWorld, setIsDraggingOverWorld] = useState(false);
@@ -674,8 +674,8 @@ function AppContent() {
   useEffect(() => {
     const initializeCWA = async () => {
       try {
-        // Dynamically import CWA installer
-        const { CWAInstaller } = await import('../lib/cwa-installer.js');
+        // Dynamically import CWA installer using ~ alias for lib
+        const { CWAInstaller } = await import('~/cwa-installer');
         const cwa = new CWAInstaller();
         setCWAInstaller(cwa);
         
@@ -832,237 +832,7 @@ function AppContent() {
     };
   }, []);
 
- // 3D Quantum Cursor Effect - FIXED VERSION
-useEffect(() => {
-  if (typeof window === 'undefined') return;
-
-  const cursor = cursorRef.current;
-  const cursorTracer = cursorTracerRef.current;
-  let cursorTrail = [];
-  const MAX_TRAIL = 15;
-  let lastX = 0;
-  let lastY = 0;
-  
-  // Track if we're over an interactive element
-  let isOverInteractiveElement = false;
-
-  const handleMouseMove = (e) => {
-    const deltaX = e.clientX - lastX;
-    const deltaY = e.clientY - lastY;
-    lastX = e.clientX;
-    lastY = e.clientY;
-    
-    const velocity = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-    // Check what element is under cursor
-    const target = e.target;
-    const isInteractive = 
-      target.tagName === 'BUTTON' ||
-      target.tagName === 'A' ||
-      target.tagName === 'INPUT' ||
-      target.tagName === 'SELECT' ||
-      target.tagName === 'TEXTAREA' ||
-      target.closest('.btn') ||
-      target.closest('.quantum-nav-link') ||
-      target.closest('button') ||
-      target.closest('a') ||
-      target.hasAttribute('onclick') ||
-      target.getAttribute('role') === 'button' ||
-      target.getAttribute('tabindex') !== null;
-    
-    // Update cursor visibility based on element type
-    if (isInteractive) {
-      // Hide custom cursor over interactive elements
-      if (cursor) {
-        cursor.style.opacity = '0';
-        cursor.style.visibility = 'hidden';
-        cursor.style.transform = 'scale(0)';
-      }
-      
-      // Show default cursor by adding class to body
-      document.body.classList.add('cursor-hide');
-      isOverInteractiveElement = true;
-    } else {
-      // Show custom cursor over non-interactive elements
-      if (cursor) {
-        cursor.style.opacity = '1';
-        cursor.style.visibility = 'visible';
-        cursor.style.transform = 'translate(-50%, -50%) scale(1)';
-      }
-      
-      // Hide default cursor by removing class from body
-      document.body.classList.remove('cursor-hide');
-      isOverInteractiveElement = false;
-    }
-
-    // Only update custom cursor position if it's visible
-    if (cursor && !isOverInteractiveElement) {
-      cursor.style.left = `${e.clientX}px`;
-      cursor.style.top = `${e.clientY}px`;
-      
-      // Add quantum distortion based on velocity and chaos
-      const distortion = Math.min(velocity * 0.1 * chaosLevel / 100, 20);
-      cursor.style.transform = `translate(-50%, -50%) scale(${1 + distortion * 0.01}) rotate(${distortion}deg)`;
-    }
-
-    // Update tracer if not over interactive element
-    if (cursorTracer && !isOverInteractiveElement) {
-      // Create quantum tracer with entanglement effect
-      const tracer = cursorTracer.cloneNode(true);
-      tracer.style.left = `${e.clientX}px`;
-      tracer.style.top = `${e.clientY}px`;
-      tracer.style.opacity = '0.7';
-      tracer.style.setProperty('--chaos', `${chaosLevel / 100}`);
-      document.body.appendChild(tracer);
-
-      cursorTrail.push(tracer);
-      if (cursorTrail.length > MAX_TRAIL) {
-        const oldTracer = cursorTrail.shift();
-        if (oldTracer.parentNode) {
-          oldTracer.style.opacity = '0';
-          setTimeout(() => oldTracer.remove(), 300);
-        }
-      }
-
-      // Update trail with quantum coherence
-      cursorTrail.forEach((t, i) => {
-        if (t.style.opacity > 0) {
-          const coherence = 0.7 * (i / cursorTrail.length) * quantumField;
-          t.style.opacity = coherence.toString();
-          t.style.transform = `scale(${0.5 + (i / cursorTrail.length) * 0.5})`;
-        }
-      });
-
-      // Quantum entanglement between trail particles
-      if (cursorTrail.length > 2) {
-        for (let i = 0; i < cursorTrail.length - 1; i++) {
-          if (Math.random() < quantumField * 0.1) {
-            const t1 = cursorTrail[i];
-            const t2 = cursorTrail[i + 1];
-            
-            // Create entanglement line
-            const line = document.createElement('div');
-            line.className = 'quantum-entanglement-line';
-            const rect1 = t1.getBoundingClientRect();
-            const rect2 = t2.getBoundingClientRect();
-            
-            line.style.left = `${rect1.left + 8}px`;
-            line.style.top = `${rect1.top + 8}px`;
-            line.style.width = `${Math.sqrt(
-              Math.pow(rect2.left - rect1.left, 2) + 
-              Math.pow(rect2.top - rect1.top, 2)
-            )}px`;
-            line.style.transform = `rotate(${Math.atan2(
-              rect2.top - rect1.top, 
-              rect2.left - rect1.left
-            )}rad)`;
-            
-            document.body.appendChild(line);
-            setTimeout(() => line.remove(), 100);
-          }
-        }
-      }
-    }
-  };
-
-  // Handle mouse enter/leave for interactive elements
-  const interactiveElements = document.querySelectorAll('.btn, .quantum-nav-link, button, a, [role="button"], input, select, textarea');
-  
-  const handleMouseEnter = (e) => {
-    // Hide custom cursor on mouse enter
-    if (cursor) {
-      cursor.style.opacity = '0';
-      cursor.style.visibility = 'hidden';
-      cursor.style.transform = 'scale(0)';
-    }
-    document.body.classList.add('cursor-hide');
-    isOverInteractiveElement = true;
-  };
-  
-  const handleMouseLeave = (e) => {
-    // Show custom cursor on mouse leave (if not over another interactive element)
-    const relatedTarget = e.relatedTarget;
-    const isStillOverInteractive = 
-      relatedTarget && (
-        relatedTarget.tagName === 'BUTTON' ||
-        relatedTarget.tagName === 'A' ||
-        relatedTarget.closest('.btn') ||
-        relatedTarget.closest('.quantum-nav-link')
-      );
-    
-    if (!isStillOverInteractive) {
-      if (cursor) {
-        cursor.style.opacity = '1';
-        cursor.style.visibility = 'visible';
-        cursor.style.transform = 'translate(-50%, -50%) scale(1)';
-      }
-      document.body.classList.remove('cursor-hide');
-      isOverInteractiveElement = false;
-    }
-  };
-
-  // Add event listeners to interactive elements
-  interactiveElements.forEach(el => {
-    el.addEventListener('mouseenter', handleMouseEnter);
-    el.addEventListener('mouseleave', handleMouseLeave);
-  });
-
-  // Clean up function
-  const cleanup = () => {
-    // Make sure cursor is visible on cleanup
-    document.body.classList.remove('cursor-hide');
-    if (cursor) {
-      cursor.style.opacity = '1';
-      cursor.style.visibility = 'visible';
-    }
-  };
-
-  // Add click quantum effect
-  const handleClick = (e) => {
-    // Check if click is on interactive element - if so, don't create quantum effect
-    const target = e.target;
-    const isInteractive = 
-      target.tagName === 'BUTTON' ||
-      target.tagName === 'A' ||
-      target.closest('.btn') ||
-      target.closest('.quantum-nav-link') ||
-      target.closest('button') ||
-      target.closest('a');
-    
-    if (!isInteractive) {
-      createQuantumClickEffect(e.clientX, e.clientY);
-    }
-  };
-
-  window.addEventListener('mousemove', handleMouseMove);
-  window.addEventListener('click', handleClick);
-
-  // Initialize cursor position
-  const initCursor = () => {
-    if (cursor) {
-      cursor.style.left = '50%';
-      cursor.style.top = '50%';
-      cursor.style.opacity = '1';
-      cursor.style.visibility = 'visible';
-    }
-  };
-  
-  // Trigger initial cursor setup
-  setTimeout(initCursor, 100);
-
-  return () => {
-    window.removeEventListener('mousemove', handleMouseMove);
-    window.removeEventListener('click', handleClick);
-    
-    // Remove interactive element listeners
-    interactiveElements.forEach(el => {
-      el.removeEventListener('mouseenter', handleMouseEnter);
-      el.removeEventListener('mouseleave', handleMouseLeave);
-    });
-    
-    cleanup();
-  };
-}, [chaosLevel, quantumField]);
+  // REMOVED COMPLETELY: 3D Quantum Cursor Effect - All cursor-related code removed
 
   // Create quantum click effect
   const createQuantumClickEffect = (x, y) => {
@@ -1451,7 +1221,7 @@ useEffect(() => {
     try {
       // Load CWA installer if not loaded
       if (!cwaInstaller) {
-        const { CWAInstaller } = await import('../lib/cwa-installer.js');
+        const { CWAInstaller } = await import('~/cwa-installer');
         const cwa = new CWAInstaller();
         setCWAInstaller(cwa);
       }
@@ -1733,17 +1503,7 @@ useEffect(() => {
         <div id="quantum-global-particles" className="quantum-global-particles"></div>
       </div>
 
-      {/* Quantum Cursor System */}
-      <div className="quantum-cursor" id="quantumCursor" ref={cursorRef}>
-        <div className="cursor-quantum-core"></div>
-        <div className="cursor-quantum-ring"></div>
-        <div className="cursor-quantum-particles">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="cursor-particle"></div>
-          ))}
-        </div>
-      </div>
-      <div className="quantum-cursor-tracer" id="quantumCursorTracer" ref={cursorTracerRef}></div>
+      {/* REMOVED COMPLETELY: Quantum Cursor System */}
 
       {/* Quantum Visual Effects */}
       <div className="quantum-scan-line"></div>
@@ -2182,7 +1942,7 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Quantum Status Bar */}
+          {/* Quantum Status Bar */}
       <div className="quantum-status-bar">
         <div className="status-items">
           <div className="status-item">
