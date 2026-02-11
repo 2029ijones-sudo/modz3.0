@@ -4617,14 +4617,19 @@ body {
     left: 20px;
   }
 }
-/* ===== CURSOR FIXES ===== */
+/* ===== CURSOR FIXES - ENHANCED FOR JS CONTROL ===== */
 
-/* Keep custom cursor for body */
+/* Base body cursor none to hide default cursor */
 body {
   cursor: none;
 }
 
-/* But show pointer cursor on ALL interactive elements */
+/* Class for when JS hides custom cursor and shows default cursor */
+body.cursor-hide {
+  cursor: auto !important;
+}
+
+/* Show pointer cursor on ALL interactive elements */
 .btn,
 .quantum-nav-link,
 .quantum-avatar-container,
@@ -4639,10 +4644,27 @@ textarea,
   cursor: pointer !important;
 }
 
+/* Ensure interactive elements show correct cursor when custom cursor is hidden */
+body.cursor-hide .btn,
+body.cursor-hide .quantum-nav-link,
+body.cursor-hide .quantum-avatar-container,
+body.cursor-hide button,
+body.cursor-hide a,
+body.cursor-hide [role="button"],
+body.cursor-hide [tabindex],
+body.cursor-hide [onclick] {
+  cursor: pointer !important;
+}
+
 /* Specifically for regular links and buttons */
 a:not(.quantum-nav-link):not(.btn),
 button:not(.btn):not(.quantum-nav-link) {
   cursor: pointer;
+}
+
+body.cursor-hide a:not(.quantum-nav-link):not(.btn),
+body.cursor-hide button:not(.btn):not(.quantum-nav-link) {
+  cursor: pointer !important;
 }
 
 /* When custom cursor is hidden (on hover), show default pointer */
@@ -4654,15 +4676,18 @@ a:hover,
   cursor: pointer;
 }
 
-/* Hide custom cursor when hovering over interactive elements */
+/* Enhanced: Hide custom cursor when hovering over interactive elements */
+/* This works with both CSS and JS control */
 .btn:hover ~ .quantum-cursor,
 .quantum-nav-link:hover ~ .quantum-cursor,
 button:hover ~ .quantum-cursor,
 a:hover ~ .quantum-cursor,
-.quantum-avatar-container:hover ~ .quantum-cursor {
+.quantum-avatar-container:hover ~ .quantum-cursor,
+.quantum-cursor.hidden {
   opacity: 0 !important;
   visibility: hidden !important;
   transform: scale(0) !important;
+  pointer-events: none !important;
 }
 
 /* Text inputs and textareas should show text cursor */
@@ -4677,11 +4702,39 @@ textarea {
   cursor: text;
 }
 
+/* Ensure text cursor shows when custom cursor is hidden */
+body.cursor-hide input[type="text"],
+body.cursor-hide input[type="email"],
+body.cursor-hide input[type="password"],
+body.cursor-hide input[type="search"],
+body.cursor-hide input[type="tel"],
+body.cursor-hide input[type="url"],
+body.cursor-hide input[type="number"],
+body.cursor-hide textarea {
+  cursor: text !important;
+}
+
+/* Select elements */
+select {
+  cursor: default;
+}
+
+body.cursor-hide select {
+  cursor: default !important;
+}
+
 /* Add specific cursor for disabled elements */
 .btn:disabled,
 button:disabled,
 .quantum-nav-link:disabled,
 [disabled] {
+  cursor: not-allowed !important;
+}
+
+body.cursor-hide .btn:disabled,
+body.cursor-hide button:disabled,
+body.cursor-hide .quantum-nav-link:disabled,
+body.cursor-hide [disabled] {
   cursor: not-allowed !important;
 }
 
@@ -4722,12 +4775,76 @@ a:hover::after {
   }
 }
 
-/* Make sure cursor system works with JS if you're using JS to control it */
+/* Enhanced cursor system for JS control */
 .quantum-cursor {
-  pointer-events: none;
-  z-index: 99999;
+  pointer-events: none !important;
+  z-index: 99999 !important;
+  transition: 
+    opacity 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+    visibility 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .quantum-cursor-tracer {
-  pointer-events: none;
+  pointer-events: none !important;
+  z-index: 99998 !important;
+}
+
+/* Additional styles for cursor trail elements */
+.quantum-entanglement-line {
+  pointer-events: none !important;
+  z-index: 99997 !important;
+}
+
+/* Fix for cursor positioning */
+.quantum-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  transform: translate(-50%, -50%);
+}
+
+/* Ensure cursor is properly layered over everything */
+.quantum-cursor,
+.quantum-cursor-tracer,
+.quantum-entanglement-line {
+  mix-blend-mode: screen !important;
+}
+
+/* Hide cursor during drag operations */
+body.dragging .quantum-cursor,
+body.dragging .quantum-cursor-tracer {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Touch device support - hide custom cursor entirely */
+@media (hover: none) and (pointer: coarse) {
+  .quantum-cursor,
+  .quantum-cursor-tracer,
+  .quantum-entanglement-line {
+    display: none !important;
+  }
+  
+  body {
+    cursor: auto !important;
+  }
+  
+  body.cursor-hide {
+    cursor: auto !important;
+  }
+}
+
+/* Performance optimization for cursor animations */
+@media (prefers-reduced-motion: reduce) {
+  .quantum-cursor {
+    transition: none !important;
+  }
+  
+  .btn:hover::after,
+  .quantum-nav-link:hover::after,
+  button:hover::after,
+  a:hover::after {
+    animation: none !important;
+  }
 }
