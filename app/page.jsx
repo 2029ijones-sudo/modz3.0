@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import CryptoJS from 'crypto-js';
 import './globals.css';
 
-// Dynamically import components with accessibility
+// Dynamically import components with accessibility - FIXED to respect performance mode
 const ThreeWorld = dynamic(() => import('@/ThreeWorld'), { 
   ssr: false,
   loading: () => (
@@ -28,8 +28,14 @@ const ThreeWorld = dynamic(() => import('@/ThreeWorld'), {
 
 const CodeEditor = dynamic(() => import('@/CodeEditor'), { ssr: false });
 const ModManager = dynamic(() => import('@/ModManager'), { ssr: false });
+
+// FIXED: Community and Profile components now receive performance props
 const Community = dynamic(() => import('@/Community'), { ssr: false });
 const Profile = dynamic(() => import('@/Profile'), { ssr: false });
+
+// Import installers
+import CWAInstaller from '@/components/CWAInstaller';
+import QuantumPWAInstaller from '@/components/PWAInstaller';
 
 // Quantum Installation System
 import { quantumInstallation, getQuantumStateSummary } from '~/quantum-installation';
@@ -72,7 +78,6 @@ const announceToScreenReader = (message, priority = 'polite') => {
     announcer.setAttribute('aria-live', priority);
     announcer.textContent = message;
     
-    // Clear after announcement
     setTimeout(() => {
       announcer.textContent = '';
     }, 3000);
@@ -125,28 +130,35 @@ function AppContent() {
   const [performanceLevel, setPerformanceLevel] = useState('high');
   const [showMemoryWarning, setShowMemoryWarning] = useState(false);
   const [detectedMemory, setDetectedMemory] = useState(8);
+  
+  // FIXED: Add performance mode flags for components
+  const [performanceMode, setPerformanceMode] = useState({
+    lowQuality: false,
+    disableEffects: false,
+    disableAnimations: false,
+    reduceParticles: false,
+    disableShadows: false,
+    simpleRendering: false,
+    fpsLimit: 60
+  });
 
   // ========== ACCESSIBILITY DETECTION ==========
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Detect reduced motion preference
     const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     setIsReducedMotion(reducedMotionQuery.matches);
     
     const handleReducedMotionChange = (e) => setIsReducedMotion(e.matches);
     reducedMotionQuery.addEventListener('change', handleReducedMotionChange);
 
-    // Detect high contrast mode
     const highContrastQuery = window.matchMedia('(prefers-contrast: more)');
     setHighContrast(highContrastQuery.matches);
     
     const handleHighContrastChange = (e) => setHighContrast(e.matches);
     highContrastQuery.addEventListener('change', handleHighContrastChange);
 
-    // Detect screen reader (basic detection)
     const detectScreenReader = () => {
-      // Check for common screen reader accessibility APIs
       if (window.speechSynthesis || 
           navigator.accessibility?.screenReader || 
           navigator.userAgent.includes('TalkBack') ||
@@ -157,7 +169,6 @@ function AppContent() {
     };
     detectScreenReader();
 
-    // Add accessibility attributes to body
     document.body.setAttribute('data-reduced-motion', reducedMotionQuery.matches);
     document.body.setAttribute('data-high-contrast', highContrastQuery.matches);
     document.body.setAttribute('data-screen-reader', screenReaderMode);
@@ -173,10 +184,8 @@ function AppContent() {
     if (typeof window === 'undefined') return;
 
     const handleKeyDown = (e) => {
-      // Skip if in input or textarea
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-      // Global shortcuts
       if (e.altKey && e.key === 'w') {
         e.preventDefault();
         navigateToTab('world');
@@ -228,7 +237,7 @@ function AppContent() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    console.log('🔧 Performance Optimizer v1.0 - Scanning device...');
+    console.log('🔧 Performance Optimizer v2.0 - Scanning device...');
     
     let detectedMemoryValue = 8;
     if (navigator.deviceMemory) {
@@ -241,6 +250,8 @@ function AppContent() {
     console.log('⚙️ CPU Cores:', cpuCores);
     
     let webglScore = 1;
+    let isLowEndGPU = false;
+    
     try {
       const canvas = document.createElement('canvas');
       const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
@@ -252,9 +263,10 @@ function AppContent() {
           webglScore = renderer.includes('NVIDIA') || renderer.includes('AMD') || 
                        renderer.includes('RTX') || renderer.includes('Intel Iris') ? 2 : 1;
           
-          if (renderer.includes('Intel') && !renderer.includes('Iris')) {
-            document.body.classList.add('low-performance');
-          }
+          isLowEndGPU = renderer.includes('Intel') && !renderer.includes('Iris') || 
+                       renderer.includes('Mali') || 
+                       renderer.includes('Adreno') ||
+                       renderer.includes('PowerVR');
         }
       }
     } catch (e) {}
@@ -262,22 +274,61 @@ function AppContent() {
     const performanceScore = (detectedMemoryValue * 0.4) + (cpuCores * 0.3) + (webglScore * 0.3);
     console.log('📊 Performance Score:', performanceScore.toFixed(2));
     
+    // FIXED: Set performance mode flags based on score
     let level = 'high';
-    if (performanceScore < 3) {
+    let perfFlags = {
+      lowQuality: false,
+      disableEffects: false,
+      disableAnimations: false,
+      reduceParticles: false,
+      disableShadows: false,
+      simpleRendering: false,
+      fpsLimit: 60
+    };
+    
+    if (performanceScore < 3 || isLowEndGPU || detectedMemoryValue < 2) {
       level = 'extreme';
+      perfFlags = {
+        lowQuality: true,
+        disableEffects: true,
+        disableAnimations: true,
+        reduceParticles: true,
+        disableShadows: true,
+        simpleRendering: true,
+        fpsLimit: 30
+      };
       document.body.classList.add('extreme-performance-mode', 'low-performance');
       console.log('🚨 EXTREME PERFORMANCE MODE ACTIVATED');
-    } else if (performanceScore < 6) {
+    } else if (performanceScore < 6 || detectedMemoryValue < 4) {
       level = 'low';
+      perfFlags = {
+        lowQuality: true,
+        disableEffects: true,
+        disableAnimations: false,
+        reduceParticles: true,
+        disableShadows: true,
+        simpleRendering: false,
+        fpsLimit: 40
+      };
       document.body.classList.add('low-performance');
       console.log('⚠️ LOW PERFORMANCE MODE ACTIVATED');
-    } else if (performanceScore < 9) {
+    } else if (performanceScore < 9 || detectedMemoryValue < 6) {
       level = 'medium';
+      perfFlags = {
+        lowQuality: false,
+        disableEffects: false,
+        disableAnimations: false,
+        reduceParticles: true,
+        disableShadows: false,
+        simpleRendering: false,
+        fpsLimit: 50
+      };
       document.body.classList.add('medium-performance');
       console.log('🔶 MEDIUM PERFORMANCE MODE ACTIVATED');
     }
     
     setPerformanceLevel(level);
+    setPerformanceMode(perfFlags);
     
     // FPS Counter
     let frameCount = 0;
@@ -292,8 +343,18 @@ function AppContent() {
         frameCount = 0;
         lastTime = currentTime;
         
-        if (fpsValue < 25 && !document.body.classList.contains('extreme-performance-mode')) {
+        if (fpsValue < 25 && level !== 'extreme') {
           document.body.classList.add('extreme-performance-mode');
+          setPerformanceLevel('extreme');
+          setPerformanceMode({
+            lowQuality: true,
+            disableEffects: true,
+            disableAnimations: true,
+            reduceParticles: true,
+            disableShadows: true,
+            simpleRendering: true,
+            fpsLimit: 30
+          });
           console.log('📉 FPS dropped below 25, enabling extreme mode');
         }
       }
@@ -302,7 +363,6 @@ function AppContent() {
     
     const fpsAnimationId = requestAnimationFrame(updateFPS);
     
-    // Memory monitoring
     let memoryInterval;
     if ('memory' in performance) {
       memoryInterval = setInterval(() => {
@@ -321,63 +381,112 @@ function AppContent() {
     };
   }, [isReducedMotion]);
 
-  // Performance toggle handler - UPDATED to properly affect tabs
+  // FIXED: Performance toggle handler - properly updates all components
   const togglePerformanceMode = useCallback(() => {
     const body = document.body;
     const isExtreme = body.classList.contains('extreme-performance-mode');
     const isLow = body.classList.contains('low-performance');
     
     let newMode;
+    let newPerfFlags;
+    
     if (isExtreme) {
       body.classList.remove('extreme-performance-mode');
       body.classList.add('low-performance');
-      setPerformanceLevel('low');
       newMode = 'Low Performance';
+      newPerfFlags = {
+        lowQuality: true,
+        disableEffects: true,
+        disableAnimations: false,
+        reduceParticles: true,
+        disableShadows: true,
+        simpleRendering: false,
+        fpsLimit: 40
+      };
+      setPerformanceLevel('low');
       console.log('⬆️ Switched to Low Performance Mode');
     } else if (isLow) {
       body.classList.remove('low-performance');
-      setPerformanceLevel('high');
       newMode = 'Normal';
+      newPerfFlags = {
+        lowQuality: false,
+        disableEffects: false,
+        disableAnimations: false,
+        reduceParticles: false,
+        disableShadows: false,
+        simpleRendering: false,
+        fpsLimit: 60
+      };
+      setPerformanceLevel('high');
       console.log('⬆️ Switched to Normal Mode');
     } else {
       body.classList.add('extreme-performance-mode');
-      setPerformanceLevel('extreme');
       newMode = 'Extreme Performance';
+      newPerfFlags = {
+        lowQuality: true,
+        disableEffects: true,
+        disableAnimations: true,
+        reduceParticles: true,
+        disableShadows: true,
+        simpleRendering: true,
+        fpsLimit: 30
+      };
+      setPerformanceLevel('extreme');
       console.log('⬇️ Switched to Extreme Performance Mode');
     }
     
-    // Force update tab rendering by toggling active tab state
-    setActiveTab(prevTab => {
-      const currentTab = prevTab;
-      // Small delay to ensure performance classes are applied
-      setTimeout(() => {
-        setActiveTab(currentTab);
-      }, 10);
-      return prevTab;
-    });
+    // FIXED: Update performance flags
+    setPerformanceMode(newPerfFlags);
+    
+    // FIXED: Force re-render of all components by updating a key
+    const currentTab = activeTab;
+    setActiveTab('loading');
+    setTimeout(() => {
+      setActiveTab(currentTab);
+    }, 10);
     
     addNotification(`Performance mode: ${newMode}`, 'info');
     announceToScreenReader(`Performance mode changed to ${newMode}`);
-  }, []);
+    
+    // FIXED: Dispatch event for components to listen to
+    window.dispatchEvent(new CustomEvent('performance-mode-changed', {
+      detail: { mode: newMode, flags: newPerfFlags }
+    }));
+  }, [activeTab]);
 
-  // Enable extreme performance - UPDATED to properly affect tabs
+  // FIXED: Enable extreme performance - properly updates all components
   const enableExtremePerformance = useCallback(() => {
     document.body.classList.add('extreme-performance-mode');
     setShowMemoryWarning(false);
     setPerformanceLevel('extreme');
     
-    // Force update tab rendering
-    setActiveTab(prevTab => {
-      const currentTab = prevTab;
-      setTimeout(() => {
-        setActiveTab(currentTab);
-      }, 10);
-      return prevTab;
-    });
+    const extremeFlags = {
+      lowQuality: true,
+      disableEffects: true,
+      disableAnimations: true,
+      reduceParticles: true,
+      disableShadows: true,
+      simpleRendering: true,
+      fpsLimit: 30
+    };
+    
+    setPerformanceMode(extremeFlags);
+    
+    // Force re-render
+    const currentTab = activeTab;
+    setActiveTab('loading');
+    setTimeout(() => {
+      setActiveTab(currentTab);
+    }, 10);
+    
+    // Dispatch event
+    window.dispatchEvent(new CustomEvent('performance-mode-changed', {
+      detail: { mode: 'extreme', flags: extremeFlags }
+    }));
     
     addNotification('Extreme performance mode enabled', 'info');
     announceToScreenReader('Extreme performance mode enabled for your device');
-  }, []);
+  }, [activeTab]);
 
   // ========== QUANTUM SYSTEM ==========
   const initializeQuantumSystem = useCallback(() => {
@@ -410,7 +519,7 @@ function AppContent() {
           window.addEventListener(eventName, handleQuantumEvent);
         });
 
-        if (!isReducedMotion) {
+        if (!isReducedMotion && !performanceMode.disableAnimations) {
           startQuantumVisualization();
           initializeGlobalQuantumEffects();
         }
@@ -420,7 +529,7 @@ function AppContent() {
         console.error('Quantum initialization failed:', error);
       }
     }
-  }, [isReducedMotion]);
+  }, [isReducedMotion, performanceMode.disableAnimations]);
 
   const handleQuantumEvent = useCallback((event) => {
     const { detail } = event;
@@ -471,7 +580,7 @@ function AppContent() {
     
     setQuantumEffects(prev => [...prev, newEffect]);
     
-    if (!isReducedMotion) {
+    if (!isReducedMotion && !performanceMode.disableEffects) {
       createQuantumVisualEffect(type, intensity);
     }
     
@@ -481,12 +590,12 @@ function AppContent() {
     
     addNotification(`Quantum ${type} effect triggered!`, 'info');
     announceToScreenReader(`Quantum ${type} effect triggered with ${intensity} percent intensity`);
-  }, [isReducedMotion]);
+  }, [isReducedMotion, performanceMode.disableEffects]);
 
   const handleQuantumAnomaly = useCallback((detail) => {
     const { strength, position } = detail;
     
-    if (!isReducedMotion) {
+    if (!isReducedMotion && !performanceMode.disableEffects) {
       createAnomalyEffect(position, strength);
     }
     
@@ -497,12 +606,12 @@ function AppContent() {
       addNotification('Reality anomaly detected! Reality coefficient fluctuating.', 'warning');
       announceToScreenReader('Warning: Reality anomaly detected. Reality coefficient fluctuating.');
     }
-  }, [isReducedMotion]);
+  }, [isReducedMotion, performanceMode.disableEffects]);
 
   const handleQuantumVortex = useCallback((detail) => {
     const { type, strength, position } = detail;
     
-    if (!isReducedMotion) {
+    if (!isReducedMotion && !performanceMode.disableEffects) {
       createVortexEffect(type, position, strength);
     }
     
@@ -513,22 +622,26 @@ function AppContent() {
       addNotification('Temporal vortex detected! Time dilation active.', 'info');
       announceToScreenReader('Temporal vortex detected. Time dilation active.');
     }
-  }, [isReducedMotion]);
+  }, [isReducedMotion, performanceMode.disableEffects]);
 
   const initializeGlobalQuantumEffects = useCallback(() => {
-    if (isReducedMotion) return;
+    if (isReducedMotion || performanceMode.disableEffects) return;
     createQuantumParticleField();
     createInterferencePatterns();
     startRealityCoefficientPulse();
-  }, [isReducedMotion]);
+  }, [isReducedMotion, performanceMode.disableEffects]);
 
   const createQuantumParticleField = useCallback(() => {
+    if (performanceMode.disableEffects || performanceMode.reduceParticles) return;
+    
     const container = document.getElementById('quantum-particle-field');
     if (!container) return;
     
     container.innerHTML = '';
     
-    for (let i = 0; i < 100; i++) {
+    const particleCount = performanceMode.reduceParticles ? 30 : 100;
+    
+    for (let i = 0; i < particleCount; i++) {
       const particle = document.createElement('div');
       particle.className = 'quantum-particle-bg';
       particle.style.setProperty('--x', `${Math.random() * 100}%`);
@@ -539,15 +652,19 @@ function AppContent() {
       particle.style.setProperty('--hue', `${Math.random() * 360}`);
       container.appendChild(particle);
     }
-  }, []);
+  }, [performanceMode.disableEffects, performanceMode.reduceParticles]);
 
   const createInterferencePatterns = useCallback(() => {
+    if (performanceMode.disableEffects) return;
+    
     const container = document.getElementById('interference-patterns');
     if (!container) return;
     
     container.innerHTML = '';
     
-    for (let i = 0; i < 5; i++) {
+    const patternCount = performanceMode.reduceParticles ? 2 : 5;
+    
+    for (let i = 0; i < patternCount; i++) {
       const pattern = document.createElement('div');
       pattern.className = 'interference-pattern';
       pattern.style.setProperty('--rotation', `${Math.random() * 360}deg`);
@@ -555,9 +672,11 @@ function AppContent() {
       pattern.style.setProperty('--opacity', `${Math.random() * 0.2 + 0.1}`);
       container.appendChild(pattern);
     }
-  }, []);
+  }, [performanceMode.disableEffects, performanceMode.reduceParticles]);
 
   const startRealityCoefficientPulse = useCallback(() => {
+    if (performanceMode.disableAnimations) return;
+    
     let intervalId;
     
     const pulseEffect = () => {
@@ -575,10 +694,10 @@ function AppContent() {
         clearInterval(intervalId);
       }
     };
-  }, [realityCoefficient]);
+  }, [realityCoefficient, performanceMode.disableAnimations]);
 
   const startQuantumVisualization = useCallback(() => {
-    if (!canvasRef.current || isReducedMotion) return;
+    if (!canvasRef.current || isReducedMotion || performanceMode.disableAnimations) return;
     
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -595,14 +714,16 @@ function AppContent() {
       quantumField: quantumField
     };
     
-    for (let i = 0; i < 100; i++) {
+    const particleCount = performanceMode.reduceParticles ? 30 : 100;
+    
+    for (let i = 0; i < particleCount; i++) {
       particleSystemRef.current.particles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
         vx: (Math.random() - 0.5) * 2,
         vy: (Math.random() - 0.5) * 2,
-        radius: Math.random() * 4 + 2,
-        color: `hsla(${Math.random() * 360}, 100%, 70%, ${Math.random() * 0.5 + 0.3})`,
+        radius: performanceMode.lowQuality ? Math.random() * 2 + 1 : Math.random() * 4 + 2,
+        color: `hsla(${Math.random() * 360}, 100%, 70%, ${performanceMode.lowQuality ? 0.3 : 0.5})`,
         charge: Math.random() > 0.5 ? 1 : -1,
         life: Math.random() * 200 + 100,
         quantumState: Math.random() > 0.5 ? 'up' : 'down',
@@ -610,7 +731,9 @@ function AppContent() {
       });
     }
     
-    for (let i = 0; i < 5; i++) {
+    const attractorCount = performanceMode.reduceParticles ? 2 : 5;
+    
+    for (let i = 0; i < attractorCount; i++) {
       particleSystemRef.current.attractors.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
@@ -625,24 +748,26 @@ function AppContent() {
       
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      const fieldStrength = quantumField * 100;
-      
-      const gradient = ctx.createRadialGradient(
-        canvas.width / 2,
-        canvas.height / 2,
-        0,
-        canvas.width / 2,
-        canvas.height / 2,
-        Math.max(canvas.width, canvas.height) / 2
-      );
-      
-      gradient.addColorStop(0, `hsla(270, 100%, 60%, ${0.05 * fieldStrength / 100})`);
-      gradient.addColorStop(0.3, `hsla(200, 100%, 50%, ${0.03 * fieldStrength / 100})`);
-      gradient.addColorStop(0.6, `hsla(150, 100%, 50%, ${0.02 * fieldStrength / 100})`);
-      gradient.addColorStop(1, 'transparent');
-      
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (!performanceMode.simpleRendering) {
+        const fieldStrength = quantumField * 100;
+        
+        const gradient = ctx.createRadialGradient(
+          canvas.width / 2,
+          canvas.height / 2,
+          0,
+          canvas.width / 2,
+          canvas.height / 2,
+          Math.max(canvas.width, canvas.height) / 2
+        );
+        
+        gradient.addColorStop(0, `hsla(270, 100%, 60%, ${0.05 * fieldStrength / 100})`);
+        gradient.addColorStop(0.3, `hsla(200, 100%, 50%, ${0.03 * fieldStrength / 100})`);
+        gradient.addColorStop(0.6, `hsla(150, 100%, 50%, ${0.02 * fieldStrength / 100})`);
+        gradient.addColorStop(1, 'transparent');
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
       
       particleSystemRef.current.time += 0.01;
       particleSystemRef.current.chaos = chaosLevel / 100;
@@ -667,10 +792,10 @@ function AppContent() {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [chaosLevel, quantumField, isReducedMotion]);
+  }, [chaosLevel, quantumField, isReducedMotion, performanceMode]);
 
   const createQuantumVisualEffect = useCallback((type, intensity) => {
-    if (isReducedMotion) return;
+    if (isReducedMotion || performanceMode.disableEffects) return;
     
     const effect = document.createElement('div');
     effect.className = `quantum-effect quantum-effect-${type}`;
@@ -681,10 +806,10 @@ function AppContent() {
       effect.style.opacity = '0';
       setTimeout(() => effect.remove(), 1000);
     }, 2000);
-  }, [isReducedMotion]);
+  }, [isReducedMotion, performanceMode.disableEffects]);
 
   const createAnomalyEffect = useCallback((position, strength) => {
-    if (isReducedMotion) return;
+    if (isReducedMotion || performanceMode.disableEffects) return;
     
     const anomaly = document.createElement('div');
     anomaly.className = 'quantum-anomaly';
@@ -698,10 +823,10 @@ function AppContent() {
       anomaly.style.opacity = '0';
       setTimeout(() => anomaly.remove(), 1000);
     }, 3000);
-  }, [isReducedMotion]);
+  }, [isReducedMotion, performanceMode.disableEffects]);
 
   const createVortexEffect = useCallback((type, position, strength) => {
-    if (isReducedMotion) return;
+    if (isReducedMotion || performanceMode.disableEffects) return;
     
     const vortex = document.createElement('div');
     vortex.className = `quantum-vortex quantum-vortex-${type}`;
@@ -710,7 +835,7 @@ function AppContent() {
     vortex.style.setProperty('--strength', strength.toString());
     document.body.appendChild(vortex);
     setTimeout(() => vortex.remove(), 5000);
-  }, [isReducedMotion]);
+  }, [isReducedMotion, performanceMode.disableEffects]);
 
   // ========== TAB NAVIGATION ==========
   const navigateToTab = useCallback((tab) => {
@@ -721,7 +846,6 @@ function AppContent() {
     addNotification(`Quantum reality shifted to ${tab} dimension`, 'quantum');
     announceToScreenReader(`Navigated to ${tab} tab`);
     
-    // Announce tab content for screen readers
     setTimeout(() => {
       const tabContent = document.querySelector(`[data-quantum-tab="${tab}"]`);
       if (tabContent) {
@@ -775,7 +899,6 @@ function AppContent() {
       chaosLevel: chaosLevel 
     }]);
     
-    // Announce to screen reader with appropriate priority
     if (type === 'error' || type === 'warning') {
       announceToScreenReader(`Warning: ${message}`, 'assertive');
     } else {
@@ -872,7 +995,6 @@ function AppContent() {
           dropZone.classList.add('drag-active');
           dropZone.innerHTML = '<div class="drop-message"><i class="fas fa-atom"></i> Quantum entanglement in progress...</div>';
           
-          // Announce for screen readers
           if (screenReaderMode) {
             announceToScreenReader('Drop zone active. Release to manifest mod.');
           }
@@ -1215,7 +1337,6 @@ function AppContent() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Create screen reader announcer
     const announcer = document.createElement('div');
     announcer.id = 'quantum-announcer';
     announcer.setAttribute('aria-live', 'polite');
@@ -1278,9 +1399,9 @@ function AppContent() {
     }
 
     const createGlobalParticles = () => {
-      if (isReducedMotion) return;
+      if (isReducedMotion || performanceMode.disableEffects) return;
       
-      const particleCount = 100;
+      const particleCount = performanceMode.reduceParticles ? 30 : 100;
       const particlesContainer = document.getElementById('quantum-global-particles');
       if (!particlesContainer) return;
       
@@ -1322,7 +1443,7 @@ function AppContent() {
         announcer.remove();
       }
     };
-  }, [searchParams, initializeQuantumSystem, handleWebGLError, isReducedMotion]);
+  }, [searchParams, initializeQuantumSystem, handleWebGLError, isReducedMotion, performanceMode]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1349,6 +1470,20 @@ function AppContent() {
 
   // ========== RENDER FUNCTIONS ==========
   const renderActiveTab = useCallback(() => {
+    // FIXED: Show loading state briefly during performance mode switch
+    if (activeTab === 'loading') {
+      return (
+        <div 
+          className="quantum-tab-loading"
+          role="status"
+          aria-label="Adjusting quantum reality field"
+        >
+          <div className="quantum-spinner"></div>
+          <p>Reconfiguring reality...</p>
+        </div>
+      );
+    }
+    
     switch (activeTab) {
       case 'world':
         return (
@@ -1368,6 +1503,8 @@ function AppContent() {
             }}
             reducedMotion={isReducedMotion}
             highContrast={highContrast}
+            // FIXED: Pass performance mode flags
+            performanceMode={performanceMode}
           />
         );
       case 'community':
@@ -1378,6 +1515,8 @@ function AppContent() {
             reducedMotion={isReducedMotion}
             highContrast={highContrast}
             screenReaderMode={screenReaderMode}
+            // FIXED: Pass performance mode flags
+            performanceMode={performanceMode}
           />
         );
       case 'profile':
@@ -1387,6 +1526,8 @@ function AppContent() {
             quantumState={quantumState}
             reducedMotion={isReducedMotion}
             highContrast={highContrast}
+            // FIXED: Pass performance mode flags
+            performanceMode={performanceMode}
           />
         );
       default:
@@ -1405,12 +1546,14 @@ function AppContent() {
             }}
             reducedMotion={isReducedMotion}
             highContrast={highContrast}
+            performanceMode={performanceMode}
           />
         );
     }
   }, [activeTab, worldName, handleModDropIntoWorld, isDraggingOverWorld, handleThreeWorldReady, 
       handleWebGLError, chaosLevel, realityCoefficient, temporalDisplacement, spatialDistortion, 
-      quantumField, encryptedParams, quantumState, isReducedMotion, highContrast, screenReaderMode]);
+      quantumField, encryptedParams, quantumState, isReducedMotion, highContrast, screenReaderMode,
+      performanceMode]);
 
   const renderQuantumErrorFallback = useCallback(() => (
     <div 
@@ -1469,9 +1612,13 @@ function AppContent() {
           <span className="stat-label">Quantum Field</span>
           <span className="stat-value">{Math.round(quantumField * 100)}%</span>
         </div>
+        <div className="stat">
+          <span className="stat-label">Performance</span>
+          <span className="stat-value">{performanceLevel}</span>
+        </div>
       </div>
     </div>
-  ), [webGLError, realityCoefficient, chaosLevel, quantumField, isReducedMotion, navigateToTab]);
+  ), [webGLError, realityCoefficient, chaosLevel, quantumField, isReducedMotion, navigateToTab, performanceLevel]);
 
   const renderAccessibilityControls = () => (
     <div 
@@ -1617,12 +1764,12 @@ function AppContent() {
           height: '100%',
           pointerEvents: 'none',
           zIndex: 0,
-          display: isReducedMotion ? 'none' : 'block'
+          display: (isReducedMotion || performanceMode.disableAnimations) ? 'none' : 'block'
         }}
       />
 
       {/* Quantum Visual Effects Containers - hidden from screen readers */}
-      {!isReducedMotion && (
+      {!isReducedMotion && !performanceMode.disableEffects && (
         <div className="quantum-visual-effects" aria-hidden="true">
           <div id="quantum-particle-field" className="quantum-particle-field"></div>
           <div id="interference-patterns" className="interference-patterns"></div>
@@ -1639,23 +1786,28 @@ function AppContent() {
       >
         <i className="fas fa-tachometer-alt" aria-hidden="true"></i>
         <span>Performance Mode: <span id="performance-level">{performanceLevel.charAt(0).toUpperCase() + performanceLevel.slice(1)}</span></span>
+        {performanceMode.lowQuality && <span className="perf-badge">Low Quality</span>}
+        {performanceMode.disableEffects && <span className="perf-badge">No Effects</span>}
+        {performanceMode.fpsLimit < 60 && <span className="perf-badge">{performanceMode.fpsLimit}FPS</span>}
       </div>
 
       {/* Performance Stats - toggle with keyboard */}
-      <div className="performance-stats" role="region" aria-label="Performance statistics">
-        <div className="stat">
-          <span className="stat-label">FPS:</span>
-          <span className="stat-value" id="fps-counter">{fps}</span>
+      {!performanceMode.disableEffects && (
+        <div className="performance-stats" role="region" aria-label="Performance statistics">
+          <div className="stat">
+            <span className="stat-label">FPS:</span>
+            <span className="stat-value" id="fps-counter">{fps}</span>
+          </div>
+          <div className="stat">
+            <span className="stat-label">Memory:</span>
+            <span className="stat-value" id="memory-usage">{memoryUsage}</span>
+          </div>
+          <div className="stat">
+            <span className="stat-label">GPU:</span>
+            <span className="stat-value" id="gpu-info">{gpuInfo}</span>
+          </div>
         </div>
-        <div className="stat">
-          <span className="stat-label">Memory:</span>
-          <span className="stat-value" id="memory-usage">{memoryUsage}</span>
-        </div>
-        <div className="stat">
-          <span className="stat-label">GPU:</span>
-          <span className="stat-value" id="gpu-info">{gpuInfo}</span>
-        </div>
-      </div>
+      )}
 
       {/* Performance Toggle Button */}
       <button 
@@ -1729,7 +1881,7 @@ function AppContent() {
           </h1>
         </div>
         
-        {/* NAVIGATION - accessible - FIXED TO RESPECT PERFORMANCE MODE */}
+        {/* NAVIGATION - accessible */}
         <nav className="quantum-nav-links" aria-label="Main navigation" role="navigation">
           <button 
             className={`quantum-nav-link ${activeTab === 'world' ? 'active' : ''}`}
@@ -1858,7 +2010,7 @@ function AppContent() {
 
       {/* Quantum Main Container */}
       <main id="main-content" className="quantum-main-container" role="main">
-        {/* Quantum Sidebar - UPDATED to respect performance mode */}
+        {/* Quantum Sidebar */}
         {activeTab === 'world' && (
           <aside className="quantum-sidebar" aria-label="Quantum Mod Manager">
             <div className="quantum-sidebar-header">
@@ -1871,6 +2023,10 @@ function AppContent() {
                 <div className="stat">
                   <span className="stat-label">Chaos</span>
                   <span className="stat-value">{Math.round(chaosLevel)}%</span>
+                </div>
+                <div className="stat">
+                  <span className="stat-label">Perf</span>
+                  <span className="stat-value">{performanceLevel}</span>
                 </div>
               </div>
             </div>
@@ -1886,6 +2042,8 @@ function AppContent() {
               reducedMotion={isReducedMotion}
               highContrast={highContrast}
               screenReaderMode={screenReaderMode}
+              // FIXED: Pass performance mode flags
+              performanceMode={performanceMode}
             />
           </aside>
         )}
@@ -1911,9 +2069,14 @@ function AppContent() {
                         <i className="fas fa-radiation" aria-hidden="true"></i> Reality Unstable
                       </span>
                     )}
-                    {quantumEffects.length > 0 && (
+                    {quantumEffects.length > 0 && !performanceMode.disableEffects && (
                       <span className="quantum-effects-indicator" aria-label={`${quantumEffects.length} active quantum effects`}>
                         <i className="fas fa-bolt" aria-hidden="true"></i> {quantumEffects.length} Active Effects
+                      </span>
+                    )}
+                    {performanceMode.lowQuality && (
+                      <span className="quantum-performance-badge" aria-label="Low performance mode active">
+                        <i className="fas fa-tachometer-alt" aria-hidden="true"></i> Performance Mode
                       </span>
                     )}
                   </h2>
@@ -1962,7 +2125,7 @@ function AppContent() {
                 ></div>
 
                 {/* Quantum Stats Overlay */}
-                {quantumState && (
+                {quantumState && !performanceMode.disableEffects && (
                   <div className="quantum-stats-overlay" aria-label="Quantum statistics">
                     <div className="quantum-stat">
                       <div className="stat-label">Quantum Field</div>
@@ -1997,6 +2160,7 @@ function AppContent() {
                     reducedMotion={isReducedMotion}
                     highContrast={highContrast}
                     screenReaderMode={screenReaderMode}
+                    performanceMode={performanceMode}
                   />
                 </div>
               )}
@@ -2027,130 +2191,12 @@ function AppContent() {
         </div>
       </main>
 
-      {/* Quantum Installer Modal - accessible */}
+      {/* FIXED: Add integrated installers */}
       {showQuantumInstaller && (
-        <div 
-          className="quantum-notification quantum-notification show info" 
-          role="dialog"
-          aria-modal="true"
-          aria-label="Quantum Installation Options"
-          style={{
-            position: 'fixed',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            zIndex: 10002,
-            maxWidth: '600px',
-            width: '90%'
-          }}
-        >
-          <div className="quantum-notification-header">
-            <div className="notification-quantum-icon" aria-hidden="true">
-              <i className="fas fa-atom fa-spin"></i>
-            </div>
-            <h2 className="quantum-notification-title">
-              🚀 Install Modz Quantum
-            </h2>
-            <button 
-              className="quantum-notification-time"
-              onClick={dismissQuantumInstaller}
-              onKeyDown={(e) => handleKeyboardNavigation(e, dismissQuantumInstaller)}
-              style={{background: 'none', border: 'none', color: 'inherit', cursor: 'pointer'}}
-              aria-label="Close installer"
-            >
-              <i className="fas fa-times" aria-hidden="true"></i>
-            </button>
-          </div>
-          <div className="quantum-notification-message">
-            <p>Choose your installation method:</p>
-            
-            <div className="installer-options" style={{marginTop: '20px'}}>
-              {/* PWA Option */}
-              <div className="quantum-effect-item" style={{marginBottom: '15px'}}>
-                <div style={{flex: 1}}>
-                  <h3 style={{margin: '0 0 5px 0', fontSize: '18px'}}>
-                    <i className="fas fa-mobile-alt" style={{marginRight: '10px'}} aria-hidden="true"></i>
-                    Standard PWA
-                  </h3>
-                  <p style={{margin: '0', fontSize: '14px', opacity: 0.8}}>
-                    Basic Progressive Web App installation
-                  </p>
-                  <div style={{display: 'flex', gap: '10px', marginTop: '10px', fontSize: '12px'}}>
-                    <span><i className="fas fa-check" aria-hidden="true"></i> Works everywhere</span>
-                    <span><i className="fas fa-check" aria-hidden="true"></i> Offline support</span>
-                    <span><i className="fas fa-check" aria-hidden="true"></i> Auto-updates</span>
-                  </div>
-                </div>
-                <button 
-                  className="btn btn-quantum-small"
-                  onClick={handlePWAInstall}
-                  onKeyDown={(e) => handleKeyboardNavigation(e, handlePWAInstall)}
-                  disabled={!deferredPrompt}
-                  style={{minWidth: '120px'}}
-                  aria-label={deferredPrompt ? 'Install Progressive Web App' : 'PWA installation not available'}
-                >
-                  {deferredPrompt ? 'Install PWA' : 'Manual Install'}
-                </button>
-              </div>
-              
-              {/* CWA Option */}
-              <div className="quantum-effect-item" style={{borderLeftColor: 'var(--quantum-warning)'}}>
-                <div style={{flex: 1}}>
-                  <h3 style={{margin: '0 0 5px 0', fontSize: '18px'}}>
-                    <i className="fas fa-bolt" style={{marginRight: '10px'}} aria-hidden="true"></i>
-                    Advanced CWA 
-                    <span style={{
-                      background: 'var(--quantum-warning)',
-                      color: 'var(--quantum-whitehole)',
-                      padding: '2px 8px',
-                      borderRadius: '10px',
-                      fontSize: '10px',
-                      marginLeft: '5px'
-                    }}>⚡ NEW</span>
-                  </h3>
-                  <p style={{margin: '0', fontSize: '14px', opacity: 0.8}}>
-                    ChromeBook Web App with advanced optimizations
-                  </p>
-                  <div style={{display: 'flex', gap: '10px', marginTop: '10px', fontSize: '12px', flexWrap: 'wrap'}}>
-                    <span><i className="fas fa-check" aria-hidden="true"></i> 40FPS Performance</span>
-                    <span><i className="fas fa-check" aria-hidden="true"></i> School Bypass</span>
-                    <span><i className="fas fa-check" aria-hidden="true"></i> Stealth Mode</span>
-                    <span><i className="fas fa-check" aria-hidden="true"></i> Memory Optimized</span>
-                  </div>
-                </div>
-                <button 
-                  className="btn btn-quantum-small"
-                  onClick={handleCWAInstall}
-                  onKeyDown={(e) => handleKeyboardNavigation(e, handleCWAInstall)}
-                  style={{
-                    minWidth: '120px',
-                    background: 'linear-gradient(135deg, var(--quantum-warning), #ffaa00)'
-                  }}
-                  aria-label="Install Chrome Web App with advanced features"
-                >
-                  Install CWA
-                </button>
-              </div>
-            </div>
-            
-            <div style={{marginTop: '20px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)'}}>
-              <p style={{margin: '0 0 10px 0', fontSize: '12px', opacity: 0.8}}>
-                <i className="fas fa-lightbulb" aria-hidden="true"></i> 
-                <strong> Tip:</strong> CWA is recommended for school Chromebooks & better performance
-              </p>
-              <div className="quantum-sidebar-stats" style={{justifyContent: 'center', gap: '30px'}}>
-                <div className="stat" style={{minWidth: 'auto'}}>
-                  <span className="stat-label">Reality Coeff</span>
-                  <span className="stat-value">{realityCoefficient.toFixed(2)}</span>
-                </div>
-                <div className="stat" style={{minWidth: 'auto'}}>
-                  <span className="stat-label">Chaos Level</span>
-                  <span className="stat-value">{Math.round(chaosLevel)}%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <>
+          <CWAInstaller addNotification={addNotification} />
+          <QuantumPWAInstaller addNotification={addNotification} />
+        </>
       )}
 
       {/* Quantum Notifications */}
@@ -2217,7 +2263,7 @@ function AppContent() {
       )}
 
       {/* Quantum Effects Display */}
-      {quantumEffects.length > 0 && !isReducedMotion && (
+      {quantumEffects.length > 0 && !isReducedMotion && !performanceMode.disableEffects && (
         <div 
           className="quantum-effects-display" 
           role="region" 
@@ -2315,6 +2361,15 @@ function AppContent() {
               <div className="status-value">{temporalDisplacement.toFixed(1)}</div>
             </div>
           </div>
+          <div className="status-item">
+            <div className="status-icon" aria-hidden="true">
+              <i className="fas fa-tachometer-alt"></i>
+            </div>
+            <div className="status-content">
+              <div className="status-label">Performance</div>
+              <div className="status-value">{performanceLevel}</div>
+            </div>
+          </div>
         </div>
         <div className="status-actions">
           <button 
@@ -2335,25 +2390,6 @@ function AppContent() {
           </button>
         </div>
       </div>
-
-      {/* Quantum Installation Button */}
-      {typeof window !== 'undefined' && 
-       !window.matchMedia('(display-mode: standalone)').matches &&
-       'serviceWorker' in navigator && (
-        <div className="quantum-install-button">
-          <button 
-            className="btn btn-quantum-primary btn-quantum-install"
-            onClick={() => setShowQuantumInstaller(true)}
-            onKeyDown={(e) => handleKeyboardNavigation(e, () => setShowQuantumInstaller(true))}
-            aria-label="Install Quantum Reality application"
-          >
-            <div className="install-button-quantum">
-              <i className="fas fa-atom fa-spin" aria-hidden="true"></i>
-              <span>Install Quantum Reality</span>
-            </div>
-          </button>
-        </div>
-      )}
 
       {/* Accessibility Controls */}
       {renderAccessibilityControls()}
