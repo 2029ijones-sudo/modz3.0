@@ -1,4 +1,5 @@
 /* app/globals.css - UPDATED FOR QUANTUM MODZ 3.0 - ENHANCED EDITION */
+/* CURSOR ISSUES FIXED - Removed custom cursor leftovers */
 
 /* ===== QUANTUM VARIABLES ===== */
 :root {
@@ -81,14 +82,13 @@ body {
   color: var(--quantum-text-light);
   min-height: 100vh;
   overflow: hidden;
-  cursor: none;
   font-smooth: always;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
-
+/* REMOVED: cursor: none; from body */
 
 /* ===== QUANTUM HEADER - ENHANCED ===== */
 .quantum-header {
@@ -397,10 +397,10 @@ body {
   transform-style: preserve-3d;
   background: transparent;
   border: none;
-  cursor: none;
   font-size: 15px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
+  /* REMOVED: cursor: none; */
 }
 
 .nav-link-quantum {
@@ -582,7 +582,6 @@ body {
   border-radius: 50px;
   border: none;
   font-weight: 800;
-  cursor: none;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -595,6 +594,7 @@ body {
   perspective: 500px;
   text-transform: uppercase;
   isolation: isolate;
+  /* REMOVED: cursor: none; */
 }
 
 .btn::before {
@@ -766,10 +766,10 @@ body {
   width: 60px;
   height: 60px;
   position: relative;
-  cursor: none;
   transform-style: preserve-3d;
   perspective: 1000px;
   animation: quantumAvatarEntrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.5s both;
+  /* REMOVED: cursor: none; */
 }
 
 @keyframes quantumAvatarEntrance {
@@ -846,7 +846,6 @@ body {
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  cursor: none;
   transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
   border: 2px solid transparent;
   position: relative;
@@ -859,6 +858,7 @@ body {
     0 0 120px rgba(108, 92, 231, 0.3);
   transform-style: preserve-3d;
   z-index: 2;
+  /* REMOVED: cursor: none; */
 }
 
 .avatar-quantum-core {
@@ -2454,7 +2454,6 @@ body {
     rgba(255, 255, 255, 0.1) 100%);
   border: none;
   color: white;
-  cursor: none;
   padding: 0;
   font-size: 14px;
   opacity: 0.8;
@@ -4324,8 +4323,6 @@ body {
   .quantum-effects-display,
   .quantum-session-indicator,
   .quantum-dragging-indicator,
-  .quantum-cursor,
-  .quantum-cursor-tracer,
   .quantum-visual-effects,
   .quantum-scan-line,
   .quantum-hologram-effect,
@@ -4337,7 +4334,6 @@ body {
   body {
     background: white !important;
     color: black !important;
-    cursor: auto !important;
   }
   
   .quantum-app-container,
@@ -4423,10 +4419,7 @@ body {
 
 /* ===== TOUCH DEVICE OPTIMIZATIONS ===== */
 @media (hover: none) and (pointer: coarse) {
-  .quantum-cursor,
-  .quantum-cursor-tracer {
-    display: none;
-  }
+  /* REMOVED: quantum-cursor, quantum-cursor-tracer hiding */
   
   body {
     cursor: default;
@@ -4458,133 +4451,4 @@ body {
     right: 20px;
     left: 20px;
   }
-}
-/* ===== CURSOR FIX - CSS ONLY SOLUTION ===== */
-
-/* Keep body with cursor: none to hide default cursor */
-body {
-   cursor: pointer !important;
-}
-
-/* FORCE pointer cursor on ALL interactive elements */
-.btn,
-.quantum-nav-link,
-.quantum-avatar-container,
-button,
-a,
-input,
-select,
-textarea,
-[role="button"],
-[tabindex],
-[onclick],
-[data-quantum],
-.quantum-world-actions *,
-.status-actions *,
-.installer-actions *,
-.quantum-nav-links *,
-.quantum-user-section *,
-.btn *,
-.quantum-nav-link *,
-.quantum-logo,
-.logo-quantum-animation,
-.quantum-logo-text,
-.logo-text-modz,
-.logo-text-quantum {
-  cursor: pointer !important;
-}
-
-/* Specifically target text inputs */
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="search"],
-input[type="tel"],
-input[type="url"],
-input[type="number"],
-textarea {
-  cursor: text !important;
-}
-
-/* Disabled elements */
-.btn:disabled,
-button:disabled,
-.quantum-nav-link:disabled,
-[disabled] {
-  cursor: not-allowed !important;
-}
-
-/* Target the hover states too - ensure they stay as pointer */
-.btn:hover,
-.quantum-nav-link:hover,
-button:hover,
-a:hover,
-.quantum-avatar-container:hover,
-.btn:hover *,
-.quantum-nav-link:hover *,
-button:hover *,
-a:hover * {
-  cursor: pointer !important;
-}
-
-/* Hide custom cursor when hovering over ANY interactive element */
-/* This uses more specific targeting */
-body:hover .btn:hover ~ .quantum-cursor,
-body:hover .quantum-nav-link:hover ~ .quantum-cursor,
-body:hover button:hover ~ .quantum-cursor,
-body:hover a:hover ~ .quantum-cursor,
-body:hover .quantum-avatar-container:hover ~ .quantum-cursor,
-body:hover .btn:hover ~ .quantum-cursor-tracer,
-body:hover .quantum-nav-link:hover ~ .quantum-cursor-tracer,
-body:hover button:hover ~ .quantum-cursor-tracer,
-body:hover a:hover ~ .quantum-cursor-tracer,
-body:hover .quantum-avatar-container:hover ~ .quantum-cursor-tracer,
-/* Add more specific selectors */
-.quantum-world-actions:hover ~ .quantum-cursor,
-.quantum-world-actions:hover ~ .quantum-cursor-tracer,
-.status-actions:hover ~ .quantum-cursor,
-.status-actions:hover ~ .quantum-cursor-tracer,
-.installer-actions:hover ~ .quantum-cursor,
-.installer-actions:hover ~ .quantum-cursor-tracer,
-.quantum-nav-links:hover ~ .quantum-cursor,
-.quantum-nav-links:hover ~ .quantum-cursor-tracer,
-.quantum-user-section:hover ~ .quantum-cursor,
-.quantum-user-section:hover ~ .quantum-cursor-tracer {
-  opacity: 0 !important;
-  visibility: hidden !important;
-  transform: scale(0) !important;
-  pointer-events: none !important;
-}
-
-/* Quick fix: Hide cursor when any interactive container is hovered */
-.quantum-header:hover .quantum-cursor,
-.quantum-header:hover .quantum-cursor-tracer,
-.quantum-sidebar:hover .quantum-cursor,
-.quantum-sidebar:hover .quantum-cursor-tracer,
-.quantum-status-bar:hover .quantum-cursor,
-.quantum-status-bar:hover .quantum-cursor-tracer,
-.quantum-installer-modal:hover .quantum-cursor,
-.quantum-installer-modal:hover .quantum-cursor-tracer,
-.quantum-notification-container:hover .quantum-cursor,
-.quantum-notification-container:hover .quantum-cursor-tracer {
-  opacity: 0 !important;
-  visibility: hidden !important;
-}
-
-/* Force the cursor to be visible when not over interactive areas */
-body:not(:hover) .quantum-cursor,
-body:not(:hover) .quantum-cursor-tracer {
-  opacity: 1 !important;
-  visibility: visible !important;
-}
-
-/* Make sure quantum cursor has proper stacking and no pointer events */
-.quantum-cursor {
-  pointer-events: none !important;
-  z-index: 99999 !important;
-}
-
-.quantum-cursor-tracer {
-  pointer-events: none !important;
-  z-index: 99998 !important;
 }
