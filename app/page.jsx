@@ -84,6 +84,143 @@ function AppContent() {
   const animationRef = useRef(null);
   const particleSystemRef = useRef(null);
 
+  // Performance state
+  const [fps, setFps] = useState(60);
+  const [memoryUsage, setMemoryUsage] = useState('--');
+  const [gpuInfo, setGpuInfo] = useState('--');
+  const [performanceLevel, setPerformanceLevel] = useState('high');
+  const [showMemoryWarning, setShowMemoryWarning] = useState(false);
+  const [detectedMemory, setDetectedMemory] = useState(8);
+
+  // ========== PERFORMANCE DETECTION ==========
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    console.log('🔧 Performance Optimizer v1.0 - Scanning device...');
+    
+    let detectedMemoryValue = 8;
+    if (navigator.deviceMemory) {
+      detectedMemoryValue = navigator.deviceMemory;
+      setDetectedMemory(detectedMemoryValue);
+      console.log('💾 Detected memory:', detectedMemoryValue + 'GB');
+    }
+    
+    const cpuCores = navigator.hardwareConcurrency || 4;
+    console.log('⚙️ CPU Cores:', cpuCores);
+    
+    let webglScore = 1;
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+      if (gl) {
+        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+        if (debugInfo) {
+          const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+          setGpuInfo(renderer.length > 20 ? renderer.substring(0, 20) + '...' : renderer);
+          webglScore = renderer.includes('NVIDIA') || renderer.includes('AMD') || 
+                       renderer.includes('RTX') || renderer.includes('Intel Iris') ? 2 : 1;
+          
+          if (renderer.includes('Intel') && !renderer.includes('Iris')) {
+            document.body.classList.add('low-performance');
+          }
+        }
+      }
+    } catch (e) {}
+    
+    const performanceScore = (detectedMemoryValue * 0.4) + (cpuCores * 0.3) + (webglScore * 0.3);
+    console.log('📊 Performance Score:', performanceScore.toFixed(2));
+    
+    let level = 'high';
+    if (performanceScore < 3) {
+      level = 'extreme';
+      document.body.classList.add('extreme-performance-mode', 'low-performance');
+      console.log('🚨 EXTREME PERFORMANCE MODE ACTIVATED');
+    } else if (performanceScore < 6) {
+      level = 'low';
+      document.body.classList.add('low-performance');
+      console.log('⚠️ LOW PERFORMANCE MODE ACTIVATED');
+    } else if (performanceScore < 9) {
+      level = 'medium';
+      document.body.classList.add('medium-performance');
+      console.log('🔶 MEDIUM PERFORMANCE MODE ACTIVATED');
+    }
+    
+    setPerformanceLevel(level);
+    
+    // FPS Counter
+    let frameCount = 0;
+    let lastTime = performance.now();
+    
+    function updateFPS() {
+      frameCount++;
+      const currentTime = performance.now();
+      if (currentTime >= lastTime + 1000) {
+        const fpsValue = Math.round((frameCount * 1000) / (currentTime - lastTime));
+        setFps(fpsValue);
+        frameCount = 0;
+        lastTime = currentTime;
+        
+        if (fpsValue < 25 && !document.body.classList.contains('extreme-performance-mode')) {
+          document.body.classList.add('extreme-performance-mode');
+          console.log('📉 FPS dropped below 25, enabling extreme mode');
+        }
+      }
+      requestAnimationFrame(updateFPS);
+    }
+    
+    const fpsAnimationId = requestAnimationFrame(updateFPS);
+    
+    // Memory monitoring
+    let memoryInterval;
+    if ('memory' in performance) {
+      memoryInterval = setInterval(() => {
+        const memoryValue = performance.memory.usedJSHeapSize / 1024 / 1024;
+        setMemoryUsage(`${memoryValue.toFixed(1)} MB`);
+        
+        if (memoryValue > 500 && detectedMemoryValue < 4) {
+          setShowMemoryWarning(true);
+        }
+      }, 5000);
+    }
+    
+    return () => {
+      cancelAnimationFrame(fpsAnimationId);
+      if (memoryInterval) clearInterval(memoryInterval);
+    };
+  }, []);
+
+  // Performance toggle handler
+  const togglePerformanceMode = useCallback(() => {
+    const body = document.body;
+    const isExtreme = body.classList.contains('extreme-performance-mode');
+    const isLow = body.classList.contains('low-performance');
+    
+    if (isExtreme) {
+      body.classList.remove('extreme-performance-mode');
+      body.classList.add('low-performance');
+      setPerformanceLevel('low');
+      console.log('⬆️ Switched to Low Performance Mode');
+    } else if (isLow) {
+      body.classList.remove('low-performance');
+      setPerformanceLevel('high');
+      console.log('⬆️ Switched to Normal Mode');
+    } else {
+      body.classList.add('extreme-performance-mode');
+      setPerformanceLevel('extreme');
+      console.log('⬇️ Switched to Extreme Performance Mode');
+    }
+    
+    addNotification(`Performance mode: ${performanceLevel}`, 'info');
+  }, [performanceLevel]);
+
+  // Enable extreme performance
+  const enableExtremePerformance = useCallback(() => {
+    document.body.classList.add('extreme-performance-mode');
+    setShowMemoryWarning(false);
+    setPerformanceLevel('extreme');
+    addNotification('Extreme performance mode enabled', 'info');
+  }, []);
+
   // ========== QUANTUM SYSTEM ==========
   const initializeQuantumSystem = useCallback(() => {
     if (typeof window !== 'undefined') {
@@ -96,7 +233,6 @@ function AppContent() {
         setSpatialDistortion(state.spatialDistortion);
         setQuantumField(state.quantumFieldStrength);
 
-        // Subscribe to quantum events
         const quantumEvents = [
           'quantum-state-change',
           'quantum-chaos-trigger',
@@ -116,7 +252,6 @@ function AppContent() {
           window.addEventListener(eventName, handleQuantumEvent);
         });
 
-        // Start quantum visualization
         startQuantumVisualization();
         initializeGlobalQuantumEffects();
 
@@ -1018,6 +1153,23 @@ function AppContent() {
     }
   }, [activeTab, worldName]);
 
+  // Keyboard shortcut for performance stats
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+        const stats = document.querySelector('.performance-stats');
+        if (stats) {
+          stats.classList.toggle('show');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // ========== RENDER FUNCTIONS ==========
   const renderActiveTab = useCallback(() => {
     switch (activeTab) {
@@ -1146,6 +1298,53 @@ function AppContent() {
       <div className="quantum-scan-line"></div>
       <div className="quantum-hologram-effect"></div>
       <div className="quantum-distortion-field"></div>
+
+      {/* Performance Elements */}
+      <div className="performance-indicator">
+        <i className="fas fa-tachometer-alt"></i>
+        <span>Performance Mode: <span id="performance-level">{performanceLevel.charAt(0).toUpperCase() + performanceLevel.slice(1)}</span></span>
+      </div>
+
+      <div className="performance-stats">
+        <div className="stat">
+          <span className="stat-label">FPS:</span>
+          <span className="stat-value" id="fps-counter">{fps}</span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Memory:</span>
+          <span className="stat-value" id="memory-usage">{memoryUsage}</span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">GPU:</span>
+          <span className="stat-value" id="gpu-info">{gpuInfo}</span>
+        </div>
+      </div>
+
+      <button className="performance-toggle" id="performanceToggle" onClick={togglePerformanceMode}>
+        <i className="fas fa-cog"></i>
+        <span>Performance</span>
+      </button>
+
+      <div className="fps-counter" id="fpsDisplay">{fps} FPS</div>
+
+      {showMemoryWarning && (
+        <div className="memory-warning show" id="memoryWarning">
+          <h3>⚠️ Low Memory Detected</h3>
+          <p>Your device has limited memory (<span id="detected-memory">{detectedMemory}</span>GB).</p>
+          <p>Enabling Extreme Performance Mode to prevent crashes...</p>
+          <div className="memory-warning-buttons">
+            <button className="btn btn-quantum" onClick={enableExtremePerformance}>
+              Enable Extreme Mode
+            </button>
+            <button 
+              className="btn btn-quantum-secondary" 
+              onClick={() => setShowMemoryWarning(false)}
+            >
+              Continue Anyway
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Quantum Header */}
       <header className="quantum-header">
