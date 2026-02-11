@@ -255,12 +255,12 @@ const QuantumCodeEditor = ({
     try {
       // Create a safe sandbox
       const sandbox = {
-        console: {
-          log: (...args) => setConsoleOutput(prev => [...prev, { type: 'log', args })),
-          error: (...args) => setConsoleOutput(prev => [...prev, { type: 'error', args })),
-          warn: (...args) => setConsoleOutput(prev => [...prev, { type: 'warn', args })),
-          info: (...args) => setConsoleOutput(prev => [...prev, { type: 'info', args }])
-        },
+       console: {
+  log: (...args) => setConsoleOutput(prev => [...prev, { type: 'log', args }]),
+  error: (...args) => setConsoleOutput(prev => [...prev, { type: 'error', args }]),
+  warn: (...args) => setConsoleOutput(prev => [...prev, { type: 'warn', args }]),
+  info: (...args) => setConsoleOutput(prev => [...prev, { type: 'info', args }])
+},
         setTimeout,
         clearTimeout,
         Math,
