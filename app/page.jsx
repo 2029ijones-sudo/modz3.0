@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import CryptoJS from 'crypto-js';
 import './globals.css';
 
-// Dynamically import components with accessibility - FIXED to respect performance mode
+// Dynamically import components with accessibility
 const ThreeWorld = dynamic(() => import('@/ThreeWorld'), { 
   ssr: false,
   loading: () => (
@@ -28,15 +28,19 @@ const ThreeWorld = dynamic(() => import('@/ThreeWorld'), {
 
 const CodeEditor = dynamic(() => import('@/CodeEditor'), { ssr: false });
 const ModManager = dynamic(() => import('@/ModManager'), { ssr: false });
-
-// FIXED: Community and Profile components now receive performance props
 const Community = dynamic(() => import('@/Community'), { ssr: false });
 const Profile = dynamic(() => import('@/Profile'), { ssr: false });
 
+// ✅ FIXED: Dynamically import installers with correct variable names
+const CWAInstaller = dynamic(() => import('@/components/CWAInstaller'), { 
+  ssr: false,
+  loading: () => null
+});
 
-import CWAInstaller from '@/components/CWAInstaller';
-import QuantumPWAInstaller from '@/components/PWAInstaller';
-
+const QuantumPWAInstaller = dynamic(() => import('@/components/PWAInstaller'), { 
+  ssr: false,
+  loading: () => null
+});
 // Quantum Installation System
 import { quantumInstallation, getQuantumStateSummary } from '~/quantum-installation';
 
