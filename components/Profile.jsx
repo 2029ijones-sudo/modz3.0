@@ -1199,7 +1199,18 @@ export default function Profile() {
               // ==========================================================================
               // EDIT MODE - COMPLETE PROFILES TABLE FORM
               // ==========================================================================
-              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+            <form 
+  onSubmit={handleSubmit} 
+  style={{ 
+    display: 'flex', 
+    flexDirection: 'column', 
+    gap: '32px',
+    maxHeight: 'calc(100vh - 200px)',
+    overflowY: 'auto',
+    paddingRight: '16px'
+  }}
+  className="profile-form-scroll"
+>
                 
                 {/* Avatar Upload Section */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '20px' }}>
@@ -2763,6 +2774,20 @@ export default function Profile() {
           50% { opacity: 1; transform: scale(1.05); }
           100% { opacity: 0.6; transform: scale(1); }
         }
+        .profile-form-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.profile-form-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+.profile-form-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 200, 255, 0.3);
+  border-radius: 10px;
+}
+.profile-form-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 200, 255, 0.5);
+}
       `}</style>
     </div>
   );
