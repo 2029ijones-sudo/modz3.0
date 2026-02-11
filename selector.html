@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Version Selector</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            padding: 3rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 2rem;
+        }
+        .version-card {
+            background: #f7f7f7;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        .version-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border-color: #667eea;
+        }
+        .version-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+        .version-desc {
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+        .version-branch {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Select Your Experience</h1>
+        
+        <div class="version-card" onclick="window.location.href='/'">
+            <div class="version-title">Full Experience</div>
+            <div class="version-desc">Complete version with all features and latest updates</div>
+            <div class="version-branch">Main Branch</div>
+        </div>
+        
+        <div class="warning">
+            ⚠️ The Full Experience may have experimental features and could be less stable
+        </div>
+        
+        <div class="version-card" onclick="window.location.href='/index-lite.html'">
+            <div class="version-title">Lite Experience</div>
+            <div class="version-desc">Stable, optimized version with essential features only</div>
+            <div class="version-branch">BackUp7 Branch</div>
+        </div>
+        
+        <div class="warning">
+            ⚠️ Note: Selector is for demonstration. You'll need to implement actual routing logic.
+        </div>
+    </div>
+    
+    <script>
+        // Simple branch detection
+        const branch = window.location.hostname.includes('backup') || 
+                      window.location.pathname.includes('backup') ? 'BackUp7' : 'main';
+        
+        console.log(`Detected branch: ${branch}`);
+        
+        // You can use this to auto-redirect or show branch-specific content
+        document.addEventListener('DOMContentLoaded', function() {
+            // Example: Auto-redirect based on URL parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const version = urlParams.get('version');
+            
+            if (version === 'lite') {
+                window.location.href = '/index-lite.html';
+            } else if (version === 'full') {
+                window.location.href = '/';
+            }
+        });
+    </script>
+</body>
+</html>
