@@ -19,6 +19,7 @@ const ThreeWorld = dynamic(() => import('../components/ThreeWorld'), {
     </div>
   )
 });
+
 const CodeEditor = dynamic(() => import('../components/CodeEditor'), { ssr: false });
 const ModManager = dynamic(() => import('../components/ModManager'), { ssr: false });
 const Community = dynamic(() => import('../components/Community'), { ssr: false });
