@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import CryptoJS from 'crypto-js';
 import './globals.css';
 
-// Use your alias structure for imports
+// Dynamically import components
 const ThreeWorld = dynamic(() => import('@/ThreeWorld'), { 
   ssr: false,
   loading: () => (
@@ -31,7 +31,7 @@ import { quantumInstallation, getQuantumStateSummary } from '~/quantum-installat
 // Encryption key
 const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || 'quantum-mods-secret-key-2024';
 
-// Function to encrypt URL parameters
+// Function to encrypt URL parameters with quantum enhancement
 const encryptData = (data) => {
   try {
     const quantumEntropy = quantumInstallation.quantumState?.quantumSignature || Math.random().toString(36);
@@ -84,21 +84,336 @@ function AppContent() {
   const animationRef = useRef(null);
   const particleSystemRef = useRef(null);
 
+  // ========== QUANTUM SYSTEM ==========
+  const initializeQuantumSystem = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const state = getQuantumStateSummary();
+        setQuantumState(state);
+        setChaosLevel(state.chaosLevel);
+        setRealityCoefficient(state.realityCoefficient);
+        setTemporalDisplacement(state.temporalDisplacement);
+        setSpatialDistortion(state.spatialDistortion);
+        setQuantumField(state.quantumFieldStrength);
+
+        // Subscribe to quantum events
+        const quantumEvents = [
+          'quantum-state-change',
+          'quantum-chaos-trigger',
+          'quantum-installation-progress',
+          'quantum-field-strength-change',
+          'quantum-temporal-displacement',
+          'quantum-spatial-distortion',
+          'quantum-reality-coefficient-change',
+          'quantum-coherence-change',
+          'quantum-resonance-change',
+          'quantum-vortex-detected',
+          'quantum-anomaly-detected',
+          'quantum-echo-detected'
+        ];
+
+        quantumEvents.forEach(eventName => {
+          window.addEventListener(eventName, handleQuantumEvent);
+        });
+
+        // Start quantum visualization
+        startQuantumVisualization();
+        initializeGlobalQuantumEffects();
+
+        console.log('🌀 Quantum system initialized');
+      } catch (error) {
+        console.error('Quantum initialization failed:', error);
+      }
+    }
+  }, []);
+
+  const handleQuantumEvent = useCallback((event) => {
+    const { detail } = event;
+    
+    switch (event.type) {
+      case 'quantum-state-change':
+        setQuantumState(detail.quantumState);
+        break;
+      case 'quantum-chaos-trigger':
+        handleQuantumChaosTrigger(detail);
+        break;
+      case 'quantum-field-strength-change':
+        setQuantumField(detail.quantumFieldStrength);
+        break;
+      case 'quantum-temporal-displacement':
+        setTemporalDisplacement(detail.temporalDisplacement);
+        break;
+      case 'quantum-spatial-distortion':
+        setSpatialDistortion(detail.spatialDistortion);
+        break;
+      case 'quantum-reality-coefficient-change':
+        setRealityCoefficient(detail.realityCoefficient);
+        break;
+      case 'quantum-anomaly-detected':
+        handleQuantumAnomaly(detail);
+        break;
+      case 'quantum-vortex-detected':
+        handleQuantumVortex(detail);
+        break;
+      default:
+        const state = getQuantumStateSummary();
+        setQuantumState(state);
+        setChaosLevel(state.chaosLevel);
+        setQuantumField(state.quantumFieldStrength);
+    }
+  }, []);
+
+  const handleQuantumChaosTrigger = useCallback((detail) => {
+    const { type, intensity = 50 } = detail;
+    
+    const effectId = Date.now();
+    const newEffect = {
+      id: effectId,
+      type,
+      intensity,
+      timestamp: Date.now()
+    };
+    
+    setQuantumEffects(prev => [...prev, newEffect]);
+    createQuantumVisualEffect(type, intensity);
+    
+    setTimeout(() => {
+      setQuantumEffects(prev => prev.filter(effect => effect.id !== effectId));
+    }, 3000);
+    
+    addNotification(`Quantum ${type} effect triggered!`, 'info');
+  }, []);
+
+  const handleQuantumAnomaly = useCallback((detail) => {
+    const { strength, position } = detail;
+    createAnomalyEffect(position, strength);
+    
+    if (strength > 0.7) {
+      window.dispatchEvent(new CustomEvent('reality-distortion', {
+        detail: { intensity: strength }
+      }));
+      addNotification('Reality anomaly detected! Reality coefficient fluctuating.', 'warning');
+    }
+  }, []);
+
+  const handleQuantumVortex = useCallback((detail) => {
+    const { type, strength, position } = detail;
+    createVortexEffect(type, position, strength);
+    
+    if (type.includes('temporal')) {
+      window.dispatchEvent(new CustomEvent('time-dilation', {
+        detail: { factor: 1 + strength * 0.5 }
+      }));
+      addNotification('Temporal vortex detected! Time dilation active.', 'info');
+    }
+  }, []);
+
+  const initializeGlobalQuantumEffects = useCallback(() => {
+    createQuantumParticleField();
+    createInterferencePatterns();
+    startRealityCoefficientPulse();
+  }, []);
+
+  const createQuantumParticleField = () => {
+    const container = document.getElementById('quantum-particle-field');
+    if (!container) return;
+    
+    for (let i = 0; i < 100; i++) {
+      const particle = document.createElement('div');
+      particle.className = 'quantum-particle-bg';
+      particle.style.setProperty('--x', `${Math.random() * 100}%`);
+      particle.style.setProperty('--y', `${Math.random() * 100}%`);
+      particle.style.setProperty('--duration', `${Math.random() * 10 + 5}s`);
+      particle.style.setProperty('--delay', `${Math.random() * 5}s`);
+      particle.style.setProperty('--size', `${Math.random() * 3 + 1}px`);
+      particle.style.setProperty('--hue', `${Math.random() * 360}`);
+      container.appendChild(particle);
+    }
+  };
+
+  const createInterferencePatterns = () => {
+    const container = document.getElementById('interference-patterns');
+    if (!container) return;
+    
+    for (let i = 0; i < 5; i++) {
+      const pattern = document.createElement('div');
+      pattern.className = 'interference-pattern';
+      pattern.style.setProperty('--rotation', `${Math.random() * 360}deg`);
+      pattern.style.setProperty('--scale', `${Math.random() * 2 + 1}`);
+      pattern.style.setProperty('--opacity', `${Math.random() * 0.2 + 0.1}`);
+      container.appendChild(pattern);
+    }
+  };
+
+  const startRealityCoefficientPulse = () => {
+    const pulseEffect = () => {
+      const pulse = document.createElement('div');
+      pulse.className = 'reality-pulse';
+      pulse.style.setProperty('--coefficient', realityCoefficient.toString());
+      document.body.appendChild(pulse);
+      setTimeout(() => pulse.remove(), 2000);
+    };
+    setInterval(pulseEffect, 5000 / realityCoefficient);
+  };
+
+  const startQuantumVisualization = () => {
+    if (!canvasRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    particleSystemRef.current = {
+      particles: [],
+      attractors: [],
+      time: 0,
+      chaos: chaosLevel / 100,
+      quantumField: quantumField
+    };
+    
+    // Initialize quantum particles
+    for (let i = 0; i < 100; i++) {
+      particleSystemRef.current.particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 2,
+        vy: (Math.random() - 0.5) * 2,
+        radius: Math.random() * 4 + 2,
+        color: `hsla(${Math.random() * 360}, 100%, 70%, ${Math.random() * 0.5 + 0.3})`,
+        charge: Math.random() > 0.5 ? 1 : -1,
+        life: Math.random() * 200 + 100,
+        quantumState: Math.random() > 0.5 ? 'up' : 'down',
+        entangledWith: Math.random() > 0.8 ? Math.floor(Math.random() * 100) : null
+      });
+    }
+    
+    // Initialize strange attractors
+    for (let i = 0; i < 5; i++) {
+      particleSystemRef.current.attractors.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        strength: Math.random() * 0.8 + 0.2,
+        type: ['lorenz', 'rossler', 'aizawa', 'thomas', 'dadras'][i],
+        radius: Math.random() * 150 + 50
+      });
+    }
+    
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw quantum field background
+      const time = particleSystemRef.current.time;
+      const fieldStrength = quantumField * 100;
+      
+      const gradient = ctx.createRadialGradient(
+        canvas.width / 2,
+        canvas.height / 2,
+        0,
+        canvas.width / 2,
+        canvas.height / 2,
+        Math.max(canvas.width, canvas.height) / 2
+      );
+      
+      gradient.addColorStop(0, `hsla(270, 100%, 60%, ${0.05 * fieldStrength / 100})`);
+      gradient.addColorStop(0.3, `hsla(200, 100%, 50%, ${0.03 * fieldStrength / 100})`);
+      gradient.addColorStop(0.6, `hsla(150, 100%, 50%, ${0.02 * fieldStrength / 100})`);
+      gradient.addColorStop(1, 'transparent');
+      
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Update system state
+      particleSystemRef.current.time += 0.01;
+      particleSystemRef.current.chaos = chaosLevel / 100;
+      particleSystemRef.current.quantumField = quantumField;
+      
+      animationRef.current = requestAnimationFrame(animate);
+    };
+    
+    animate();
+    
+    const handleResize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  };
+
+  const createQuantumVisualEffect = (type, intensity) => {
+    const effect = document.createElement('div');
+    effect.className = `quantum-effect quantum-effect-${type}`;
+    effect.style.setProperty('--intensity', `${intensity}%`);
+    document.body.appendChild(effect);
+    
+    setTimeout(() => {
+      effect.style.opacity = '0';
+      setTimeout(() => effect.remove(), 1000);
+    }, 2000);
+  };
+
+  const createAnomalyEffect = (position, strength) => {
+    const anomaly = document.createElement('div');
+    anomaly.className = 'quantum-anomaly';
+    anomaly.style.left = `${Math.random() * 80 + 10}%`;
+    anomaly.style.top = `${Math.random() * 80 + 10}%`;
+    anomaly.style.setProperty('--strength', strength.toString());
+    document.body.appendChild(anomaly);
+    
+    setTimeout(() => {
+      anomaly.style.transform = 'scale(0)';
+      anomaly.style.opacity = '0';
+      setTimeout(() => anomaly.remove(), 1000);
+    }, 3000);
+  };
+
+  const createVortexEffect = (type, position, strength) => {
+    const vortex = document.createElement('div');
+    vortex.className = `quantum-vortex quantum-vortex-${type}`;
+    vortex.style.left = `${Math.random() * 70 + 15}%`;
+    vortex.style.top = `${Math.random() * 70 + 15}%`;
+    vortex.style.setProperty('--strength', strength.toString());
+    document.body.appendChild(vortex);
+    setTimeout(() => vortex.remove(), 5000);
+  };
+
   // ========== TAB NAVIGATION ==========
   const navigateToTab = (tab) => {
-    console.log(`🔘 Switching to tab: ${tab}`);
+    console.log(`Changing to tab: ${tab}`);
     setActiveTab(tab);
     setWebGLError(null);
     
     // Add quantum notification
     addNotification(`Quantum reality shifted to ${tab} dimension`, 'quantum');
     
-    // Trigger quantum event
-    if (quantumInstallation) {
+    // Create quantum shareable URL
+    const data = {
+      tab,
+      world: worldName,
+      timestamp: Date.now(),
+      session: Math.random().toString(36).substring(7),
+      quantumState: getQuantumStateSummary()
+    };
+    
+    const encrypted = encryptData(data);
+    if (encrypted) {
+      const url = `${window.location.origin}${window.location.pathname}?e=${encrypted}`;
+      window.history.replaceState({}, '', `?e=${encrypted}`);
+      
       quantumInstallation.triggerQuantumEvent('TAB_CHANGE', {
         tab: tab,
+        encryptedUrl: encrypted,
         timestamp: Date.now()
       });
+    }
+  };
+
+  const toggleQuantumEditor = () => {
+    setShowEditor(!showEditor);
+    if (!showEditor) {
+      addNotification('Quantum code editor activated. Reality manipulation enabled.', 'info');
     }
   };
 
@@ -115,43 +430,49 @@ function AppContent() {
       chaosLevel: chaosLevel 
     }]);
     
-    // Trigger quantum notification event
-    if (quantumInstallation) {
-      quantumInstallation.triggerQuantumEvent('NOTIFICATION_ADDED', {
-        message,
-        type: quantumType,
-        timestamp: Date.now()
-      });
-    }
+    quantumInstallation.triggerQuantumEvent('NOTIFICATION_ADDED', {
+      message,
+      type: quantumType,
+      timestamp: Date.now()
+    });
     
-    // Auto-remove notification
     const decayTime = 3000 * (1 + chaosLevel / 100);
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, decayTime);
   };
 
-  // ========== WORLD FUNCTIONS ==========
-  const toggleQuantumEditor = () => {
-    setShowEditor(!showEditor);
-    if (!showEditor) {
-      addNotification('Quantum code editor activated. Reality manipulation enabled.', 'info');
-    }
-  };
-
+  // ========== THREE WORLD ==========
   const handleThreeWorldReady = useCallback(() => {
     setIsThreeWorldReady(true);
     addNotification('Quantum Reality Field stabilized. 3D World ready!', 'success');
-  }, []);
+    
+    quantumInstallation.triggerQuantumEvent('WORLD_READY', {
+      timestamp: Date.now(),
+      worldName: worldName,
+      realityCoefficient: realityCoefficient
+    });
+  }, [worldName, realityCoefficient]);
 
   const handleWebGLError = useCallback((errorMessage) => {
     setWebGLError(errorMessage);
     addNotification(`Quantum Rendering Error: ${errorMessage}`, 'error');
+    
+    quantumInstallation.triggerQuantumEvent('RENDERING_ERROR', {
+      error: errorMessage,
+      timestamp: Date.now()
+    });
   }, []);
 
+  // ========== DRAG AND DROP ==========
   const handleModDragStart = (mod) => {
     setDraggedMod(mod);
     addNotification(`Quantum entanglement established with ${mod.name}`, 'info');
+    
+    quantumInstallation.triggerQuantumEvent('MOD_DRAG_START', {
+      mod: mod,
+      timestamp: Date.now()
+    });
   };
 
   const handleModDropIntoWorld = useCallback((position) => {
@@ -169,15 +490,96 @@ function AppContent() {
       }));
       
       addNotification(`Quantum manifestation: ${draggedMod.name} materialized in reality`, 'success');
+      
+      quantumInstallation.triggerQuantumEvent('MOD_MANIFESTED', {
+        mod: draggedMod,
+        position: position,
+        timestamp: Date.now(),
+        quantumState: getQuantumStateSummary()
+      });
+      
       setDraggedMod(null);
     }
   }, [draggedMod, chaosLevel, realityCoefficient, quantumField]);
 
+  // Drag and drop handlers with quantum effects
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleGlobalDragOver = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (activeTab === 'world' && e.dataTransfer.types.includes('application/mod-data')) {
+        setIsDraggingOverWorld(true);
+        const dropZone = document.getElementById('dropZone');
+        if (dropZone) {
+          dropZone.classList.add('drag-active');
+          dropZone.innerHTML = '<div class="drop-message"><i class="fas fa-atom"></i> Quantum entanglement in progress...</div>';
+        }
+      }
+    };
+
+    const handleGlobalDragLeave = (e) => {
+      if (activeTab === 'world') {
+        setIsDraggingOverWorld(false);
+        const dropZone = document.getElementById('dropZone');
+        if (dropZone) {
+          dropZone.classList.remove('drag-active');
+          dropZone.innerHTML = '';
+        }
+      }
+    };
+
+    const handleGlobalDrop = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (activeTab === 'world') {
+        setIsDraggingOverWorld(false);
+        const dropZone = document.getElementById('dropZone');
+        if (dropZone) {
+          dropZone.classList.remove('drag-active');
+          dropZone.innerHTML = '';
+        }
+      }
+    };
+
+    document.addEventListener('dragover', handleGlobalDragOver);
+    document.addEventListener('dragleave', handleGlobalDragLeave);
+    document.addEventListener('drop', handleGlobalDrop);
+
+    return () => {
+      document.removeEventListener('dragover', handleGlobalDragOver);
+      document.removeEventListener('dragleave', handleGlobalDragLeave);
+      document.removeEventListener('drop', handleGlobalDrop);
+    };
+  }, [activeTab]);
+
+  // ========== WORLD ACTIONS ==========
   const handleNewWorld = () => {
     const name = prompt('Enter quantum world name:', `Reality-${Date.now().toString(36)}`);
     if (name) {
       setWorldName(name);
       addNotification(`Quantum world "${name}" created. Reality field initialized.`, 'success');
+      
+      const data = {
+        tab: activeTab,
+        world: name,
+        timestamp: Date.now(),
+        action: 'quantum_world_created',
+        quantumState: getQuantumStateSummary()
+      };
+      
+      const encrypted = encryptData(data);
+      if (encrypted) {
+        window.history.replaceState({}, '', `?e=${encrypted}`);
+      }
+      
+      quantumInstallation.triggerQuantumEvent('WORLD_CREATED', {
+        worldName: name,
+        timestamp: Date.now()
+      });
     }
   };
 
@@ -185,6 +587,10 @@ function AppContent() {
     if (confirm('Collapse quantum superposition? This will clear the entire reality field.')) {
       window.dispatchEvent(new CustomEvent('clear-world'));
       addNotification('Quantum reality field collapsed. World cleared.', 'success');
+      
+      quantumInstallation.triggerQuantumEvent('WORLD_CLEARED', {
+        timestamp: Date.now()
+      });
     }
   };
 
@@ -199,7 +605,7 @@ function AppContent() {
         window.dispatchEvent(new CustomEvent('import-world', { 
           detail: { 
             file: file,
-            quantumSignature: quantumInstallation?.quantumState?.quantumSignature 
+            quantumSignature: quantumInstallation.quantumState?.quantumSignature 
           } 
         }));
       }
@@ -217,13 +623,43 @@ function AppContent() {
     }));
   };
 
+  const generateQuantumShareLink = () => {
+    const data = {
+      tab: activeTab,
+      world: worldName,
+      timestamp: Date.now(),
+      source: 'quantum_shared',
+      owner: 'Quantum User',
+      quantumState: getQuantumStateSummary(),
+      chaosLevel: chaosLevel,
+      realityCoefficient: realityCoefficient,
+      secure: true
+    };
+    
+    const encrypted = encryptData(data);
+    if (encrypted) {
+      const shareUrl = `${window.location.origin}${window.location.pathname}?e=${encrypted}`;
+      
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        addNotification('Quantum share link copied to clipboard! Reality entanglement established.', 'success');
+      }).catch(() => {
+        prompt('Quantum Share Link (Encrypted):', shareUrl);
+      });
+      
+      return shareUrl;
+    }
+    return null;
+  };
+
   const handleShareWorld = () => {
-    const shareLink = `${window.location.origin}${window.location.pathname}`;
-    navigator.clipboard.writeText(shareLink).then(() => {
-      addNotification('Quantum share link copied to clipboard!', 'success');
-    }).catch(() => {
-      prompt('Quantum Share Link:', shareLink);
-    });
+    const shareLink = generateQuantumShareLink();
+    if (shareLink && navigator.share) {
+      navigator.share({
+        title: `Quantum World: ${worldName}`,
+        text: `Explore my quantum reality in Modz3.0! Reality Coefficient: ${realityCoefficient.toFixed(2)}`,
+        url: shareLink
+      });
+    }
   };
 
   // ========== PWA INSTALLATION ==========
@@ -254,12 +690,10 @@ function AppContent() {
   useEffect(() => {
     const initializeCWA = async () => {
       try {
-        // Dynamically import CWA installer
         const { CWAInstaller } = await import('~/cwa-installer');
         const cwa = new CWAInstaller();
         setCWAInstaller(cwa);
         
-        // Initialize CWA if CWA mode is requested
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('cwa') === '1') {
           const status = await cwa.init();
@@ -302,7 +736,6 @@ function AppContent() {
   // Handle CWA installation
   const handleCWAInstall = async () => {
     try {
-      // Load CWA installer if not loaded
       if (!cwaInstaller) {
         const { CWAInstaller } = await import('~/cwa-installer');
         const cwa = new CWAInstaller();
@@ -368,7 +801,6 @@ function AppContent() {
     
     document.body.appendChild(modal);
     
-    // Add styles
     const styles = document.createElement('style');
     styles.textContent = `
       .quantum-instruction-modal {
@@ -427,7 +859,6 @@ function AppContent() {
     `;
     document.head.appendChild(styles);
     
-    // Add event listeners
     modal.querySelector('.btn-instruction-close').addEventListener('click', () => {
       modal.remove();
       styles.remove();
@@ -446,36 +877,10 @@ function AppContent() {
   const dismissQuantumInstaller = () => {
     setShowQuantumInstaller(false);
     localStorage.setItem('quantum_installer_dismissed', 'true');
-    addNotification('Quantum installer dismissed.', 'info');
+    addNotification('Quantum installer dismissed. You can install later from the status bar.', 'info');
   };
 
-  // ========== QUANTUM SYSTEM INITIALIZATION ==========
-  const initializeQuantumSystem = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const state = getQuantumStateSummary();
-        setQuantumState(state);
-        setChaosLevel(state.chaosLevel);
-        setRealityCoefficient(state.realityCoefficient);
-        setTemporalDisplacement(state.temporalDisplacement);
-        setSpatialDistortion(state.spatialDistortion);
-        setQuantumField(state.quantumFieldStrength);
-
-        console.log('🌀 Quantum system initialized');
-        
-        // Auto-detect if installer should be shown
-        if ('serviceWorker' in navigator && 
-            !window.matchMedia('(display-mode: standalone)').matches &&
-            !localStorage.getItem('quantum_installer_dismissed')) {
-          setShowQuantumInstaller(true);
-        }
-      } catch (error) {
-        console.error('Quantum initialization failed:', error);
-      }
-    }
-  }, []);
-
-  // ========== URL PARAMETERS HANDLING ==========
+  // ========== INITIALIZATION ==========
   useEffect(() => {
     const encrypted = searchParams.get('e');
     if (encrypted) {
@@ -483,7 +888,6 @@ function AppContent() {
       if (decrypted) {
         setEncryptedParams(decrypted);
         
-        // Handle decrypted parameters
         if (decrypted.tab) {
           setActiveTab(decrypted.tab);
         }
@@ -497,22 +901,99 @@ function AppContent() {
         if (decrypted.source === 'shared') {
           addNotification(`Loaded quantum-encrypted session from ${decrypted.owner || 'community'}`, 'info');
         }
+        
+        quantumInstallation.triggerQuantumEvent('ENCRYPTED_SESSION_LOADED', decrypted);
       }
     }
 
-    // Initialize quantum system
+    // Check WebGL support
+    const checkWebGLSupport = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl2') || canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        return !!gl;
+      } catch (error) {
+        return false;
+      }
+    };
+
+    if (!checkWebGLSupport()) {
+      handleWebGLError('WebGL is not supported in your browser. Quantum rendering disabled.');
+    }
+
     initializeQuantumSystem();
 
-    // Add welcome notification
+    // Auto-detect if installer should be shown
+    if ('serviceWorker' in navigator && 
+        !window.matchMedia('(display-mode: standalone)').matches &&
+        !localStorage.getItem('quantum_installer_dismissed')) {
+      setShowQuantumInstaller(true);
+    }
+
+    // Global quantum effects
+    const createGlobalParticles = () => {
+      const particleCount = 100;
+      const particlesContainer = document.getElementById('quantum-global-particles');
+      if (!particlesContainer) return;
+      
+      for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'quantum-global-particle';
+        particle.style.setProperty('--x', `${Math.random() * 100}vw`);
+        particle.style.setProperty('--y', `${Math.random() * 100}vh`);
+        particle.style.setProperty('--duration', `${Math.random() * 20 + 10}s`);
+        particle.style.setProperty('--delay', `${Math.random() * 10}s`);
+        particle.style.setProperty('--size', `${Math.random() * 6 + 2}px`);
+        particle.style.setProperty('--hue', `${Math.random() * 360}`);
+        particle.style.setProperty('--opacity', `${Math.random() * 0.3 + 0.1}`);
+        particlesContainer.appendChild(particle);
+      }
+    };
+
+    createGlobalParticles();
+    
     setTimeout(() => {
       addNotification('Welcome to Quantum Modz3.0! Reality coefficient stabilized.', 'info');
+      
+      quantumInstallation.triggerQuantumEvent('SYSTEM_INITIALIZED', {
+        timestamp: Date.now(),
+        chaosLevel: chaosLevel,
+        quantumField: quantumField,
+        realityCoefficient: realityCoefficient
+      });
     }, 1500);
+    
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
   }, [searchParams]);
+
+  // Update URL when active tab changes
+  useEffect(() => {
+    const data = {
+      tab: activeTab,
+      world: worldName,
+      timestamp: Date.now(),
+      session: Math.random().toString(36).substring(7),
+      quantumState: getQuantumStateSummary()
+    };
+    
+    const encrypted = encryptData(data);
+    if (encrypted) {
+      window.history.replaceState({}, '', `?e=${encrypted}`);
+      
+      quantumInstallation.triggerQuantumEvent('QUANTUM_NAVIGATION', {
+        tab: activeTab,
+        world: worldName,
+        encryptedUrl: encrypted
+      });
+    }
+  }, [activeTab, worldName]);
 
   // ========== RENDER FUNCTIONS ==========
   const renderActiveTab = () => {
-    console.log('Rendering tab:', activeTab);
-    
     switch (activeTab) {
       case 'world':
         return (
@@ -555,7 +1036,6 @@ function AppContent() {
     }
   };
 
-  // Quantum error fallback
   const renderQuantumErrorFallback = () => (
     <div className="quantum-error-fallback">
       <div className="quantum-error-icon">
@@ -585,9 +1065,33 @@ function AppContent() {
           <i className="fas fa-share-alt"></i> Quantum Community
         </button>
       </div>
+      <div className="quantum-tips">
+        <p><strong>Quantum Tips:</strong></p>
+        <ul>
+          <li>Ensure quantum entanglement (WebGL) is enabled</li>
+          <li>Update quantum drivers (Graphics drivers)</li>
+          <li>Check reality field stability (Browser compatibility)</li>
+          <li>Adjust quantum coherence settings (Disable hardware acceleration blockers)</li>
+        </ul>
+      </div>
+      <div className="quantum-stats">
+        <div className="stat">
+          <span className="stat-label">Reality Coefficient</span>
+          <span className="stat-value">{realityCoefficient.toFixed(2)}</span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Chaos Level</span>
+          <span className="stat-value">{Math.round(chaosLevel)}%</span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Quantum Field</span>
+          <span className="stat-value">{Math.round(quantumField * 100)}%</span>
+        </div>
+      </div>
     </div>
   );
 
+  // ========== RENDER JSX ==========
   return (
     <div className="quantum-app-container" suppressHydrationWarning>
       {/* Quantum Background Canvas */}
@@ -604,6 +1108,18 @@ function AppContent() {
           zIndex: 0
         }}
       />
+
+      {/* Quantum Visual Effects Containers */}
+      <div className="quantum-visual-effects">
+        <div id="quantum-particle-field" className="quantum-particle-field"></div>
+        <div id="interference-patterns" className="interference-patterns"></div>
+        <div id="quantum-global-particles" className="quantum-global-particles"></div>
+      </div>
+
+      {/* Quantum Visual Effects */}
+      <div className="quantum-scan-line"></div>
+      <div className="quantum-hologram-effect"></div>
+      <div className="quantum-distortion-field"></div>
 
       {/* Quantum Header */}
       <header className="quantum-header">
@@ -622,7 +1138,7 @@ function AppContent() {
           </h1>
         </div>
         
-        {/* FIXED NAVIGATION - This will work now */}
+        {/* NAVIGATION - NOW WORKING */}
         <nav className="quantum-nav-links">
           <button 
             className={`quantum-nav-link ${activeTab === 'world' ? 'active' : ''}`}
@@ -644,7 +1160,6 @@ function AppContent() {
               )}
             </div>
           </button>
-          
           <button 
             className="quantum-nav-link"
             onClick={toggleQuantumEditor}
@@ -655,7 +1170,6 @@ function AppContent() {
               <span>Quantum Editor</span>
             </div>
           </button>
-          
           <button 
             className={`quantum-nav-link ${activeTab === 'community' ? 'active' : ''}`}
             onClick={() => navigateToTab('community')}
@@ -666,7 +1180,6 @@ function AppContent() {
               <span>Quantum Community</span>
             </div>
           </button>
-          
           <button 
             className={`quantum-nav-link ${activeTab === 'profile' ? 'active' : ''}`}
             onClick={() => navigateToTab('profile')}
@@ -681,15 +1194,15 @@ function AppContent() {
         
         <div className="quantum-user-section">
           <div className="quantum-world-actions">
-            <button className="btn btn-quantum-secondary" onClick={handleImportWorld}>
+            <button className="btn btn-quantum-secondary" onClick={handleImportWorld} data-action="import">
               <i className="fas fa-folder-open"></i>
               <span>Quantum Import</span>
             </button>
-            <button className="btn btn-quantum-primary" onClick={handleExportWorld}>
+            <button className="btn btn-quantum-primary" onClick={handleExportWorld} data-action="export">
               <i className="fas fa-download"></i>
               <span>Quantum Export</span>
             </button>
-            <button className="btn btn-quantum-accent" onClick={handleShareWorld}>
+            <button className="btn btn-quantum-accent" onClick={handleShareWorld} data-action="share">
               <i className="fas fa-share"></i>
               <span>Quantum Share</span>
             </button>
@@ -700,6 +1213,15 @@ function AppContent() {
             <div className="quantum-avatar-3d" title="Quantum Profile" onClick={() => navigateToTab('profile')}>
               <div className="avatar-quantum-core"></div>
               <i className="fas fa-robot"></i>
+              {quantumState && (
+                <div className="avatar-quantum-stats">
+                  <div className="avatar-stat" title={`Chaos: ${Math.round(chaosLevel)}%`}>
+                    <div className="stat-bar">
+                      <div className="stat-fill" style={{width: `${chaosLevel}%`}}></div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -742,29 +1264,34 @@ function AppContent() {
             <>
               <div className="quantum-world-wrapper">
                 <div className="quantum-world-header">
-                  <h2 className="quantum-world-title">
+                  <h2 className="quantum-world-title" id="quantumWorldTitle">
                     <span className="world-name">Quantum Reality: {worldName}</span>
                     {encryptedParams.source === 'shared' && (
-                      <span className="quantum-shared-badge">
+                      <span className="quantum-shared-badge" title="Quantum Shared via encrypted link">
                         <i className="fas fa-lock"></i> Quantum Encrypted
                       </span>
                     )}
                     {webGLError && (
-                      <span className="quantum-error-badge-global">
+                      <span className="quantum-error-badge-global" title="Quantum Rendering Error">
                         <i className="fas fa-radiation"></i> Reality Unstable
+                      </span>
+                    )}
+                    {quantumEffects.length > 0 && (
+                      <span className="quantum-effects-indicator">
+                        <i className="fas fa-bolt"></i> {quantumEffects.length} Active Effects
                       </span>
                     )}
                   </h2>
                   <div className="quantum-world-actions">
-                    <button className="btn btn-quantum-secondary" onClick={() => addNotification('Quantum Grid Manipulation - Coming soon', 'info')}>
+                    <button className="btn btn-quantum-secondary" id="quantumToggleGrid" onClick={() => addNotification('Quantum Grid Manipulation - Coming soon', 'info')}>
                       <i className="fas fa-th"></i>
                       <span>Quantum Grid</span>
                     </button>
-                    <button className="btn btn-quantum-danger" onClick={handleClearWorld}>
+                    <button className="btn btn-quantum-danger" id="quantumClearWorld" onClick={handleClearWorld}>
                       <i className="fas fa-trash"></i>
                       <span>Collapse Reality</span>
                     </button>
-                    <button className="btn btn-quantum-success" onClick={handleNewWorld}>
+                    <button className="btn btn-quantum-success" id="quantumNewWorld" onClick={handleNewWorld}>
                       <i className="fas fa-plus"></i>
                       <span>New Reality</span>
                     </button>
@@ -773,6 +1300,31 @@ function AppContent() {
 
                 <div className="quantum-world-overlay"></div>
                 {webGLError ? renderQuantumErrorFallback() : renderActiveTab()}
+                <div className="quantum-drop-zone" id="dropZone"></div>
+
+                {/* Quantum Stats Overlay */}
+                {quantumState && (
+                  <div className="quantum-stats-overlay">
+                    <div className="quantum-stat">
+                      <div className="stat-label">Quantum Field</div>
+                      <div className="stat-value">{Math.round(quantumField * 100)}%</div>
+                      <div className="stat-bar">
+                        <div className="stat-fill" style={{width: `${quantumField * 100}%`}}></div>
+                      </div>
+                    </div>
+                    <div className="quantum-stat">
+                      <div className="stat-label">Temporal Displacement</div>
+                      <div className="stat-value">{temporalDisplacement.toFixed(1)}</div>
+                      <div className="stat-indicator" style={{
+                        left: `${50 + temporalDisplacement * 5}%`
+                      }}></div>
+                    </div>
+                    <div className="quantum-stat">
+                      <div className="stat-label">Spatial Distortion</div>
+                      <div className="stat-value">{spatialDistortion.toFixed(2)}</div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Quantum Code Editor */}
@@ -794,6 +1346,11 @@ function AppContent() {
                   {activeTab === 'community' && 'Quantum Community Hub'}
                   {activeTab === 'profile' && 'Quantum Reality Profile'}
                 </h2>
+                {activeTab === 'community' && (
+                  <button className="btn btn-quantum-accent" onClick={handleShareWorld}>
+                    <i className="fas fa-share"></i> Share Quantum Reality
+                  </button>
+                )}
               </div>
               <div className="quantum-tab-inner">
                 {renderActiveTab()}
@@ -879,17 +1436,28 @@ function AppContent() {
                 <i className="fas fa-lightbulb"></i> 
                 <strong>Tip:</strong> CWA is recommended for school Chromebooks & better performance
               </p>
+              <div className="installer-stats">
+                <div className="stat">
+                  <span className="stat-label">Reality Coeff:</span>
+                  <span className="stat-value">{realityCoefficient.toFixed(2)}</span>
+                </div>
+                <div className="stat">
+                  <span className="stat-label">Chaos Level:</span>
+                  <span className="stat-value">{Math.round(chaosLevel)}%</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       )}
 
       {/* Quantum Notifications */}
-      <div className="quantum-notification-container">
+      <div className="quantum-notification-container" id="quantumNotificationContainer">
         {notifications.map((notification) => (
           <div 
             key={notification.id} 
             className={`quantum-notification show ${notification.type}`}
+            data-chaos={notification.chaosLevel}
           >
             <div className="quantum-notification-header">
               <div className="notification-quantum-icon">
@@ -904,8 +1472,12 @@ function AppContent() {
                 {notification.type === 'quantum' ? 'Quantum Event' : 
                  notification.type.charAt(0).toUpperCase() + notification.type.slice(1)}
               </div>
+              <div className="quantum-notification-time">
+                {new Date(notification.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+              </div>
             </div>
             <div className="quantum-notification-message">{notification.message}</div>
+            <div className="quantum-notification-progress"></div>
           </div>
         ))}
       </div>
@@ -919,7 +1491,52 @@ function AppContent() {
           <div className="quantum-dragging-text">
             <div className="dragging-title">Quantum Entanglement Active</div>
             <div className="dragging-mod">{draggedMod.name}</div>
+            <small>Drop into quantum reality field</small>
           </div>
+          <div className="quantum-dragging-effects">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="dragging-effect"></div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Quantum Effects Display */}
+      {quantumEffects.length > 0 && (
+        <div className="quantum-effects-display">
+          <div className="effects-header">
+            <i className="fas fa-bolt"></i>
+            <span>Active Quantum Effects</span>
+          </div>
+          <div className="effects-list">
+            {quantumEffects.map(effect => (
+              <div key={effect.id} className="quantum-effect-item">
+                <div className="effect-type">{effect.type}</div>
+                <div className="effect-intensity">
+                  <div className="intensity-bar">
+                    <div className="intensity-fill" style={{width: `${effect.intensity}%`}}></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Quantum Session Indicators */}
+      {encryptedParams.source === 'shared' && (
+        <div className="quantum-session-indicator">
+          <div className="indicator-content">
+            <i className="fas fa-lock"></i>
+            <span>Quantum Encrypted Session</span>
+            <div className="indicator-stats">
+              <span className="stat">RC: {realityCoefficient.toFixed(2)}</span>
+              <span className="stat">CL: {Math.round(chaosLevel)}%</span>
+            </div>
+          </div>
+          <button onClick={() => window.location.href = window.location.pathname}>
+            <i className="fas fa-times"></i>
+          </button>
         </div>
       )}
 
@@ -953,13 +1570,42 @@ function AppContent() {
               <div className="status-value">{realityCoefficient.toFixed(2)}</div>
             </div>
           </div>
+          <div className="status-item">
+            <div className="status-icon">
+              <i className="fas fa-clock"></i>
+            </div>
+            <div className="status-content">
+              <div className="status-label">Time Shift</div>
+              <div className="status-value">{temporalDisplacement.toFixed(1)}</div>
+            </div>
+          </div>
         </div>
         <div className="status-actions">
           <button className="btn btn-quantum-small" onClick={() => setShowQuantumInstaller(true)}>
             <i className="fas fa-download"></i>
           </button>
+          <button className="btn btn-quantum-small" onClick={generateQuantumShareLink}>
+            <i className="fas fa-share"></i>
+          </button>
         </div>
       </div>
+
+      {/* Quantum Installation Button */}
+      {typeof window !== 'undefined' && 
+       !window.matchMedia('(display-mode: standalone)').matches &&
+       'serviceWorker' in navigator && (
+        <div className="quantum-install-button">
+          <button 
+            className="btn btn-quantum-primary btn-quantum-install"
+            onClick={() => setShowQuantumInstaller(true)}
+          >
+            <div className="install-button-quantum">
+              <i className="fas fa-atom fa-spin"></i>
+              <span>Install Quantum Reality</span>
+            </div>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -976,8 +1622,23 @@ export default function Home() {
             <div className="ring"></div>
             <div className="ring"></div>
           </div>
+          <div className="quantum-loading-particles">
+            {[...Array(12)].map((_, i) => (
+              <div key={i} className="particle"></div>
+            ))}
+          </div>
         </div>
         <p className="quantum-loading-text">Initializing Quantum Reality Field...</p>
+        <div className="quantum-loading-stats">
+          <div className="stat">
+            <span>Chaos Field</span>
+            <span>{(Math.random() * 100).toFixed(0)}%</span>
+          </div>
+          <div className="stat">
+            <span>Reality Coeff</span>
+            <span>{(Math.random() * 2).toFixed(2)}</span>
+          </div>
+        </div>
       </div>
     }>
       <AppContent />
