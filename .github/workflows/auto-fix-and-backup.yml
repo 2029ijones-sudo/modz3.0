@@ -47,59 +47,54 @@ jobs:
             fi
           fi
 
-      - name: 🔧 Set Maintenance Mode ON
+      # ==========================================================================
+      # 🚀 INSTANT MAINTENANCE MODE USING EDGE CONFIG (NO REDEPLOY)
+      # ==========================================================================
+      - name: 🔍 Get Edge Config ID
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          echo "🛠️ Setting maintenance mode to ON..."
+          echo "🔍 Fetching Edge Config ID..."
+          # List all Edge Configs and filter by name "quantum-maintenance"
+          RESPONSE=$(curl -s -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            "https://api.vercel.com/v1/edge-config")
           
-          # Get existing env var ID
-          ENV_ID=$(curl -s -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-            "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env" | \
-            grep -o '"key":"MAINTENANCE_MODE","id":"[^"]*"' | \
-            cut -d'"' -f6)
+          EDGE_CONFIG_ID=$(echo "$RESPONSE" | jq -r '.edgeConfigs[] | select(.slug=="quantum-maintenance") | .id')
           
-          if [ -n "$ENV_ID" ]; then
-            # Update existing
-            RESPONSE=$(curl -s -X PATCH \
-              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-              -H "Content-Type: application/json" \
-              "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env/${ENV_ID}" \
-              -d '{
-                "key": "MAINTENANCE_MODE",
-                "value": "true",
-                "target": ["production"],
-                "type": "plain"
-              }' 2>&1)
-            
-            if echo "$RESPONSE" | grep -q '"key"'; then
-              echo "✅ Maintenance mode updated to ON"
-            else
-              echo "❌ Failed to update maintenance mode"
-              echo "Response: $RESPONSE"
-              exit 1
-            fi
+          if [ -z "$EDGE_CONFIG_ID" ] || [ "$EDGE_CONFIG_ID" = "null" ]; then
+            echo "❌ Edge Config 'quantum-maintenance' not found. Please create it in Vercel Dashboard → Storage → Edge Config."
+            exit 1
+          fi
+          
+          echo "✅ Edge Config ID: $EDGE_CONFIG_ID"
+          echo "EDGE_CONFIG_ID=${EDGE_CONFIG_ID}" >> $GITHUB_ENV
+
+      - name: 🔧 Enable Maintenance Mode (INSTANT)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          EDGE_CONFIG_ID: ${{ env.EDGE_CONFIG_ID }}
+        run: |
+          echo "🛠️ Enabling maintenance mode instantly via Edge Config..."
+          RESPONSE=$(curl -s -X PATCH \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://api.vercel.com/v1/edge-config/${EDGE_CONFIG_ID}/items" \
+            -d '{
+              "items": [
+                {
+                  "operation": "upsert",
+                  "key": "enabled",
+                  "value": true
+                }
+              ]
+            }')
+          
+          if echo "$RESPONSE" | grep -q '"key":"enabled"'; then
+            echo "✅ Maintenance mode is NOW ACTIVE (instant, no redeploy)"
           else
-            # Create new
-            RESPONSE=$(curl -s -X POST \
-              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-              -H "Content-Type: application/json" \
-              "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env" \
-              -d '{
-                "key": "MAINTENANCE_MODE",
-                "value": "true",
-                "target": ["production"],
-                "type": "plain"
-              }' 2>&1)
-            
-            if echo "$RESPONSE" | grep -q '"key"'; then
-              echo "✅ Maintenance mode created and set to ON"
-            else
-              echo "❌ Failed to create maintenance mode"
-              echo "Response: $RESPONSE"
-              exit 1
-            fi
+            echo "❌ Failed to enable maintenance mode"
+            echo "Response: $RESPONSE"
+            exit 1
           fi
 
       - name: 🐛 Run ESLint Auto-Fix
@@ -192,70 +187,40 @@ jobs:
         env:
           DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
         run: |
-          echo "🚀 Triggering Vercel deploy hook..."
+          echo "🚀 Triggering Vercel deploy hook to deploy fixes..."
           curl -X POST -sSf "${DEPLOY_HOOK_URL}" || {
             echo "❌ Deploy hook failed"
             exit 1
           }
           echo "✅ Vercel deploy hook triggered successfully"
-          
-          # Give Vercel a moment to start the build before we turn off maintenance mode
-          sleep 5
 
-      - name: 🔧 Set Maintenance Mode OFF
+      - name: 🔧 Disable Maintenance Mode (INSTANT)
         if: always()
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          EDGE_CONFIG_ID: ${{ env.EDGE_CONFIG_ID }}
         run: |
-          echo "🛠️ Setting maintenance mode to OFF..."
+          echo "🛠️ Disabling maintenance mode instantly via Edge Config..."
+          RESPONSE=$(curl -s -X PATCH \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://api.vercel.com/v1/edge-config/${EDGE_CONFIG_ID}/items" \
+            -d '{
+              "items": [
+                {
+                  "operation": "upsert",
+                  "key": "enabled",
+                  "value": false
+                }
+              ]
+            }')
           
-          # Get existing env var ID
-          ENV_ID=$(curl -s -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-            "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env" | \
-            grep -o '"key":"MAINTENANCE_MODE","id":"[^"]*"' | \
-            cut -d'"' -f6)
-          
-          if [ -n "$ENV_ID" ]; then
-            # Update existing to false
-            RESPONSE=$(curl -s -X PATCH \
-              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-              -H "Content-Type: application/json" \
-              "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env/${ENV_ID}" \
-              -d '{
-                "key": "MAINTENANCE_MODE",
-                "value": "false",
-                "target": ["production"],
-                "type": "plain"
-              }' 2>&1)
-            
-            if echo "$RESPONSE" | grep -q '"key"'; then
-              echo "✅ Maintenance mode updated to OFF"
-            else
-              echo "❌ Failed to update maintenance mode to OFF"
-              echo "Response: $RESPONSE"
-              exit 1
-            fi
+          if echo "$RESPONSE" | grep -q '"key":"enabled"'; then
+            echo "✅ Maintenance mode is NOW INACTIVE (instant, no redeploy)"
           else
-            # Create new with false
-            RESPONSE=$(curl -s -X POST \
-              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-              -H "Content-Type: application/json" \
-              "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env" \
-              -d '{
-                "key": "MAINTENANCE_MODE",
-                "value": "false",
-                "target": ["production"],
-                "type": "plain"
-              }' 2>&1)
-            
-            if echo "$RESPONSE" | grep -q '"key"'; then
-              echo "✅ Maintenance mode created and set to OFF"
-            else
-              echo "❌ Failed to create maintenance mode OFF"
-              echo "Response: $RESPONSE"
-              exit 1
-            fi
+            echo "❌ Failed to disable maintenance mode"
+            echo "Response: $RESPONSE"
+            exit 1
           fi
 
       - name: 📝 Generate Fix Report
@@ -281,23 +246,24 @@ jobs:
           
           ## ✅ Changes Applied
           - Created backup branch: \`${BACKUP_BRANCH}\`
-          - Enabled maintenance mode (set to true)
+          - ✅ **INSTANT MAINTENANCE MODE ENABLED** (Edge Config)
           - Ran ESLint auto-fix
           - Formatted code with Prettier
           - Removed console.log statements
           - Removed debugger statements
           - Attempted TypeScript fixes
           - Ran security audit fixes
-          - Disabled maintenance mode (set to false)
+          - ✅ **INSTANT MAINTENANCE MODE DISABLED** (Edge Config)
           
           ## 📊 Summary
           - **Status:** ✅ Complete
           - **Fixes Applied:** ${FIXES_APPLIED:-false}
           - **Backup:** [View Branch](https://github.com/${GITHUB_REPOSITORY}/tree/${BACKUP_BRANCH})
+          - **Maintenance Mode:** Instant toggle via Edge Config (no redeploy)
           
           ## 🚀 Next Steps
-          Vercel deployment triggered via deploy hook. Site will update in 1-2 minutes.
-          Maintenance mode was active during the fix process.
+          Vercel deployment triggered via deploy hook. Site will update with fixes in 1-2 minutes.
+          Maintenance mode was **INSTANTLY** active during the fix process.
           
           *To revert to original code:*
           \`\`\`bash
@@ -331,7 +297,7 @@ jobs:
               -H "Accept: application/vnd.github.v3+json" \
               "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
               -d '{
-                "body": "🤖 **Quantum Auto-Fix Complete**\n\n✅ Backup branch: `'"${BACKUP_BRANCH}"'`\n🔧 Fixes applied: `'"${FIXES_APPLIED}"'`\n🛠️ Maintenance mode was enabled during the fix\n🚀 Vercel deploy hook triggered\n📊 [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n*This comment was automatically posted by the Quantum Auto-Fix Bot*"
+                "body": "🤖 **Quantum Auto-Fix Complete**\n\n✅ Backup branch: `'"${BACKUP_BRANCH}"'`\n🔧 Fixes applied: `'"${FIXES_APPLIED}"'`\n⚡ **Maintenance mode toggled INSTANTLY via Edge Config**\n🚀 Vercel deploy hook triggered\n📊 [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n*This comment was automatically posted by the Quantum Auto-Fix Bot*"
               }'
           fi
 
