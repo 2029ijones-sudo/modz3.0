@@ -8,6 +8,68 @@
   ],
   "env": {
     "NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF": "$VERCEL_GIT_COMMIT_REF",
-    "NEXT_PUBLIC_VERCEL_ENV": "$VERCEL_ENV"
+    "NEXT_PUBLIC_VERCEL_ENV": "$VERCEL_ENV",
+    "NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA": "$VERCEL_GIT_COMMIT_SHA",
+    "NEXT_PUBLIC_VERCEL_GIT_COMMIT_MESSAGE": "$VERCEL_GIT_COMMIT_MESSAGE",
+    "NEXT_PUBLIC_VERCEL_GIT_COMMIT_AUTHOR_LOGIN": "$VERCEL_GIT_COMMIT_AUTHOR_LOGIN",
+    "NEXT_PUBLIC_VERCEL_GIT_REPO_OWNER": "$VERCEL_GIT_REPO_OWNER",
+    "NEXT_PUBLIC_VERCEL_GIT_REPO_SLUG": "$VERCEL_GIT_REPO_SLUG",
+    "NEXT_PUBLIC_VERCEL_GIT_PREVIOUS_SHA": "$VERCEL_GIT_PREVIOUS_SHA",
+    "NEXT_PUBLIC_VERCEL_GIT_PULL_REQUEST_ID": "$VERCEL_GIT_PULL_REQUEST_ID",
+    "NEXT_PUBLIC_VERCEL_URL": "$VERCEL_URL",
+    "NEXT_PUBLIC_QUANTUM_BACKUP_BRANCH": "BackUp",
+    "NEXT_PUBLIC_QUANTUM_AUTO_FIX_ENABLED": "true"
+  },
+  "github": {
+    "silent": false,
+    "autoJobCancelation": true,
+    "enabled": true
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Quantum-Version",
+          "value": "v2"
+        },
+        {
+          "key": "X-Quantum-State",
+          "value": "entangled"
+        },
+        {
+          "key": "X-Git-Commit",
+          "value": "$VERCEL_GIT_COMMIT_SHA"
+        }
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/maintenance",
+      "destination": "/maintenance.html",
+      "permanent": false
+    },
+    {
+      "source": "/backup/:path*",
+      "destination": "https://github.com/$VERCEL_GIT_REPO_OWNER/$VERCEL_GIT_REPO_SLUG/tree/BackUp:path*",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/quantum/status",
+      "destination": "/api/quantum/status"
+    },
+    {
+      "source": "/api/quantum/chaos-stream",
+      "destination": "/api/quantum/chaos-stream"
+    }
+  ],
+  "functions": {
+    "api/quantum/*.js": {
+      "maxDuration": 10,
+      "memory": 1024
+    }
   }
 }
