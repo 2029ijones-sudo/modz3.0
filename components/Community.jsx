@@ -1483,7 +1483,7 @@ export default function Community({
       default:
         break;
     }
-  }, [user, selectedRepo]);
+  }, [user]);
 
   const handleRepositoryRealtime = (eventType, newRecord, oldRecord) => {
     if (!selectedRepo) {
