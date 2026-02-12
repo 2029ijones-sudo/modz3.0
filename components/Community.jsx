@@ -35,6 +35,7 @@ import {
   FileCode, FileText, FileJson, FileImage, Type, Box,
   Grid, List, RefreshCw, Server, Wifi, Power, ChevronLeft, Tag
 } from 'lucide-react';
+
 // Encryption key
 const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || 'quantum-mods-secret-key-2024';
 
@@ -48,32 +49,26 @@ const encryptData = (data) => {
   }
 };
 
-// REPLACE your existing decryptData function (around line 50) with this:
 const decryptData = (encrypted) => {
-  // If no encrypted data, return null
   if (!encrypted) return null;
   
   try {
-    // Try to decode
     let decoded;
     try {
       decoded = decodeURIComponent(encrypted);
     } catch {
-      decoded = encrypted; // If decoding fails, use original
+      decoded = encrypted;
     }
     
-    // Try to decrypt
     const decrypted = CryptoJS.AES.decrypt(decoded, ENCRYPTION_KEY);
     const decryptedString = decrypted.toString(CryptoJS.enc.Utf8);
     
-    // If decryption produced no result, return null
     if (!decryptedString) return null;
     
-    // Try to parse JSON
     return JSON.parse(decryptedString);
   } catch (error) {
     console.warn('Decryption failed (this is normal if no encrypted params):', error.message);
-    return null; // Always return null on error, don't crash
+    return null;
   }
 };
 
@@ -120,6 +115,7 @@ const QuantumCodeEditor = ({
   const linesRef = useRef([]);
   const containerRef = useRef(null);
   const autoSaveTimer = useRef(null);
+  const channelRef = useRef(null);
 
   // Language detection
   useEffect(() => {
@@ -144,22 +140,19 @@ const QuantumCodeEditor = ({
       analyzeCode();
       updateMetrics();
     }
-  }, [code]);
+  }, [code, language]);
 
   const analyzeCode = useCallback(debounce(() => {
     setIsAnalyzing(true);
     try {
-      // Linting
       const errors = [];
       const codeLines = code.split('\n');
       
-      // Basic syntax checking for JavaScript
       if (['javascript', 'typescript', 'jsx', 'tsx'].includes(language)) {
         try {
           const ast = acorn.parse(code, { ecmaVersion: 2022, sourceType: 'module' });
           setAst(ast);
           
-          // Check for common issues
           codeLines.forEach((line, i) => {
             if (line.length > 100) {
               errors.push({ line: i + 1, message: 'Line exceeds 100 characters', severity: 'warning' });
@@ -179,11 +172,9 @@ const QuantumCodeEditor = ({
         }
       }
 
-      // Complexity analysis
       let complexityScore = 0;
       const tokenCount = code.split(/\s+/).length;
       
-      // Count conditionals
       const ifCount = (code.match(/if\s*\(/g) || []).length;
       const forCount = (code.match(/for\s*\(/g) || []).length;
       const whileCount = (code.match(/while\s*\(/g) || []).length;
@@ -233,7 +224,6 @@ const QuantumCodeEditor = ({
     setCode(e.target.value);
     setIsDirty(true);
     
-    // Add to history
     setHistory(prev => [...prev.slice(-50), { code: e.target.value, timestamp: Date.now() }]);
     setHistoryIndex(prev => prev + 1);
   };
@@ -271,7 +261,6 @@ const QuantumCodeEditor = ({
     setConsoleOutput([]);
     
     try {
-      // Create a safe sandbox
       const sandbox = {
         console: {
           log: (...args) => setConsoleOutput(prev => [...prev, { type: 'log', args }]),
@@ -303,7 +292,6 @@ const QuantumCodeEditor = ({
     }
   };
 
-  // Syntax highlighting
   const renderLine = (line, index) => {
     const lineErrors = lintErrors.filter(e => e.line === index + 1);
     const hasBreakpoint = breakpoints.includes(index + 1);
@@ -336,23 +324,18 @@ const QuantumCodeEditor = ({
   };
 
   const highlightSyntax = (line) => {
-    // Basic syntax highlighting
     const keywords = ['function', 'const', 'let', 'var', 'if', 'else', 'for', 'while', 'return', 'import', 'export', 'default', 'class', 'extends', 'new', 'this', 'super', 'try', 'catch', 'finally', 'throw', 'switch', 'case', 'break', 'continue', 'typeof', 'instanceof', 'void', 'delete', 'in'];
     
     let highlighted = line;
     
-    // Strings
     highlighted = highlighted.replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, '<span class="syntax-string">$&</span>');
     
-    // Numbers
     highlighted = highlighted.replace(/\b(\d+)\b/g, '<span class="syntax-number">$1</span>');
     
-    // Keywords
     keywords.forEach(keyword => {
       highlighted = highlighted.replace(new RegExp(`\\b${keyword}\\b`, 'g'), `<span class="syntax-keyword">${keyword}</span>`);
     });
     
-    // Comments
     if (line.trim().startsWith('//')) {
       highlighted = `<span class="syntax-comment">${line}</span>`;
     } else {
@@ -1002,7 +985,7 @@ export default function Community({
   const [showStats, setShowStats] = useState(false);
   const [showGraph, setShowGraph] = useState(false);
   const [commitHistory, setCommitHistory] = useState([]);
-  const [branches, setBranches] = useState([{ name: 'main', default: true }]);
+  const [branches, setBranches] = useState([{ name: 'main', is_default: true }]);
   const [currentBranch, setCurrentBranch] = useState('main');
   const [pullRequests, setPullRequests] = useState([]);
   const [issues, setIssues] = useState([]);
@@ -1024,6 +1007,20 @@ export default function Community({
     lines: 0
   });
 
+  // ============= REALTIME SUBSCRIPTIONS STATE =============
+  const [subscriptions, setSubscriptions] = useState({
+    repositories: null,
+    repoStars: null,
+    repoIssues: null,
+    pullRequests: null,
+    commits: null,
+    branches: null,
+    releases: null,
+    profiles: null,
+    repoWatchers: null,
+    repoComments: null
+  });
+
   const router = useRouter();
 
   // ============= GOOGLE AUTH =============
@@ -1034,45 +1031,46 @@ export default function Community({
       if (session?.user) {
         setUser(session.user);
         await fetchProfile(session.user.id);
-        await fetchRepositories();
+        if (!selectedRepo) {
+          await fetchRepositories();
+        }
       } else {
         setUser(null);
         setProfile(null);
+        setRepositories([]);
+        setSelectedRepo(null);
+        setRepoContent(null);
       }
     });
 
     return () => subscription?.unsubscribe();
   }, []);
 
- const initializeAuth = async () => {
-  try {
-    const { data: { user }, error } = await supabase.auth.getUser();
-    
-    if (error) throw error;
-    
-    if (user) {
-      setUser(user);
-      await fetchProfile(user.id);
-    }
-    
-    // Handle encrypted params - SAFELY
-    if (encryptedParams) {
-      // Only attempt decryption if it looks like our encrypted format
-      if (typeof encryptedParams === 'string' && encryptedParams.includes('U2FsdGVkX1')) {
-        const decrypted = decryptData(encryptedParams);
-        if (decrypted?.repo) {
-          setSelectedRepo(decrypted.repo);
-        }
-      } else {
-        console.log('Skipping decryption - not valid encrypted data');
+  const initializeAuth = async () => {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error) throw error;
+      
+      if (user) {
+        setUser(user);
+        await fetchProfile(user.id);
       }
+      
+      if (encryptedParams) {
+        if (typeof encryptedParams === 'string' && encryptedParams.includes('U2FsdGVkX1')) {
+          const decrypted = decryptData(encryptedParams);
+          if (decrypted?.repo) {
+            setSelectedRepo(decrypted.repo);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Auth error:', error);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Auth error:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const fetchProfile = async (userId) => {
     try {
@@ -1080,10 +1078,9 @@ export default function Community({
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
-          .maybeSingle();  
+        .maybeSingle();
 
       if (error && error.code === 'PGRST116') {
-        // Create profile if doesn't exist
         const { data: user } = await supabase.auth.getUser();
         
         const newProfile = {
@@ -1108,7 +1105,7 @@ export default function Community({
           .from('profiles')
           .insert([newProfile])
           .select()
-            .maybeSingle();  
+          .maybeSingle();
 
         if (insertError) throw insertError;
         profile = insertedProfile;
@@ -1146,9 +1143,16 @@ export default function Community({
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      
+      // Clean up all subscriptions
+      Object.values(subscriptions).forEach(sub => {
+        if (sub) sub.unsubscribe();
+      });
+      
       setUser(null);
       setProfile(null);
       setSelectedRepo(null);
+      setRepositories([]);
       toast.success('Logged out successfully');
     } catch (error) {
       console.error('Logout error:', error);
@@ -1156,11 +1160,564 @@ export default function Community({
     }
   };
 
-  // ============= REPOSITORY MANAGEMENT =============
- const fetchRepositories = async () => {
-  // 🚨 STOP - Don't fetch repos if we're inside a repository view
-  if (selectedRepo) return;  // ← THIS SINGLE LINE FIXES EVERYTHING
+  // ============= REALTIME SUBSCRIPTIONS SETUP =============
   
+  // Setup global repositories subscription
+  const setupRepositoriesSubscription = useCallback(() => {
+    if (subscriptions.repositories) {
+      subscriptions.repositories.unsubscribe();
+    }
+
+    const channel = supabase
+      .channel('repositories-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'repositories'
+        },
+        (payload) => {
+          handleRealtimeUpdate('repositories', payload);
+        }
+      )
+      .subscribe();
+
+    setSubscriptions(prev => ({ ...prev, repositories: channel }));
+    return channel;
+  }, []);
+
+  // Setup stars subscription
+  const setupStarsSubscription = useCallback(() => {
+    if (subscriptions.repoStars) {
+      subscriptions.repoStars.unsubscribe();
+    }
+
+    const channel = supabase
+      .channel('repo-stars-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'repo_stars'
+        },
+        (payload) => {
+          handleRealtimeUpdate('repo_stars', payload);
+        }
+      )
+      .subscribe();
+
+    setSubscriptions(prev => ({ ...prev, repoStars: channel }));
+    return channel;
+  }, []);
+
+  // Setup watchers subscription
+  const setupWatchersSubscription = useCallback(() => {
+    if (subscriptions.repoWatchers) {
+      subscriptions.repoWatchers.unsubscribe();
+    }
+
+    const channel = supabase
+      .channel('repo-watchers-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'repo_watchers'
+        },
+        (payload) => {
+          handleRealtimeUpdate('repo_watchers', payload);
+        }
+      )
+      .subscribe();
+
+    setSubscriptions(prev => ({ ...prev, repoWatchers: channel }));
+    return channel;
+  }, []);
+
+  // Setup profile subscription
+  const setupProfileSubscription = useCallback(() => {
+    if (!user?.id) return;
+    
+    if (subscriptions.profiles) {
+      subscriptions.profiles.unsubscribe();
+    }
+
+    const channel = supabase
+      .channel(`profile-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profiles',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          handleRealtimeUpdate('profiles', payload);
+        }
+      )
+      .subscribe();
+
+    setSubscriptions(prev => ({ ...prev, profiles: channel }));
+    return channel;
+  }, [user?.id]);
+
+  // Setup repository-specific subscriptions
+  const setupRepoSpecificSubscriptions = useCallback((repoId) => {
+    if (!repoId) return;
+
+    // Clean up existing repo-specific subscriptions
+    if (subscriptions.repoIssues) subscriptions.repoIssues.unsubscribe();
+    if (subscriptions.pullRequests) subscriptions.pullRequests.unsubscribe();
+    if (subscriptions.commits) subscriptions.commits.unsubscribe();
+    if (subscriptions.branches) subscriptions.branches.unsubscribe();
+    if (subscriptions.releases) subscriptions.releases.unsubscribe();
+    if (subscriptions.repoComments) subscriptions.repoComments.unsubscribe();
+
+    // Issues subscription
+    const issuesChannel = supabase
+      .channel(`repo-issues-${repoId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'repo_issues',
+          filter: `repo_id=eq.${repoId}`
+        },
+        (payload) => {
+          handleRealtimeUpdate('repo_issues', payload);
+        }
+      )
+      .subscribe();
+
+    // Pull requests subscription
+    const prChannel = supabase
+      .channel(`repo-pr-${repoId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'pull_requests',
+          filter: `repo_id=eq.${repoId}`
+        },
+        (payload) => {
+          handleRealtimeUpdate('pull_requests', payload);
+        }
+      )
+      .subscribe();
+
+    // Commits subscription
+    const commitsChannel = supabase
+      .channel(`repo-commits-${repoId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'commits',
+          filter: `repo_id=eq.${repoId}`
+        },
+        (payload) => {
+          handleRealtimeUpdate('commits', payload);
+        }
+      )
+      .subscribe();
+
+    // Branches subscription
+    const branchesChannel = supabase
+      .channel(`repo-branches-${repoId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'branches',
+          filter: `repo_id=eq.${repoId}`
+        },
+        (payload) => {
+          handleRealtimeUpdate('branches', payload);
+        }
+      )
+      .subscribe();
+
+    // Releases subscription
+    const releasesChannel = supabase
+      .channel(`repo-releases-${repoId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'releases',
+          filter: `repo_id=eq.${repoId}`
+        },
+        (payload) => {
+          handleRealtimeUpdate('releases', payload);
+        }
+      )
+      .subscribe();
+
+    // Comments subscription
+    const commentsChannel = supabase
+      .channel(`repo-comments-${repoId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'repo_comments',
+          filter: `repo_id=eq.${repoId}`
+        },
+        (payload) => {
+          handleRealtimeUpdate('repo_comments', payload);
+        }
+      )
+      .subscribe();
+
+    setSubscriptions(prev => ({
+      ...prev,
+      repoIssues: issuesChannel,
+      pullRequests: prChannel,
+      commits: commitsChannel,
+      branches: branchesChannel,
+      releases: releasesChannel,
+      repoComments: commentsChannel
+    }));
+  }, []);
+
+  // Initialize all global subscriptions
+  useEffect(() => {
+    if (!supabase) return;
+
+    setupRepositoriesSubscription();
+    setupStarsSubscription();
+    setupWatchersSubscription();
+
+    return () => {
+      Object.values(subscriptions).forEach(sub => {
+        if (sub) sub.unsubscribe();
+      });
+    };
+  }, []);
+
+  // Setup profile subscription when user changes
+  useEffect(() => {
+    if (user?.id) {
+      setupProfileSubscription();
+    }
+    
+    return () => {
+      if (subscriptions.profiles) {
+        subscriptions.profiles.unsubscribe();
+      }
+    };
+  }, [user?.id]);
+
+  // Setup repo-specific subscriptions when selected repo changes
+  useEffect(() => {
+    if (selectedRepo?.id) {
+      setupRepoSpecificSubscriptions(selectedRepo.id);
+    }
+    
+    return () => {
+      // Clean up repo-specific subscriptions
+      ['repoIssues', 'pullRequests', 'commits', 'branches', 'releases', 'repoComments'].forEach(key => {
+        if (subscriptions[key]) {
+          subscriptions[key].unsubscribe();
+          setSubscriptions(prev => ({ ...prev, [key]: null }));
+        }
+      });
+    };
+  }, [selectedRepo?.id]);
+
+  // ============= REALTIME UPDATE HANDLERS =============
+
+  const handleRealtimeUpdate = useCallback((type, payload) => {
+    const { eventType, new: newRecord, old: oldRecord } = payload;
+    
+    switch (type) {
+      case 'repositories':
+        handleRepositoryRealtime(eventType, newRecord, oldRecord);
+        break;
+      
+      case 'repo_stars':
+        handleStarRealtime(eventType, newRecord, oldRecord);
+        break;
+      
+      case 'repo_watchers':
+        handleWatcherRealtime(eventType, newRecord, oldRecord);
+        break;
+      
+      case 'repo_issues':
+        handleIssuesRealtime(eventType, newRecord, oldRecord);
+        break;
+      
+      case 'pull_requests':
+        handlePullRequestsRealtime(eventType, newRecord, oldRecord);
+        break;
+      
+      case 'commits':
+        handleCommitsRealtime(eventType, newRecord, oldRecord);
+        break;
+      
+      case 'branches':
+        handleBranchesRealtime(eventType, newRecord, oldRecord);
+        break;
+      
+      case 'releases':
+        handleReleasesRealtime(eventType, newRecord, oldRecord);
+        break;
+      
+      case 'repo_comments':
+        handleCommentsRealtime(eventType, newRecord, oldRecord);
+        break;
+      
+      case 'profiles':
+        handleProfileRealtime(eventType, newRecord, oldRecord);
+        break;
+      
+      default:
+        break;
+    }
+  }, [user, selectedRepo]);
+
+  const handleRepositoryRealtime = (eventType, newRecord, oldRecord) => {
+    if (!selectedRepo) {
+      setRepositories(prev => {
+        switch (eventType) {
+          case 'INSERT':
+            if (newRecord.is_public || newRecord.user_id === user?.id) {
+              if (addNotification) addNotification(`New repository created: ${newRecord.name}`, 'info');
+              return [newRecord, ...prev];
+            }
+            return prev;
+          
+          case 'UPDATE':
+            return prev.map(repo => 
+              repo.id === newRecord.id ? { ...repo, ...newRecord } : repo
+            );
+          
+          case 'DELETE':
+            if (addNotification) addNotification(`Repository removed: ${oldRecord?.name}`, 'info');
+            return prev.filter(repo => repo.id !== oldRecord?.id);
+          
+          default:
+            return prev;
+        }
+      });
+    }
+  };
+
+  const handleStarRealtime = (eventType, newRecord, oldRecord) => {
+    setRepositories(prev => prev.map(repo => {
+      if (repo.id === (newRecord?.repo_id || oldRecord?.repo_id)) {
+        const delta = eventType === 'INSERT' ? 1 : eventType === 'DELETE' ? -1 : 0;
+        return {
+          ...repo,
+          star_count: Math.max(0, (repo.star_count || 0) + delta),
+          is_starred: eventType === 'INSERT' && user?.id === newRecord?.user_id
+            ? true 
+            : eventType === 'DELETE' && user?.id === oldRecord?.user_id
+            ? false 
+            : repo.is_starred
+        };
+      }
+      return repo;
+    }));
+
+    if (user && (newRecord?.user_id === user.id || oldRecord?.user_id === user.id)) {
+      toast.success(eventType === 'INSERT' ? 'Repository starred!' : 'Repository unstarred');
+    }
+  };
+
+  const handleWatcherRealtime = (eventType, newRecord, oldRecord) => {
+    setRepositories(prev => prev.map(repo => {
+      if (repo.id === (newRecord?.repo_id || oldRecord?.repo_id)) {
+        const delta = eventType === 'INSERT' ? 1 : eventType === 'DELETE' ? -1 : 0;
+        return {
+          ...repo,
+          watcher_count: Math.max(0, (repo.watcher_count || 0) + delta),
+          is_watching: eventType === 'INSERT' && user?.id === newRecord?.user_id
+            ? true
+            : eventType === 'DELETE' && user?.id === oldRecord?.user_id
+            ? false
+            : repo.is_watching
+        };
+      }
+      return repo;
+    }));
+  };
+
+  const handleIssuesRealtime = (eventType, newRecord, oldRecord) => {
+    if (selectedRepo && newRecord?.repo_id === selectedRepo.id) {
+      setIssues(prev => {
+        switch (eventType) {
+          case 'INSERT':
+            if (addNotification) addNotification(`New issue created: ${newRecord.title}`, 'info');
+            return [newRecord, ...prev];
+          case 'UPDATE':
+            return prev.map(issue => 
+              issue.id === newRecord.id ? { ...issue, ...newRecord } : issue
+            );
+          case 'DELETE':
+            return prev.filter(issue => issue.id !== oldRecord?.id);
+          default:
+            return prev;
+        }
+      });
+
+      setRepositories(prev => prev.map(repo => {
+        if (repo.id === selectedRepo.id) {
+          const delta = eventType === 'INSERT' ? 1 : eventType === 'DELETE' ? -1 : 0;
+          return {
+            ...repo,
+            issue_count: Math.max(0, (repo.issue_count || 0) + delta)
+          };
+        }
+        return repo;
+      }));
+    }
+  };
+
+  const handlePullRequestsRealtime = (eventType, newRecord, oldRecord) => {
+    if (selectedRepo && newRecord?.repo_id === selectedRepo.id) {
+      setPullRequests(prev => {
+        switch (eventType) {
+          case 'INSERT':
+            if (addNotification) addNotification(`New pull request: ${newRecord.title}`, 'info');
+            return [newRecord, ...prev];
+          case 'UPDATE':
+            if (newRecord.status === 'merged') {
+              toast.success(`Pull request merged: ${newRecord.title}`);
+            }
+            return prev.map(pr => 
+              pr.id === newRecord.id ? { ...pr, ...newRecord } : pr
+            );
+          case 'DELETE':
+            return prev.filter(pr => pr.id !== oldRecord?.id);
+          default:
+            return prev;
+        }
+      });
+
+      setRepositories(prev => prev.map(repo => {
+        if (repo.id === selectedRepo.id) {
+          const delta = eventType === 'INSERT' ? 1 : eventType === 'DELETE' ? -1 : 0;
+          return {
+            ...repo,
+            pr_count: Math.max(0, (repo.pr_count || 0) + delta)
+          };
+        }
+        return repo;
+      }));
+    }
+  };
+
+  const handleCommitsRealtime = (eventType, newRecord) => {
+    if (selectedRepo && newRecord?.repo_id === selectedRepo.id && eventType === 'INSERT') {
+      setCommitHistory(prev => [newRecord, ...prev].slice(0, 50));
+      setRepoStats(prev => ({ ...prev, commits: prev.commits + 1 }));
+      
+      const today = new Date().toISOString().split('T')[0];
+      setActivity(prev => {
+        const existing = prev.find(d => d.date === today);
+        if (existing) {
+          return prev.map(d => 
+            d.date === today ? { ...d, count: d.count + 1 } : d
+          );
+        } else {
+          return [...prev, { date: today, count: 1 }].sort((a, b) => 
+            a.date.localeCompare(b.date)
+          ).slice(-30);
+        }
+      });
+
+      if (addNotification && newRecord.message?.length > 0) {
+        addNotification(`New commit: ${newRecord.message.substring(0, 50)}${newRecord.message.length > 50 ? '...' : ''}`, 'info');
+      }
+    }
+  };
+
+  const handleBranchesRealtime = (eventType, newRecord, oldRecord) => {
+    if (selectedRepo && newRecord?.repo_id === selectedRepo.id) {
+      setBranches(prev => {
+        switch (eventType) {
+          case 'INSERT':
+            toast.success(`New branch created: ${newRecord.name}`);
+            return [...prev, newRecord];
+          case 'UPDATE':
+            return prev.map(branch => 
+              branch.id === newRecord.id ? { ...branch, ...newRecord } : branch
+            );
+          case 'DELETE':
+            toast.info(`Branch deleted: ${oldRecord?.name}`);
+            return prev.filter(branch => branch.id !== oldRecord?.id);
+          default:
+            return prev;
+        }
+      });
+
+      if (eventType === 'INSERT' || eventType === 'DELETE') {
+        setRepoStats(prev => ({ 
+          ...prev, 
+          branches: Math.max(0, prev.branches + (eventType === 'INSERT' ? 1 : -1)) 
+        }));
+      }
+    }
+  };
+
+  const handleReleasesRealtime = (eventType, newRecord, oldRecord) => {
+    if (selectedRepo && newRecord?.repo_id === selectedRepo.id) {
+      setReleases(prev => {
+        switch (eventType) {
+          case 'INSERT':
+            toast.success(`New release: ${newRecord.tag_name} - ${newRecord.title}`);
+            return [newRecord, ...prev];
+          case 'UPDATE':
+            return prev.map(release => 
+              release.id === newRecord.id ? { ...release, ...newRecord } : release
+            );
+          case 'DELETE':
+            return prev.filter(release => release.id !== oldRecord?.id);
+          default:
+            return prev;
+        }
+      });
+
+      if (eventType === 'INSERT' || eventType === 'DELETE') {
+        setRepoStats(prev => ({ 
+          ...prev, 
+          releases: Math.max(0, prev.releases + (eventType === 'INSERT' ? 1 : -1)) 
+        }));
+      }
+    }
+  };
+
+  const handleCommentsRealtime = (eventType, newRecord, oldRecord) => {
+    if (selectedRepo && newRecord?.repo_id === selectedRepo.id) {
+      if (eventType === 'INSERT') {
+        if (addNotification) addNotification(`New comment on repository`, 'info');
+      }
+    }
+  };
+
+  const handleProfileRealtime = (eventType, newRecord) => {
+    if (eventType === 'UPDATE' && newRecord?.user_id === user?.id) {
+      setProfile(newRecord);
+      if (addNotification) addNotification('Profile updated', 'info');
+    }
+  };
+
+  // ============= REPOSITORY MANAGEMENT =============
+
+  const fetchRepositories = async () => {
+    if (selectedRepo) return;
+    
     setContentLoading(true);
     
     try {
@@ -1169,7 +1726,6 @@ export default function Community({
         .select('*')
         .order('created_at', { ascending: false });
 
-      // Filter based on tab
       if (activeTab === 'my-repos' && user) {
         query = query.eq('user_id', user.id);
       } else if (activeTab === 'starred' && user) {
@@ -1187,17 +1743,14 @@ export default function Community({
         }
       }
 
-      // Search filter
       if (searchQuery) {
         query = query.ilike('name', `%${searchQuery}%`);
       }
 
-      // Language filter
       if (filterLanguage !== 'all') {
         query = query.eq('language', filterLanguage);
       }
 
-      // Sort
       switch (sortBy) {
         case 'stars':
           query = query.order('star_count', { ascending: false });
@@ -1219,16 +1772,13 @@ export default function Community({
 
       if (error) throw error;
 
-      // Enrich with additional data
       const enrichedRepos = await Promise.all((repos || []).map(async (repo) => {
-        // Get profile
         const { data: profile } = await supabase
           .from('profiles')
           .select('username, avatar_url')
           .eq('user_id', repo.user_id)
-          .maybeSingle();  
+          .maybeSingle();
 
-        // Get stats
         const { count: starCount } = await supabase
           .from('repo_stars')
           .select('*', { count: 'exact', head: true })
@@ -1251,16 +1801,30 @@ export default function Community({
           .eq('repo_id', repo.id)
           .eq('status', 'open');
 
-        // Check if user starred
+        const { count: watcherCount } = await supabase
+          .from('repo_watchers')
+          .select('*', { count: 'exact', head: true })
+          .eq('repo_id', repo.id);
+
         let isStarred = false;
+        let isWatching = false;
+        
         if (user) {
-          const { data } = await supabase
+          const { data: starData } = await supabase
             .from('repo_stars')
             .select('id')
             .eq('repo_id', repo.id)
             .eq('user_id', user.id)
-           .maybeSingle();  
-          isStarred = !!data;
+            .maybeSingle();
+          isStarred = !!starData;
+
+          const { data: watchData } = await supabase
+            .from('repo_watchers')
+            .select('id')
+            .eq('repo_id', repo.id)
+            .eq('user_id', user.id)
+            .maybeSingle();
+          isWatching = !!watchData;
         }
 
         return {
@@ -1270,7 +1834,9 @@ export default function Community({
           fork_count: forkCount || 0,
           issue_count: issueCount || 0,
           pr_count: prCount || 0,
-          is_starred: isStarred
+          watcher_count: watcherCount || 0,
+          is_starred: isStarred,
+          is_watching: isWatching
         };
       }));
 
@@ -1284,10 +1850,10 @@ export default function Community({
   };
 
   useEffect(() => {
-    if (user) {
+    if (!selectedRepo) {
       fetchRepositories();
     }
-  }, [activeTab, searchQuery, filterLanguage, sortBy, user]);
+  }, [activeTab, searchQuery, filterLanguage, sortBy, user, selectedRepo]);
 
   const createRepository = async (e) => {
     e.preventDefault();
@@ -1303,13 +1869,11 @@ export default function Community({
     }
 
     try {
-      // Initialize content based on template
       let initialContent = {
         files: [],
         structure: {}
       };
 
-      // Add README
       if (newContent.readme) {
         const readmeContent = `# ${newContent.name}\n\n${newContent.description || ''}\n\n## Getting Started\n\nThis repository was created with Modz3.0 Quantum Repository System.`;
         initialContent.files.push({
@@ -1324,7 +1888,6 @@ export default function Community({
         initialContent.structure['README.md'] = { type: 'file' };
       }
 
-      // Add .gitignore
       if (newContent.gitignore !== 'none') {
         const gitignoreContent = getGitignoreTemplate(newContent.gitignore);
         initialContent.files.push({
@@ -1339,7 +1902,6 @@ export default function Community({
         initialContent.structure['.gitignore'] = { type: 'file' };
       }
 
-      // Add license
       if (newContent.license !== 'none') {
         const licenseContent = getLicenseTemplate(newContent.license);
         initialContent.files.push({
@@ -1366,11 +1928,13 @@ export default function Community({
           star_count: 0,
           fork_count: 0,
           view_count: 0,
+          issue_count: 0,
+          pr_count: 0,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }])
         .select()
-         .maybeSingle();  
+        .maybeSingle();
 
       if (error) throw error;
 
@@ -1386,8 +1950,6 @@ export default function Community({
         content: { files: [], structure: {} }
       });
 
-      await fetchRepositories();
-      
       toast.success('Repository created successfully!');
       if (addNotification) addNotification('Repository created successfully', 'success');
       
@@ -1402,17 +1964,16 @@ export default function Community({
     setCurrentPath('');
     
     try {
-      // Load full repository content
       const { data, error } = await supabase
         .from('repositories')
         .select('*')
         .eq('id', repo.id)
-         .maybeSingle();  
+        .maybeSingle();
+      
       if (error) throw error;
 
       setRepoContent(data.content || { files: [], structure: {} });
       
-      // Load README if exists
       if (data.content?.files) {
         const readmeFile = data.content.files.find((f) => 
           f.name.toLowerCase() === 'readme.md' || f.name.toLowerCase() === 'readme'
@@ -1422,28 +1983,14 @@ export default function Community({
         }
       }
 
-      // Load commit history
       await fetchCommitHistory(repo.id);
-      
-      // Load branches
       await fetchBranches(repo.id);
-      
-      // Load issues
       await fetchIssues(repo.id);
-      
-      // Load pull requests
       await fetchPullRequests(repo.id);
-      
-      // Load contributors
       await fetchContributors(repo.id);
-      
-      // Load releases
       await fetchReleases(repo.id);
-      
-      // Load activity
       await fetchActivity(repo.id);
 
-      // Update view count
       await supabase
         .from('repositories')
         .update({ view_count: (repo.view_count || 0) + 1 })
@@ -1472,20 +2019,20 @@ export default function Community({
     }
   };
 
-const fetchBranches = async (repoId) => {
-  try {
-    const { data, error } = await supabase
-      .from('branches')
-      .select('*')
-      .eq('repo_id', repoId);
+  const fetchBranches = async (repoId) => {
+    try {
+      const { data, error } = await supabase
+        .from('branches')
+        .select('*')
+        .eq('repo_id', repoId);
 
-    if (error) throw error;
-    setBranches(data || [{ name: 'main', is_default: true }]); // Changed from 'default' to 'is_default'
-    setRepoStats(prev => ({ ...prev, branches: data?.length || 1 }));
-  } catch (error) {
-    console.error('Error fetching branches:', error);
-  }
-};
+      if (error) throw error;
+      setBranches(data || [{ name: 'main', is_default: true }]);
+      setRepoStats(prev => ({ ...prev, branches: data?.length || 1 }));
+    } catch (error) {
+      console.error('Error fetching branches:', error);
+    }
+  };
 
   const fetchIssues = async (repoId) => {
     try {
@@ -1526,7 +2073,6 @@ const fetchBranches = async (repoId) => {
 
       if (error) throw error;
       
-      // Group by author
       const contributorsMap = new Map();
       data?.forEach((commit) => {
         const key = commit.author_id || commit.author_email;
@@ -1568,7 +2114,6 @@ const fetchBranches = async (repoId) => {
 
   const fetchActivity = async (repoId) => {
     try {
-      // Group commits by date
       const { data, error } = await supabase
         .from('commits')
         .select('created_at')
@@ -1597,7 +2142,6 @@ const fetchBranches = async (repoId) => {
     if (!selectedRepo || !repoContent) return;
 
     try {
-      // Update file in content
       const updatedFiles = repoContent.files.map(f => 
         f.path === updatedFile.path ? updatedFile : f
       );
@@ -1608,7 +2152,6 @@ const fetchBranches = async (repoId) => {
         updated_at: new Date().toISOString()
       };
 
-      // Update database
       const { error } = await supabase
         .from('repositories')
         .update({
@@ -1621,7 +2164,6 @@ const fetchBranches = async (repoId) => {
 
       setRepoContent(updatedContent);
       
-      // Create commit
       await createCommit(selectedRepo.id, updatedFile.path, 'Updated ' + updatedFile.name);
 
       toast.success('File saved successfully');
@@ -1636,6 +2178,8 @@ const fetchBranches = async (repoId) => {
     if (!user) return;
 
     try {
+      const commitHash = uuidv4();
+      
       const { error } = await supabase
         .from('commits')
         .insert([{
@@ -1645,14 +2189,11 @@ const fetchBranches = async (repoId) => {
           author_email: user.email,
           message,
           files: [filePath],
-          hash: uuidv4(),
+          hash: commitHash,
           created_at: new Date().toISOString()
         }]);
 
       if (error) throw error;
-
-      // Refresh commit history
-      await fetchCommitHistory(repoId);
 
     } catch (error) {
       console.error('Error creating commit:', error);
@@ -1702,7 +2243,6 @@ const fetchBranches = async (repoId) => {
 
       setRepoContent(updatedContent);
       
-      // Create commit
       await createCommit(
         selectedRepo.id,
         fullPath,
@@ -1748,7 +2288,6 @@ const fetchBranches = async (repoId) => {
 
       setRepoContent(updatedContent);
       
-      // Create commit
       await createCommit(
         selectedRepo.id,
         filePath,
@@ -1771,7 +2310,6 @@ const fetchBranches = async (repoId) => {
 
     try {
       if (repo.is_starred) {
-        // Unstar
         const { error } = await supabase
           .from('repo_stars')
           .delete()
@@ -1787,7 +2325,6 @@ const fetchBranches = async (repoId) => {
 
         toast.success('Repository unstarred');
       } else {
-        // Star
         const { error } = await supabase
           .from('repo_stars')
           .insert([{
@@ -1806,12 +2343,46 @@ const fetchBranches = async (repoId) => {
         toast.success('Repository starred');
       }
 
-      // Refresh repositories
-      fetchRepositories();
-
     } catch (error) {
       console.error('Error starring repo:', error);
       toast.error(`Failed to ${repo.is_starred ? 'unstar' : 'star'} repository`);
+    }
+  };
+
+  const watchRepository = async (repo) => {
+    if (!user) {
+      toast.error('Please login to watch repositories');
+      return;
+    }
+
+    try {
+      if (repo.is_watching) {
+        const { error } = await supabase
+          .from('repo_watchers')
+          .delete()
+          .eq('repo_id', repo.id)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        toast.success('Stopped watching repository');
+      } else {
+        const { error } = await supabase
+          .from('repo_watchers')
+          .insert([{
+            repo_id: repo.id,
+            user_id: user.id,
+            created_at: new Date().toISOString()
+          }]);
+
+        if (error) throw error;
+
+        toast.success('Now watching repository');
+      }
+
+    } catch (error) {
+      console.error('Error watching repo:', error);
+      toast.error(`Failed to ${repo.is_watching ? 'unwatch' : 'watch'} repository`);
     }
   };
 
@@ -1835,15 +2406,16 @@ const fetchBranches = async (repoId) => {
           star_count: 0,
           fork_count: 0,
           view_count: 0,
+          issue_count: 0,
+          pr_count: 0,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }])
         .select()
-    .maybeSingle();  
+        .maybeSingle();
 
       if (error) throw error;
 
-      // Update original repo's fork count
       await supabase
         .from('repositories')
         .update({ fork_count: (repo.fork_count || 0) + 1 })
@@ -1851,12 +2423,8 @@ const fetchBranches = async (repoId) => {
 
       toast.success('Repository forked successfully');
       
-      // Switch to my-repos tab
       setActiveTab('my-repos');
       
-      // Refresh repositories
-      fetchRepositories();
-
     } catch (error) {
       console.error('Error forking repo:', error);
       toast.error(`Failed to fork repository: ${error.message}`);
@@ -1869,12 +2437,10 @@ const fetchBranches = async (repoId) => {
     try {
       const zip = new JSZip();
 
-      // Add files to zip
       repoContent.files.forEach(file => {
         zip.file(file.path, file.content);
       });
 
-      // Add metadata
       zip.file('repository.json', JSON.stringify({
         name: selectedRepo.name,
         description: selectedRepo.description,
@@ -1883,10 +2449,8 @@ const fetchBranches = async (repoId) => {
         version: '1.0.0'
       }, null, 2));
 
-      // Generate zip
       const content = await zip.generateAsync({ type: 'blob' });
       
-      // Download
       saveAs(content, `${selectedRepo.name}.zip`);
 
       toast.success('Repository exported successfully');
@@ -1928,7 +2492,6 @@ const fetchBranches = async (repoId) => {
               updated_at: new Date().toISOString()
             });
             
-            // Build structure
             const parts = path.split('/');
             let current = structure;
             for (let i = 0; i < parts.length - 1; i++) {
@@ -1941,7 +2504,6 @@ const fetchBranches = async (repoId) => {
           }
         }
 
-        // Create repository
         const { data: repo, error } = await supabase
           .from('repositories')
           .insert([{
@@ -1954,18 +2516,19 @@ const fetchBranches = async (repoId) => {
             star_count: 0,
             fork_count: 0,
             view_count: 0,
+            issue_count: 0,
+            pr_count: 0,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           }])
           .select()
-            .maybeSingle();  
+          .maybeSingle();
 
         if (error) throw error;
 
         toast.dismiss();
         toast.success('Repository imported successfully');
         
-        fetchRepositories();
         setSelectedRepo(repo);
 
       } catch (error) {
@@ -1976,6 +2539,154 @@ const fetchBranches = async (repoId) => {
     };
 
     input.click();
+  };
+
+  const createIssue = async () => {
+    if (!user) {
+      toast.error('Please login to create issues');
+      return;
+    }
+
+    const title = prompt('Enter issue title:');
+    if (!title) return;
+
+    const description = prompt('Enter issue description (optional):');
+
+    try {
+      const { data: issueData, error } = await supabase
+        .from('repo_issues')
+        .insert([{
+          repo_id: selectedRepo.id,
+          user_id: user.id,
+          title,
+          description: description || '',
+          status: 'open',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          labels: []
+        }])
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+
+      toast.success('Issue created successfully');
+      
+    } catch (error) {
+      console.error('Error creating issue:', error);
+      toast.error('Failed to create issue');
+    }
+  };
+
+  const createPullRequest = async () => {
+    if (!user) {
+      toast.error('Please login to create pull requests');
+      return;
+    }
+
+    const title = prompt('Enter pull request title:');
+    if (!title) return;
+
+    const base_branch = prompt('Base branch (default: main):') || 'main';
+    const head_branch = prompt('Head branch:');
+    if (!head_branch) return;
+
+    try {
+      const { error } = await supabase
+        .from('pull_requests')
+        .insert([{
+          repo_id: selectedRepo.id,
+          user_id: user.id,
+          title,
+          base_branch,
+          head_branch,
+          target_branch: base_branch,
+          source_branch: head_branch,
+          status: 'open',
+          commits: 0,
+          changes: {},
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }]);
+
+      if (error) throw error;
+
+      toast.success('Pull request created successfully');
+      
+    } catch (error) {
+      console.error('Error creating pull request:', error);
+      toast.error('Failed to create pull request');
+    }
+  };
+
+  const createBranch = async () => {
+    if (!user) {
+      toast.error('Please login to create branches');
+      return;
+    }
+
+    const branchName = prompt('Enter branch name:');
+    if (!branchName) return;
+
+    const sourceBranch = prompt('Source branch (default: main):') || 'main';
+
+    try {
+      const { error } = await supabase
+        .from('branches')
+        .insert([{
+          repo_id: selectedRepo.id,
+          name: branchName,
+          source_branch: sourceBranch,
+          is_default: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }]);
+
+      if (error) throw error;
+
+      toast.success('Branch created successfully');
+      
+    } catch (error) {
+      console.error('Error creating branch:', error);
+      toast.error('Failed to create branch');
+    }
+  };
+
+  const createRelease = async () => {
+    if (!user) {
+      toast.error('Please login to create releases');
+      return;
+    }
+
+    const tagName = prompt('Enter tag name (e.g., v1.0.0):');
+    if (!tagName) return;
+
+    const title = prompt('Enter release title:');
+    if (!title) return;
+
+    const prerelease = confirm('Is this a pre-release? Click OK for yes, Cancel for no');
+
+    try {
+      const { error } = await supabase
+        .from('releases')
+        .insert([{
+          repo_id: selectedRepo.id,
+          user_id: user.id,
+          tag_name: tagName,
+          title,
+          prerelease,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }]);
+
+      if (error) throw error;
+
+      toast.success('Release created successfully');
+      
+    } catch (error) {
+      console.error('Error creating release:', error);
+      toast.error('Failed to create release');
+    }
   };
 
   // ============= UTILITY FUNCTIONS =============
@@ -2187,146 +2898,7 @@ Version 3, 29 June 2007`,
     };
     return iconMap[ext] || <File size={18} />;
   };
-const createIssue = async () => {
-  if (!user) {
-    toast.error('Please login to create issues');
-    return;
-  }
 
-  const title = prompt('Enter issue title:');
-  if (!title) return;
-
-  const description = prompt('Enter issue description (optional):');
-
-  try {
-    const { error } = await supabase
-      .from('repo_issues')
-      .insert([{
-        repo_id: selectedRepo.id,
-        user_id: user.id,
-        title,
-        description,
-        status: 'open',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }]);
-
-    if (error) throw error;
-
-    toast.success('Issue created successfully');
-    fetchIssues(selectedRepo.id); // Refresh issues list
-  } catch (error) {
-    console.error('Error creating issue:', error);
-    toast.error('Failed to create issue');
-  }
-};
-
-const createPullRequest = async () => {
-  if (!user) {
-    toast.error('Please login to create pull requests');
-    return;
-  }
-
-  const title = prompt('Enter pull request title:');
-  if (!title) return;
-
-  const base_branch = prompt('Base branch (default: main):') || 'main';
-  const head_branch = prompt('Head branch:');
-  if (!head_branch) return;
-
-  try {
-    const { error } = await supabase
-      .from('pull_requests')
-      .insert([{
-        repo_id: selectedRepo.id,
-        user_id: user.id,
-        title,
-        base_branch,
-        head_branch,
-        status: 'open',
-        commits: 0, // You'd calculate this based on commit differences
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }]);
-
-    if (error) throw error;
-
-    toast.success('Pull request created successfully');
-    fetchPullRequests(selectedRepo.id);
-  } catch (error) {
-    console.error('Error creating pull request:', error);
-    toast.error('Failed to create pull request');
-  }
-};
-
-const createBranch = async () => {
-  if (!user) {
-    toast.error('Please login to create branches');
-    return;
-  }
-
-  const branchName = prompt('Enter branch name:');
-  if (!branchName) return;
-
-  const sourceBranch = prompt('Source branch (default: main):') || 'main';
-
-  try {
-    const { error } = await supabase
-      .from('branches')
-      .insert([{
-        repo_id: selectedRepo.id,
-        name: branchName,
-        source_branch: sourceBranch,
-        is_default: false,  // Changed from 'default' to 'is_default'
-        updated_at: new Date().toISOString()
-      }]);
-
-    if (error) throw error;
-
-    toast.success('Branch created successfully');
-    fetchBranches(selectedRepo.id);
-  } catch (error) {
-    console.error('Error creating branch:', error);
-    toast.error('Failed to create branch');
-  }
-};
-
-const createRelease = async () => {
-  if (!user) {
-    toast.error('Please login to create releases');
-    return;
-  }
-
-  const tagName = prompt('Enter tag name (e.g., v1.0.0):');
-  if (!tagName) return;
-
-  const title = prompt('Enter release title:');
-  if (!title) return;
-
-  const prerelease = confirm('Is this a pre-release? Click OK for yes, Cancel for no');
-
-  try {
-    const { error } = await supabase
-      .from('releases')
-      .insert([{
-        repo_id: selectedRepo.id,
-        user_id: user.id,
-        tag_name: tagName,
-        title,
-        prerelease,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }]);
-
-    if (error) throw error;
-
-    toast.success('Release created successfully');
-    fetchReleases(selectedRepo.id);
-  } catch (error) {
-    console.error('Error creating release:', error);
-    toast.error('Failed to create release');
-  }
-};
   // ============= RENDER METHODS =============
   const renderFileExplorer = () => {
     if (!selectedRepo || !repoContent) return null;
@@ -2908,6 +3480,10 @@ const createRelease = async () => {
                   <Bug size={14} />
                   {repo.issue_count}
                 </span>
+                <span className="stat">
+                  <Eye size={14} />
+                  {repo.watcher_count || 0}
+                </span>
               </div>
             </div>
 
@@ -2933,6 +3509,14 @@ const createRelease = async () => {
               >
                 <Star size={14} />
                 {repo.is_starred ? 'Starred' : 'Star'}
+              </button>
+              
+              <button 
+                className={`action-btn watch-btn ${repo.is_watching ? 'watching' : ''}`}
+                onClick={(e) => { e.stopPropagation(); watchRepository(repo); }}
+              >
+                <Eye size={14} />
+                {repo.is_watching ? 'Watching' : 'Watch'}
               </button>
               
               <button 
@@ -3082,9 +3666,9 @@ const createRelease = async () => {
               <div className="issues-view">
                 <div className="issues-header">
                   <h3>Issues</h3>
-<button className="create-issue-btn" onClick={createIssue}>
-  <Plus size={14} /> New Issue
-</button>
+                  <button className="create-issue-btn" onClick={createIssue}>
+                    <Plus size={14} /> New Issue
+                  </button>
                 </div>
                 
                 {issues.length === 0 ? (
@@ -3102,7 +3686,7 @@ const createRelease = async () => {
                         <div className="issue-content">
                           <h4>{issue.title}</h4>
                           <p className="issue-meta">
-                            #{issue.id} opened {formatDistanceToNow(new Date(issue.created_at))} ago by {issue.user_id}
+                            #{issue.number || issue.id.slice(0, 6)} opened {formatDistanceToNow(new Date(issue.created_at))} ago by {issue.user_id?.slice(0, 6) || 'unknown'}
                           </p>
                         </div>
                         <span className={`issue-status ${issue.status}`}>
@@ -3117,9 +3701,9 @@ const createRelease = async () => {
               <div className="prs-view">
                 <div className="prs-header">
                   <h3>Pull Requests</h3>
-                 <button className="create-pr-btn" onClick={createPullRequest}>
-  <GitPullRequest size={14} /> New Pull Request
-</button>
+                  <button className="create-pr-btn" onClick={createPullRequest}>
+                    <GitPullRequest size={14} /> New Pull Request
+                  </button>
                 </div>
                 
                 {pullRequests.length === 0 ? (
@@ -3137,7 +3721,7 @@ const createRelease = async () => {
                         <div className="pr-content">
                           <h4>{pr.title}</h4>
                           <p className="pr-meta">
-                            #{pr.id} wants to merge {pr.commits} commits into {pr.base_branch} from {pr.head_branch}
+                            #{pr.id.slice(0, 6)} wants to merge {pr.commits || 0} commits into {pr.base_branch || 'main'} from {pr.head_branch || 'unknown'}
                           </p>
                         </div>
                         <span className={`pr-status ${pr.status}`}>
@@ -3152,21 +3736,21 @@ const createRelease = async () => {
               <div className="branches-view">
                 <div className="branches-header">
                   <h3>Branches</h3>
-                 <button className="create-branch-btn" onClick={createBranch}>
-  <GitBranch size={14} /> New Branch
-</button>
+                  <button className="create-branch-btn" onClick={createBranch}>
+                    <GitBranch size={14} /> New Branch
+                  </button>
                 </div>
                 
                 <div className="branches-list">
-                  {branches.map(branch => (
-                    <div key={branch.name} className="branch-item">
+                  {branches.map((branch, index) => (
+                    <div key={branch.id || index} className="branch-item">
                       <div className="branch-icon">
                         <GitBranch size={16} />
                       </div>
                       <div className="branch-content">
                         <h4>
                           {branch.name}
-                          {branch.default && <span className="default-badge">default</span>}
+                          {branch.is_default && <span className="default-badge">default</span>}
                         </h4>
                         <p className="branch-meta">
                           Updated {formatDistanceToNow(new Date(branch.updated_at || Date.now()))} ago
@@ -3181,8 +3765,8 @@ const createRelease = async () => {
                 <div className="releases-header">
                   <h3>Releases</h3>
                   <button className="create-release-btn" onClick={createRelease}>
-  <Tag size={14} /> New Release
-</button>
+                    <Tag size={14} /> New Release
+                  </button>
                 </div>
                 
                 {releases.length === 0 ? (
@@ -3339,7 +3923,7 @@ const createRelease = async () => {
                         {contributor.author_name?.[0] || 'U'}
                       </div>
                       <div className="contributor-info">
-                        <span className="contributor-name">{contributor.author_name}</span>
+                        <span className="contributor-name">{contributor.author_name || 'Unknown'}</span>
                         <span className="contributor-commits">{contributor.count} commits</span>
                       </div>
                     </div>
@@ -3775,6 +4359,7 @@ const createRelease = async () => {
       </div>
     );
   }
+
   return (
     <div className="quantum-community-container">
       {/* Quantum Background */}
@@ -4443,6 +5028,12 @@ const createRelease = async () => {
           background: rgba(255, 193, 7, 0.2);
           border-color: #ffc107;
           color: #ffc107;
+        }
+
+        .action-btn.watch-btn.watching {
+          background: rgba(76, 175, 80, 0.2);
+          border-color: #4caf50;
+          color: #4caf50;
         }
 
         .create-repo-section {
