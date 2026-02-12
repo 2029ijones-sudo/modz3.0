@@ -132,30 +132,17 @@ jobs:
             echo "✅ No fixes needed"
           fi
 
-      - name: 🚀 Force Vercel Deployment
+      - name: 🚀 Trigger Vercel Deploy Hook
         if: env.FIXES_APPLIED == 'true'
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_REF_NAME: ${{ github.ref_name }}
+          DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
         run: |
-          curl -X POST \
-            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-            -H "Content-Type: application/json" \
-            "https://api.vercel.com/v1/deployments" \
-            -d '{
-              "name": "modz3.0",
-              "projectId": "'"${VERCEL_PROJECT_ID}"'",
-              "target": "production",
-              "gitSource": {
-                "type": "github",
-                "repo": "'"${GITHUB_REPOSITORY}"'",
-                "ref": "'"${GITHUB_REF_NAME}"'"
-              }
-            }'
-          echo "✅ Vercel production deployment triggered"
+          echo "🚀 Triggering Vercel deploy hook..."
+          curl -X POST -sSf "${DEPLOY_HOOK_URL}" || {
+            echo "❌ Deploy hook failed"
+            exit 1
+          }
+          echo "✅ Vercel deploy hook triggered successfully"
 
       - name: 📝 Generate Fix Report
         if: always()
@@ -193,7 +180,7 @@ jobs:
           - **Backup:** [View Branch](https://github.com/${GITHUB_REPOSITORY}/tree/${BACKUP_BRANCH})
           
           ## 🚀 Next Steps
-          Vercel deployment triggered. Site will update in 1-2 minutes.
+          Vercel deployment triggered via deploy hook. Site will update in 1-2 minutes.
           
           *To revert to original code:*
           \`\`\`bash
@@ -227,7 +214,7 @@ jobs:
               -H "Accept: application/vnd.github.v3+json" \
               "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
               -d '{
-                "body": "🤖 **Quantum Auto-Fix Complete**\n\n✅ Backup branch: `'"${BACKUP_BRANCH}"'`\n🔧 Fixes applied: `'"${FIXES_APPLIED}"'`\n🚀 Vercel deployment triggered\n📊 [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n*This comment was automatically posted by the Quantum Auto-Fix Bot*"
+                "body": "🤖 **Quantum Auto-Fix Complete**\n\n✅ Backup branch: `'"${BACKUP_BRANCH}"'`\n🔧 Fixes applied: `'"${FIXES_APPLIED}"'`\n🚀 Vercel deploy hook triggered\n📊 [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n*This comment was automatically posted by the Quantum Auto-Fix Bot*"
               }'
           fi
 
