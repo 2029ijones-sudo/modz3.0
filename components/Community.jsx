@@ -1448,20 +1448,20 @@ export default function Community({
     }
   };
 
-  const fetchBranches = async (repoId) => {
-    try {
-      const { data, error } = await supabase
-        .from('branches')
-        .select('*')
-        .eq('repo_id', repoId);
+const fetchBranches = async (repoId) => {
+  try {
+    const { data, error } = await supabase
+      .from('branches')
+      .select('*')
+      .eq('repo_id', repoId);
 
-      if (error) throw error;
-      setBranches(data || [{ name: 'main', default: true }]);
-      setRepoStats(prev => ({ ...prev, branches: data?.length || 1 }));
-    } catch (error) {
-      console.error('Error fetching branches:', error);
-    }
-  };
+    if (error) throw error;
+    setBranches(data || [{ name: 'main', is_default: true }]); // Changed from 'default' to 'is_default'
+    setRepoStats(prev => ({ ...prev, branches: data?.length || 1 }));
+  } catch (error) {
+    console.error('Error fetching branches:', error);
+  }
+};
 
   const fetchIssues = async (repoId) => {
     try {
@@ -2253,8 +2253,7 @@ const createBranch = async () => {
         repo_id: selectedRepo.id,
         name: branchName,
         source_branch: sourceBranch,
-        default: false,
-        created_at: new Date().toISOString(),
+        is_default: false,  // Changed from 'default' to 'is_default'
         updated_at: new Date().toISOString()
       }]);
 
