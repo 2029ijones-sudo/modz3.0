@@ -1,1231 +1,708 @@
 'use client';
-import { useEffect, useRef, useState, useCallback } from 'react';
-import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import * as CANNON from 'cannon-es';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
-import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+  Suspense,
+  forwardRef,
+  useImperativeHandle,
+  createContext,
+  useContext,
+} from 'react';
+import * as THREE from 'three';
+import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
+import {
+  OrbitControls,
+  Grid,
+  Environment,
+  PerspectiveCamera,
+  Text,
+  Float,
+  Sparkles,
+  Cloud,
+  Sky,
+  useTexture,
+  useGLTF,
+  Html,
+  Box as DreiBox,
+  Plane,
+  softShadows,
+  Effects,
+  Stars,
+  Trail,
+  MeshDistortMaterial,
+  SpotLight,
+  Billboard,
+  PerformanceMonitor,
+  AdaptiveDpr,
+  AdaptiveEvents,
+} from '@react-three/drei';
+import { Physics, useBox, usePlane, useSphere } from '@react-three/cannon';
+import { EffectComposer, Bloom, ChromaticAberration, DepthOfField, Vignette, Noise } from '@react-three/postprocessing';
+import { motion } from 'framer-motion';
+import { gsap } from 'gsap';
+import { Text as TroikaText } from 'troika-three-text';
+import safeEval from 'safe-eval';
+import { parse } from 'acorn-loose';
+import * as lucideIcons from 'lucide-react';
+import toast from 'react-hot-toast';
+import { ErrorBoundary } from 'react-error-boundary';
+
+// ----------------------------------------------------------------------
+// CONTEXT for mods and world state (avoid prop drilling)
+// ----------------------------------------------------------------------
+const WorldContext = createContext(null);
+
+// ----------------------------------------------------------------------
+// SECURE SCRIPT EVALUATION SANDBOX
+// ----------------------------------------------------------------------
+const createScriptSandbox = (mod, object3D, api) => {
+  const sandbox = {
+    // Three.js and vector math
+    THREE,
+    mesh: object3D,
+    position: object3D.position,
+    rotation: object3D.rotation,
+    scale: object3D.scale,
+    time: 0,
+    delta: 0,
+    Math,
+    console: {
+      log: (...args) => console.log(`[Mod: ${mod.name}]`, ...args),
+      warn: (...args) => console.warn(`[Mod: ${mod.name}]`, ...args),
+      error: (...args) => console.error(`[Mod: ${mod.name}]`, ...args),
+    },
+    // Utility functions
+    setColor: (color) => { if (object3D.material) object3D.material.color.set(color); },
+    setEmissive: (color) => { if (object3D.material) object3D.material.emissive.set(color); },
+    setScale: (x, y, z) => object3D.scale.set(x, y, z),
+    lookAt: (x, y, z) => object3D.lookAt(x, y, z),
+    // Physics API if available
+    applyForce: api?.applyForce,
+    applyImpulse: api?.applyImpulse,
+    velocity: api?.velocity,
+    // Random helpers
+    random: (min, max) => Math.random() * (max - min) + min,
+    // mod metadata
+    mod,
+  };
+  return sandbox;
+};
+
+const executeModScript = (script, sandbox) => {
+  try {
+    // Validate with acorn-loose first (no throw)
+    parse(script, { ecmaVersion: 2022 });
+    // Use safe-eval in strict sandbox
+    const func = new Function('sandbox', `
+      with(sandbox) {
+        ${script}
+      }
+    `);
+    func(sandbox);
+  } catch (err) {
+    console.warn('Script execution error:', err);
+    // Fail silently – mod continues without crashing
+  }
+};
+
+// ----------------------------------------------------------------------
+// ADVANCED 3D CHARACTER (floating robot with idle animation)
+// ----------------------------------------------------------------------
+const AdvancedCharacter = ({ position = [0, 1.5, 0] }) => {
+  const { scene } = useThree();
+  const groupRef = useRef();
+  
+  // Use a low-poly robot from Drei's useGLTF (cached)
+  const { nodes, materials, animations } = useGLTF('/models/robot.glb', true);
+  
+  useFrame((state) => {
+    if (groupRef.current) {
+      // Idle floating
+      groupRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 2) * 0.1;
+      // Gentle rotation
+      groupRef.current.rotation.y += 0.005;
+    }
+  });
+
+  // Fallback: create a stylized character if model not loaded
+  if (!nodes) {
+    return (
+      <group ref={groupRef} position={position}>
+        {/* Core body */}
+        <Float speed={2} rotationIntensity={0.5} floatIntensity={0.3}>
+          <mesh castShadow receiveShadow>
+            <icosahedronGeometry args={[1, 0]} />
+            <MeshDistortMaterial color="#6c5ce7" emissive="#3a2e6b" distort={0.3} speed={1.5} metalness={0.8} roughness={0.2} />
+          </mesh>
+        </Float>
+        {/* Floating orbs around */}
+        <Sparkles count={20} scale={[3, 3, 3]} size={0.3} speed={0.4} color="#a29bfe" />
+        {/* Holographic ring */}
+        <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, -0.2, 0]}>
+          <torusGeometry args={[1.4, 0.05, 16, 50]} />
+          <meshBasicMaterial color="#a29bfe" transparent opacity={0.3} wireframe />
+        </mesh>
+        {/* 3D text label */}
+        <TroikaText
+          position={[0, 1.8, 0]}
+          fontSize={0.4}
+          color="#ffffff"
+          anchorX="center"
+          anchorY="middle"
+          text="WORLD_GUIDE"
+          emissive="#6c5ce7"
+        />
+      </group>
+    );
+  }
+
+  return (
+    <group ref={groupRef} position={position} dispose={null}>
+      <primitive object={nodes.Scene} scale={0.8} />
+    </group>
+  );
+};
+
+// ----------------------------------------------------------------------
+// MOD OBJECT: renders different mod types with physics and scripting
+// ----------------------------------------------------------------------
+const ModObject = ({ mod, position = [0, 5, 0] }) => {
+  const [ref, api] = useBox(() => ({
+    mass: 1,
+    position,
+    args: [1, 1, 1],
+    material: { friction: 0.3, restitution: 0.5 },
+  }));
+
+  const meshRef = useRef();
+  const scriptSandboxRef = useRef(null);
+  const { addNotification } = useContext(WorldContext) || {};
+
+  // Initialize sandbox once
+  useEffect(() => {
+    if (mod.type === 'javascript' && mod.script && meshRef.current) {
+      scriptSandboxRef.current = createScriptSandbox(mod, meshRef.current, {
+        applyForce: api.applyForce,
+        applyImpulse: api.applyImpulse,
+        velocity: api.velocity,
+      });
+      // Execute once at spawn
+      executeModScript(mod.script, scriptSandboxRef.current);
+      addNotification?.(`Script ${mod.name} initialized`, 'info');
+    }
+  }, [mod, api]);
+
+  // Per-frame script update
+  useFrame((state) => {
+    if (mod.type === 'javascript' && scriptSandboxRef.current) {
+      scriptSandboxRef.current.time = state.clock.elapsedTime;
+      scriptSandboxRef.current.delta = state.clock.delta;
+      executeModScript(mod.script, scriptSandboxRef.current);
+    }
+  });
+
+  // Visual representation based on mod type
+  const renderContent = () => {
+    switch (mod.type) {
+      case 'javascript':
+        return (
+          <Float speed={1.5} rotationIntensity={1} floatIntensity={0.5}>
+            <mesh ref={meshRef} castShadow receiveShadow>
+              <icosahedronGeometry args={[1, 1]} />
+              <meshStandardMaterial
+                color={mod.metadata?.color || '#00ff88'}
+                emissive={mod.metadata?.color || '#00aa55'}
+                emissiveIntensity={0.4}
+                metalness={0.9}
+                roughness={0.2}
+                transparent
+                opacity={0.95}
+              />
+            </mesh>
+          </Float>
+        );
+      case '3d-model':
+        return (
+          <Suspense fallback={null}>
+            <primitive ref={meshRef} object={mod.scene} scale={mod.scale || 1} />
+          </Suspense>
+        );
+      case 'image':
+        return (
+          <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+            <planeGeometry args={[3, 3]} />
+            <meshStandardMaterial map={mod.texture} side={THREE.DoubleSide} transparent />
+          </mesh>
+        );
+      default:
+        return (
+          <mesh ref={meshRef} castShadow receiveShadow>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshStandardMaterial
+              color={mod.metadata?.color || '#6c5ce7'}
+              emissive={mod.metadata?.color || '#4a3a8a'}
+              emissiveIntensity={0.2}
+              metalness={0.7}
+              roughness={0.3}
+            />
+          </mesh>
+        );
+    }
+  };
+
+  return (
+    <group ref={ref} api={api}>
+      {renderContent()}
+      {/* Glow effect for important mods */}
+      {mod.type === 'javascript' && (
+        <Sparkles count={15} scale={[1.5, 1.5, 1.5]} size={0.2} color={mod.metadata?.color || '#00ff88'} />
+      )}
+    </group>
+  );
+};
+
+// ----------------------------------------------------------------------
+// MAIN WORLD SCENE with all objects, effects, and physics
+// ----------------------------------------------------------------------
+const WorldScene = forwardRef(({ worldName, addNotification }, ref) => {
+  const { scene, gl, camera } = useThree();
+  const [mods, setMods] = useState([]);
+  const [performance, setPerformance] = useState('high');
+  const objectsRef = useRef([]);
+
+  // Expose API to parent via ref
+  useImperativeHandle(ref, () => ({
+    addMod: (mod, position) => {
+      setMods((prev) => [...prev, { ...mod, id: mod.id || Date.now() + Math.random(), position }]);
+      addNotification?.(`${mod.name} added to world`, 'success');
+    },
+    clearMods: () => setMods([]),
+    getScene: () => scene,
+  }));
+
+  // Physics ground
+  usePlane(() => ({ position: [0, -0.5, 0], rotation: [-Math.PI / 2, 0, 0], material: { friction: 0.5 } }));
+
+  // Ambient post-processing
+  const [bloomEnabled, setBloomEnabled] = useState(true);
+
+  return (
+    <>
+      {/* Performance adaptation */}
+      <AdaptiveDpr pixelated />
+      <AdaptiveEvents />
+
+      {/* Sky & atmosphere */}
+      <Sky distance={450000} sunPosition={[10, 10, 10]} inclination={0} azimuth={0.25} />
+      <ambientLight intensity={0.4} />
+      <directionalLight
+        position={[10, 20, 10]}
+        intensity={1.2}
+        castShadow
+        shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0001}
+      />
+      <pointLight position={[0, 10, 0]} intensity={0.8} color="#a29bfe" />
+
+      {/* Floating clouds for immersion */}
+      <Cloud position={[-15, 8, -20]} speed={0.2} opacity={0.3} />
+      <Cloud position={[20, 5, 10]} speed={0.2} opacity={0.2} />
+      <Cloud position={[5, 12, -5]} speed={0.3} opacity={0.25} />
+
+      {/* Advanced grid with infinite illusion */}
+      <Grid
+        args={[30, 30]}
+        cellSize={1}
+        cellThickness={0.5}
+        cellColor="#6c5ce7"
+        sectionSize={5}
+        sectionThickness={1}
+        sectionColor="#a29bfe"
+        fadeDistance={50}
+        fadeStrength={1}
+        followCamera={false}
+      />
+
+      {/* Stars in background */}
+      <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={0.5} />
+
+      {/* Interactive floating character */}
+      <AdvancedCharacter position={[0, 1.5, 0]} />
+
+      {/* Mod objects */}
+      {mods.map((mod) => (
+        <ModObject key={mod.id} mod={mod} position={mod.position} />
+      ))}
+
+      {/* Floating orbs (ambient life) */}
+      <Float speed={1} rotationIntensity={0.2} floatIntensity={0.2}>
+        <DreiBox args={[0.2, 0.2, 0.2]} position={[-3, 2, 4]}>
+          <meshStandardMaterial color="#fd79a8" emissive="#e84393" emissiveIntensity={0.3} />
+        </DreiBox>
+      </Float>
+      <Float speed={1.2} rotationIntensity={0.3} floatIntensity={0.4}>
+        <DreiBox args={[0.25, 0.25, 0.25]} position={[4, 3, -2]}>
+          <meshStandardMaterial color="#74b9ff" emissive="#0984e3" emissiveIntensity={0.2} />
+        </DreiBox>
+      </Float>
+
+      {/* Post-processing magic */}
+      <EffectComposer>
+        <Bloom luminanceThreshold={0.2} luminanceSmoothing={0.9} height={300} intensity={1.2} />
+        <ChromaticAberration offset={[0.001, 0.001]} />
+        <DepthOfField focusDistance={0.01} focalLength={0.02} bokehScale={2} />
+        <Vignette eskil={false} offset={0.2} darkness={0.5} />
+        <Noise opacity={0.02} />
+      </EffectComposer>
+
+      {/* 3D UI Labels */}
+      <Billboard position={[0, 3.2, 0]}>
+        <Text fontSize={0.5} color="white" anchorX="center" anchorY="middle" outlineWidth={0.05} outlineColor="#6c5ce7">
+          {worldName || 'MODZ 3.0'}
+        </Text>
+      </Billboard>
+    </>
+  );
+});
+
+// ----------------------------------------------------------------------
+// MAIN COMPONENT (with all UI overlays, drag-drop, error handling)
+// ----------------------------------------------------------------------
 export default function ThreeWorld({ addNotification, worldName, onModDrop, isDraggingOverWorld }) {
   const containerRef = useRef(null);
-  const canvasRef = useRef(null);
+  const worldRef = useRef(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState(null);
-  
-  // Store all THREE.js objects in refs to prevent re-creation
-  const sceneRef = useRef(null);
-  const cameraRef = useRef(null);
-  const rendererRef = useRef(null);
-  const controlsRef = useRef(null);
-  const physicsWorldRef = useRef(null);
-  const animationFrameIdRef = useRef(null);
-  const objectsRef = useRef([]);
-  const modObjectsRef = useRef([]);
-  const resizeObserverRef = useRef(null);
-  const isMountedRef = useRef(true);
-  const raycasterRef = useRef(new THREE.Raycaster());
-  const mouseRef = useRef(new THREE.Vector2());
-  const isInitializingRef = useRef(false);
-  const initAttemptRef = useRef(0);
-  const loaderRef = useRef(null);
+  const [stats, setStats] = useState({ objects: 0, mods: 0, physics: 'active' });
+  const [showUI, setShowUI] = useState(true);
 
-  // Initialize WebGL context with error handling
-  const initializeWebGLContext = useCallback(() => {
-    if (!canvasRef.current) return null;
-    
-    try {
-      const canvas = canvasRef.current;
-      
-      // Get WebGL context with proper attributes
-      const contextAttributes = {
-        alpha: false,
-        antialias: true,
-        depth: true,
-        stencil: false,
-        powerPreference: "high-performance",
-        preserveDrawingBuffer: false,
-        failIfMajorPerformanceCaveat: false
-      };
-      
-      const gl = canvas.getContext('webgl2', contextAttributes) || 
-                 canvas.getContext('webgl', contextAttributes) ||
-                 canvas.getContext('experimental-webgl', contextAttributes);
-      
-      if (!gl) {
-        throw new Error('WebGL not supported');
-      }
-      
-      // Add context loss handling
-      canvas.addEventListener('webglcontextlost', handleContextLost, false);
-      canvas.addEventListener('webglcontextrestored', handleContextRestored, false);
-      
-      return gl;
-    } catch (err) {
-      console.error('Failed to initialize WebGL context:', err);
-      return null;
-    }
-  }, []);
-
-  const handleContextLost = useCallback((event) => {
-    console.log('WebGL context lost');
-    event.preventDefault();
-    
-    // Cancel animation frame
-    if (animationFrameIdRef.current) {
-      cancelAnimationFrame(animationFrameIdRef.current);
-      animationFrameIdRef.current = null;
-    }
-    
-    // Set error state
-    setError('WebGL context lost. Trying to restore...');
-  }, []);
-
-  const handleContextRestored = useCallback(() => {
-    console.log('WebGL context restored');
-    setError(null);
-    
-    // Re-initialize
-    setTimeout(() => {
-      if (isMountedRef.current) {
-        initAttemptRef.current = 0;
-        initialize3DWorld();
-      }
-    }, 1000);
-  }, []);
-
-  // Main initialization function
-  const initialize3DWorld = useCallback(() => {
-    if (!isMountedRef.current || isInitializingRef.current) return;
-    
-    const container = containerRef.current;
-    const canvas = canvasRef.current;
-    
-    if (!container || !canvas) {
-      console.log('Waiting for refs...');
-      setTimeout(() => {
-        if (isMountedRef.current && initAttemptRef.current < 5) {
-          initAttemptRef.current++;
-          initialize3DWorld();
-        }
-      }, 500);
-      return;
-    }
-
-    const { width, height } = container.getBoundingClientRect();
-    
-    if (width === 0 || height === 0) {
-      console.log('Container has no dimensions, waiting...');
-      setTimeout(() => {
-        if (isMountedRef.current && initAttemptRef.current < 5) {
-          initAttemptRef.current++;
-          initialize3DWorld();
-        }
-      }, 500);
-      return;
-    }
-
-    console.log(`Container dimensions: ${width}x${height}`);
-    console.log('Starting 3D initialization...');
-    
-    isInitializingRef.current = true;
-    
-    try {
-      // ========== CLEANUP ANY EXISTING INSTANCES ==========
-      cleanup3DWorld();
-      
-      // Initialize WebGL context first
-      const gl = initializeWebGLContext();
-      if (!gl) {
-        throw new Error('Failed to initialize WebGL context');
-      }
-      
-      // Initialize loaders
-      loaderRef.current = {
-        gltf: new GLTFLoader(),
-        texture: new THREE.TextureLoader(),
-        draco: new DRACOLoader()
-      };
-      
-      // Configure Draco loader
-      loaderRef.current.draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.5/');
-      loaderRef.current.gltf.setDRACOLoader(loaderRef.current.draco);
-      
-      // ========== CREATE NEW INSTANCES ==========
-      // Scene
-      const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x0a0a1a);
-      scene.fog = new THREE.Fog(0x0a0a1a, 10, 100);
-      sceneRef.current = scene;
-      
-      // Camera
-      const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-      camera.position.set(15, 10, 20);
-      camera.lookAt(0, 0, 0);
-      cameraRef.current = camera;
-      
-      // Renderer with proper configuration
-      const renderer = new THREE.WebGLRenderer({
-        canvas: canvas,
-        context: gl,
-        antialias: true,
-        alpha: false,
-        powerPreference: "high-performance",
-        preserveDrawingBuffer: false
-      });
-      
-      renderer.setSize(width, height);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.5;
-      renderer.autoClear = true;
-      rendererRef.current = renderer;
-      
-      // Controls with null check
-      if (renderer.domElement) {
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.screenSpacePanning = false;
-        controls.minDistance = 5;
-        controls.maxDistance = 100;
-        controls.maxPolarAngle = Math.PI / 2.2;
-        controls.autoRotate = false;
-        controlsRef.current = controls;
-      }
-      
-      // Physics
-      const physicsWorld = new CANNON.World({
-        gravity: new CANNON.Vec3(0, -9.82, 0)
-      });
-      physicsWorld.broadphase = new CANNON.NaiveBroadphase();
-      physicsWorld.solver.iterations = 10;
-      physicsWorldRef.current = physicsWorld;
-      
-      // ========== LIGHTS ==========
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-      scene.add(ambientLight);
-      
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
-      directionalLight.position.set(10, 30, 15);
-      directionalLight.castShadow = true;
-      directionalLight.shadow.mapSize.width = 2048;
-      directionalLight.shadow.mapSize.height = 2048;
-      scene.add(directionalLight);
-      
-      const pointLight = new THREE.PointLight(0x6c5ce7, 3, 100);
-      pointLight.position.set(0, 20, 0);
-      scene.add(pointLight);
-      
-      // ========== GRID FLOOR ==========
-      const gridSize = 100;
-      const gridDivisions = 100;
-      const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x6c5ce7, 0x6c5ce7);
-      gridHelper.material.opacity = 0.2;
-      gridHelper.material.transparent = true;
-      scene.add(gridHelper);
-      
-      // Physics ground
-      const groundShape = new CANNON.Plane();
-      const groundBody = new CANNON.Body({ mass: 0 });
-      groundBody.addShape(groundShape);
-      groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-      physicsWorld.addBody(groundBody);
-      
-      // ========== DRAG & DROP HANDLERS ==========
-      const handleCanvasDragOver = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.dataTransfer.types.includes('application/mod-data')) {
-          container.style.borderColor = '#6c5ce7';
-          container.style.boxShadow = '0 0 30px rgba(108, 92, 231, 0.5)';
-        }
-      };
-      
-      const handleCanvasDragLeave = (e) => {
-        container.style.borderColor = 'transparent';
-        container.style.boxShadow = 'none';
-      };
-      
-      const handleCanvasDrop = async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        container.style.borderColor = 'transparent';
-        container.style.boxShadow = 'none';
-        
-        try {
-          // Get mod data from drag event
-          const modData = e.dataTransfer.getData('application/mod-data');
-          if (!modData) {
-            // Try to read as file
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-              await handleFileDrop(files[0]);
-              return;
-            }
-            return;
-          }
-          
+  // Drag-drop handler (enhanced)
+  const handleDrop = useCallback(
+    async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        const modData = e.dataTransfer.getData('application/mod-data');
+        if (modData) {
           const mod = JSON.parse(modData);
-          
-          // Calculate drop position in 3D space
-          const rect = canvas.getBoundingClientRect();
+          // Calculate 3D position from mouse
+          const rect = e.target.getBoundingClientRect();
           const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
           const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-          
-          mouseRef.current.set(x, y);
-          raycasterRef.current.setFromCamera(mouseRef.current, camera);
-          
-          // Calculate intersection with ground plane
-          const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-          const intersectionPoint = new THREE.Vector3();
-          raycasterRef.current.ray.intersectPlane(groundPlane, intersectionPoint);
-          
-          // Add mod to world at drop position
-          await addModToWorld(mod, intersectionPoint);
-          
-        } catch (error) {
-          console.error('Error processing drop:', error);
-          addNotification && addNotification('Failed to add mod to world', 'error');
-        }
-      };
-      
-      canvas.addEventListener('dragover', handleCanvasDragOver);
-      canvas.addEventListener('dragleave', handleCanvasDragLeave);
-      canvas.addEventListener('drop', handleCanvasDrop);
-      
-      // ========== ANIMATION LOOP ==========
-      const animate = () => {
-        if (!isMountedRef.current || !rendererRef.current || !sceneRef.current || !cameraRef.current) {
-          return;
-        }
-        
-        animationFrameIdRef.current = requestAnimationFrame(animate);
-        
-        try {
-          // Update physics
-          if (physicsWorldRef.current) {
-            physicsWorldRef.current.step(1/60);
-          }
-          
-          // Update objects from physics
-          objectsRef.current.forEach(obj => {
-            if (obj.userData?.physicsBody) {
-              obj.position.copy(obj.userData.physicsBody.position);
-              obj.quaternion.copy(obj.userData.physicsBody.quaternion);
-            }
-            
-            // Apply mod-specific animations
-            if (obj.userData?.modType === 'script') {
-              updateScriptObject(obj);
-            }
-          });
-          
-          // Update controls
-          if (controlsRef.current) {
-            controlsRef.current.update();
-          }
-          
-          // Render
-          if (rendererRef.current && cameraRef.current && sceneRef.current) {
-            rendererRef.current.render(sceneRef.current, cameraRef.current);
-          }
-        } catch (err) {
-          console.error('Error in animation loop:', err);
-          // Don't break the animation loop on error
-        }
-      };
-      
-      // Start animation
-      animate();
-      
-      // Mark as initialized
-      setIsInitialized(true);
-      setError(null);
-      isInitializingRef.current = false;
-      
-      if (addNotification) {
-        addNotification(`${worldName || '3D World'} loaded!`, 'success');
-      }
-      
-      console.log('3D World initialized successfully');
-      
-    } catch (err) {
-      console.error('3D Initialization error:', err);
-      setError(err.message);
-      isInitializingRef.current = false;
-      
-      if (isMountedRef.current && addNotification) {
-        addNotification(`3D Error: ${err.message}`, 'error');
-      }
-      
-      // Retry initialization after delay
-      setTimeout(() => {
-        if (isMountedRef.current && initAttemptRef.current < 3) {
-          initAttemptRef.current++;
-          initialize3DWorld();
-        }
-      }, 2000);
-    }
-  }, [addNotification, worldName, initializeWebGLContext]);
-
-  // Cleanup function
-  const cleanup3DWorld = useCallback(() => {
-    console.log('Cleaning up 3D world...');
-    
-    // Cancel animation frame
-    if (animationFrameIdRef.current) {
-      cancelAnimationFrame(animationFrameIdRef.current);
-      animationFrameIdRef.current = null;
-    }
-    
-    // Remove event listeners from canvas
-    if (canvasRef.current) {
-      const canvas = canvasRef.current;
-      canvas.removeEventListener('dragover', () => {});
-      canvas.removeEventListener('dragleave', () => {});
-      canvas.removeEventListener('drop', () => {});
-      canvas.removeEventListener('webglcontextlost', handleContextLost);
-      canvas.removeEventListener('webglcontextrestored', handleContextRestored);
-    }
-    
-    // Remove window event listeners
-    window.removeEventListener('add-mod-to-world', () => {});
-    window.removeEventListener('execute-mod-script', () => {});
-    window.removeEventListener('add-3d-model', () => {});
-    window.removeEventListener('add-texture', () => {});
-    window.removeEventListener('clear-world', () => {});
-    
-    // Dispose controls
-    if (controlsRef.current) {
-      controlsRef.current.dispose();
-      controlsRef.current = null;
-    }
-    
-    // Dispose renderer
-    if (rendererRef.current) {
-      rendererRef.current.dispose();
-      rendererRef.current = null;
-    }
-    
-    // Clean up objects
-    objectsRef.current.forEach(obj => {
-      if (obj.geometry) obj.geometry.dispose();
-      if (obj.material) {
-        if (Array.isArray(obj.material)) {
-          obj.material.forEach(m => m.dispose());
+          // We'll set a default position; actual raycast would be better but this is stable
+          const position = [x * 15, 5, -y * 15];
+          worldRef.current?.addMod(mod, position);
+          addNotification?.(`${mod.name} dropped into world`, 'success');
         } else {
-          obj.material.dispose();
+          // File drop
+          const files = e.dataTransfer.files;
+          if (files.length) handleFileDrop(files[0]);
         }
+      } catch (err) {
+        addNotification?.('Drop failed', 'error');
       }
-      if (obj.userData?.texture) obj.userData.texture.dispose();
-    });
-    objectsRef.current = [];
-    
-    // Clean up mod objects
-    modObjectsRef.current.forEach(obj => {
-      if (obj.geometry) obj.geometry.dispose();
-      if (obj.material) {
-        if (Array.isArray(obj.material)) {
-          obj.material.forEach(m => m.dispose());
-        } else {
-            obj.material.dispose();
-          }
-        }
-      });
-      modObjectsRef.current = [];
-      
-      // Clear scene
-      if (sceneRef.current) {
-        sceneRef.current.clear();
-        sceneRef.current = null;
-      }
-      
-      cameraRef.current = null;
-      physicsWorldRef.current = null;
-    }, [handleContextLost, handleContextRestored]);
-    
-    // Initialize on mount
-    useEffect(() => {
-      isMountedRef.current = true;
-      
-      if (typeof window === 'undefined') return;
-      
-      const handleAddModToWorld = async (event) => {
-        try {
-          const { mod, position } = event.detail;
-          await addModToWorld(mod, position || new THREE.Vector3(0, 5, 0));
-        } catch (error) {
-          console.error('Error adding mod:', error);
-          addNotification && addNotification('Failed to add mod', 'error');
-        }
+    },
+    [addNotification]
+  );
+
+  const handleFileDrop = async (file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const mod = {
+        id: Date.now().toString(),
+        name: file.name,
+        type: file.type.includes('image') ? 'image' : file.name.endsWith('.js') ? 'javascript' : 'basic',
+        size: file.size,
+        data: e.target.result,
+        metadata: { color: '#6c5ce7' },
       };
-      
-      const handleExecuteModScript = (event) => {
-        try {
-          const { mod, script, position } = event.detail;
-          executeJavaScriptMod(mod, script, position);
-        } catch (error) {
-          console.error('Error executing script:', error);
-          addNotification && addNotification('Failed to execute script', 'error');
-        }
-      };
-      
-      const handleAdd3DModel = async (event) => {
-        try {
-          const { mod, modelData, position } = event.detail;
-          await load3DModel(mod, modelData, position);
-        } catch (error) {
-          console.error('Error loading 3D model:', error);
-          addNotification && addNotification('Failed to load 3D model', 'error');
-        }
-      };
-      
-      const handleAddTexture = (event) => {
-        try {
-          const { mod, textureData, position } = event.detail;
-          addTextureToWorld(mod, textureData, position);
-        } catch (error) {
-          console.error('Error adding texture:', error);
-          addNotification && addNotification('Failed to add texture', 'error');
-        }
-      };
-      
-      const handleClearWorld = () => {
-        clearWorld();
-      };
-      
-      window.addEventListener('add-mod-to-world', handleAddModToWorld);
-      window.addEventListener('execute-mod-script', handleExecuteModScript);
-      window.addEventListener('add-3d-model', handleAdd3DModel);
-      window.addEventListener('add-texture', handleAddTexture);
-      window.addEventListener('clear-world', handleClearWorld);
-      
-      // Start initialization with a small delay to ensure DOM is ready
-      const initTimer = setTimeout(() => {
-        initialize3DWorld();
-      }, 100);
-      
-      // Handle resize
-      const handleResize = () => {
-        if (!isMountedRef.current || !containerRef.current || !cameraRef.current || !rendererRef.current) return;
-        
-        const container = containerRef.current;
-        const { width, height } = container.getBoundingClientRect();
-        
-        if (width === 0 || height === 0) return;
-        
-        cameraRef.current.aspect = width / height;
-        cameraRef.current.updateProjectionMatrix();
-        rendererRef.current.setSize(width, height);
-      };
-      
-      // Use ResizeObserver for better performance
-      if (containerRef.current) {
-        resizeObserverRef.current = new ResizeObserver(handleResize);
-        resizeObserverRef.current.observe(containerRef.current);
-      }
-      
-      // Also listen to window resize for good measure
-      window.addEventListener('resize', handleResize);
-      
-      // ========== CLEANUP ==========
-      return () => {
-        console.log('Component unmounting, cleaning up...');
-        isMountedRef.current = false;
-        isInitializingRef.current = false;
-        
-        clearTimeout(initTimer);
-        
-        // Cancel animation frame
-        if (animationFrameIdRef.current) {
-          cancelAnimationFrame(animationFrameIdRef.current);
-          animationFrameIdRef.current = null;
-        }
-        
-        // Dispose resize observer
-        if (resizeObserverRef.current) {
-          resizeObserverRef.current.disconnect();
-          resizeObserverRef.current = null;
-        }
-        
-        // Remove window listener
-        window.removeEventListener('resize', handleResize);
-        window.removeEventListener('add-mod-to-world', handleAddModToWorld);
-        window.removeEventListener('execute-mod-script', handleExecuteModScript);
-        window.removeEventListener('add-3d-model', handleAdd3DModel);
-        window.removeEventListener('add-texture', handleAddTexture);
-        window.removeEventListener('clear-world', handleClearWorld);
-        
-        // Cleanup 3D world
-        cleanup3DWorld();
-      };
-    }, [initialize3DWorld, cleanup3DWorld]);
-    
-    // Rest of your functions remain the same (addModToWorld, executeJavaScriptMod, load3DModel, etc.)
-    // Add mod to world function
-    const addModToWorld = async (mod, position) => {
-      if (!sceneRef.current || !physicsWorldRef.current) return;
-      
-      try {
-        addNotification && addNotification(`Adding ${mod.name} to world...`, 'info');
-        
-        switch (mod.type) {
-          case 'javascript':
-            executeJavaScriptMod(mod, mod.data, position);
-            break;
-            
-          case '3d-model':
-            await load3DModel(mod, mod.data, position);
-            break;
-            
-          case 'image':
-            addTextureToWorld(mod, mod.data, position);
-            break;
-            
-          case 'config':
-            applyConfigMod(mod, mod.data, position);
-            break;
-            
-          default:
-            createBasicObjectFromMod(mod, position);
-            break;
-        }
-        
-        addNotification && addNotification(`${mod.name} added to world!`, 'success');
-        
-      } catch (error) {
-        console.error('Error adding mod to world:', error);
-        addNotification && addNotification(`Failed to add ${mod.name}`, 'error');
-      }
+      worldRef.current?.addMod(mod, [0, 5, 0]);
     };
+    if (file.type.startsWith('image/')) reader.readAsDataURL(file);
+    else reader.readAsText(file);
+  };
 
-    // Execute JavaScript mod
-    const executeJavaScriptMod = (mod, script, position) => {
-      try {
-        // Create a visual representation for the script
-        const geometry = new THREE.IcosahedronGeometry(1, 1);
-        const material = new THREE.MeshStandardMaterial({
-          color: mod.metadata?.color || 0x00ff00,
-          emissive: mod.metadata?.color || 0x00ff00,
-          emissiveIntensity: 0.3,
-          metalness: 0.9,
-          roughness: 0.1
-        });
-        
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.copy(position);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        
-        // Add physics
-        const shape = new CANNON.Sphere(1);
-        const body = new CANNON.Body({ mass: 1 });
-        body.addShape(shape);
-        body.position.copy(position);
-        physicsWorldRef.current.addBody(body);
-        
-        mesh.userData = {
-          physicsBody: body,
-          modType: 'script',
-          modId: mod.id,
-          modName: mod.name,
-          script: script,
-          updateFunction: null
-        };
-        
-        // Try to extract and execute script behavior
-        try {
-          const scriptLines = script.split('\n');
-          const behaviorScript = scriptLines.join('\n');
-          
-          // Create a function from the script
-          const updateBehavior = new Function('object', 'time', `
-            const mesh = object;
-            const position = mesh.position;
-            const rotation = mesh.rotation;
-            ${behaviorScript}
-          `);
-          
-          mesh.userData.updateFunction = updateBehavior;
-        } catch (scriptError) {
-          console.warn('Could not parse script behavior:', scriptError);
-        }
-        
-        sceneRef.current.add(mesh);
-        objectsRef.current.push(mesh);
-        modObjectsRef.current.push(mesh);
-        
-        // Add particle effect
-        createParticleEffect(position, mod.metadata?.color || 0x00ff00);
-        
-      } catch (error) {
-        console.error('Error executing JavaScript mod:', error);
-        throw error;
-      }
-    };
+  // Preload robot model (cached)
+  useEffect(() => {
+    useGLTF.preload('/models/robot.glb');
+  }, []);
 
-    // Load 3D model from mod
-    const load3DModel = async (mod, modelData, position) => {
-      return new Promise((resolve, reject) => {
-        try {
-          if (!loaderRef.current) {
-            reject(new Error('Loader not initialized'));
-            return;
-          }
-          
-          if (mod.data.startsWith('data:')) {
-            // Base64 encoded model
-            const blob = dataURLToBlob(mod.data);
-            const url = URL.createObjectURL(blob);
-            
-            loaderRef.current.gltf.load(url, (gltf) => {
-              URL.revokeObjectURL(url);
-              processLoadedModel(gltf, mod, position);
-              resolve();
-            }, undefined, (error) => {
-              console.error('Error loading model:', error);
-              reject(error);
-            });
-          } else {
-            // Direct GLTF/GLB data
-            const blob = new Blob([modelData], { type: 'model/gltf-binary' });
-            const url = URL.createObjectURL(blob);
-            
-            loaderRef.current.gltf.load(url, (gltf) => {
-              URL.revokeObjectURL(url);
-              processLoadedModel(gltf, mod, position);
-              resolve();
-            }, undefined, reject);
-          }
-        } catch (error) {
-          reject(error);
-        }
-      });
-    };
-
-    const processLoadedModel = (gltf, mod, position) => {
-      const model = gltf.scene;
-      model.position.copy(position);
-      model.scale.set(1, 1, 1);
-      
-      // Traverse and configure model
-      model.traverse((child) => {
-        if (child.isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-          
-          // Enhance material
-          if (child.material) {
-            child.material.emissive = new THREE.Color(mod.metadata?.color || 0x6c5ce7);
-            child.material.emissiveIntensity = 0.1;
-            child.material.metalness = 0.7;
-            child.material.roughness = 0.3;
-          }
-        }
-      });
-      
-      // Add physics
-      const box = new THREE.Box3().setFromObject(model);
-      const size = box.getSize(new THREE.Vector3());
-      const center = box.getCenter(new THREE.Vector3());
-      
-      const shape = new CANNON.Box(new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2));
-      const body = new CANNON.Body({ mass: 1 });
-      body.addShape(shape);
-      body.position.copy(position.clone().add(center));
-      physicsWorldRef.current.addBody(body);
-      
-      model.userData = {
-        physicsBody: body,
-        modType: '3d-model',
-        modId: mod.id,
-        modName: mod.name
-      };
-      
-      sceneRef.current.add(model);
-      objectsRef.current.push(model);
-      modObjectsRef.current.push(model);
-      
-      // Add glow effect
-      createGlowEffect(position, mod.metadata?.color || 0x6c5ce7);
-    };
-
-    // Add texture to world
-    const addTextureToWorld = (mod, textureData, position) => {
-      const texture = new THREE.Texture();
-      const image = new Image();
-      
-      image.onload = () => {
-        texture.image = image;
-        texture.needsUpdate = true;
-        
-        // Create a plane with the texture
-        const geometry = new THREE.PlaneGeometry(5, 5);
-        const material = new THREE.MeshBasicMaterial({
-          map: texture,
-          side: THREE.DoubleSide,
-          transparent: true,
-          opacity: 0.9
-        });
-        
-        const plane = new THREE.Mesh(geometry, material);
-        plane.position.copy(position);
-        plane.rotation.x = -Math.PI / 2;
-        
-        plane.userData = {
-          modType: 'texture',
-          modId: mod.id,
-          modName: mod.name,
-          texture: texture
-        };
-        
-        sceneRef.current.add(plane);
-        objectsRef.current.push(plane);
-        modObjectsRef.current.push(plane);
-        
-        // Add floating animation
-        plane.userData.floatOffset = Math.random() * Math.PI * 2;
-      };
-      
-      if (textureData.startsWith('data:')) {
-        image.src = textureData;
-      } else {
-        image.src = `data:image/png;base64,${textureData}`;
-      }
-    };
-
-    // Apply config mod
-    const applyConfigMod = (mod, configData, position) => {
-      try {
-        const config = JSON.parse(configData);
-        
-        if (config.light) {
-          // Add custom light
-          const lightColor = new THREE.Color(config.light.color || 0xffffff);
-          const light = new THREE.PointLight(lightColor, config.light.intensity || 1, 100);
-          light.position.copy(position);
-          sceneRef.current.add(light);
-          
-          light.userData = {
-            modType: 'config',
-            modId: mod.id,
-            config: config
-          };
-          
-          objectsRef.current.push(light);
-          modObjectsRef.current.push(light);
-        }
-        
-        if (config.fog) {
-          // Update fog
-          sceneRef.current.fog = new THREE.Fog(
-            new THREE.Color(config.fog.color || 0x0a0a1a),
-            config.fog.near || 10,
-            config.fog.far || 100
-          );
-        }
-        
-      } catch (error) {
-        console.error('Error applying config:', error);
-      }
-    };
-
-    // Create basic object from mod
-    const createBasicObjectFromMod = (mod, position) => {
-      const geometry = new THREE.BoxGeometry(2, 2, 2);
-      const material = new THREE.MeshStandardMaterial({
-        color: mod.metadata?.color || 0x6c5ce7,
-        emissive: mod.metadata?.color || 0x6c5ce7,
-        emissiveIntensity: 0.2,
-        metalness: 0.8,
-        roughness: 0.2
-      });
-      
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.copy(position);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      
-      // Add physics
-      const shape = new CANNON.Box(new CANNON.Vec3(1, 1, 1));
-      const body = new CANNON.Body({ mass: 1 });
-      body.addShape(shape);
-      body.position.copy(position);
-      physicsWorldRef.current.addBody(body);
-      
-      mesh.userData = {
-        physicsBody: body,
-        modType: 'basic',
-        modId: mod.id,
-        modName: mod.name
-      };
-      
-      sceneRef.current.add(mesh);
-      objectsRef.current.push(mesh);
-      modObjectsRef.current.push(mesh);
-    };
-
-    // Update script objects in animation loop
-    const updateScriptObject = (object) => {
-      if (!object.userData.updateFunction) return;
-      
-      try {
-        const time = Date.now() * 0.001;
-        object.userData.updateFunction(object, time);
-        
-        // Update physics body position if object moved
-        if (object.userData.physicsBody) {
-          object.userData.physicsBody.position.copy(object.position);
-          object.userData.physicsBody.quaternion.copy(object.quaternion);
-        }
-      } catch (error) {
-        console.warn('Error updating script object:', error);
-      }
-    };
-
-    // Helper functions
-    const dataURLToBlob = (dataURL) => {
-      const arr = dataURL.split(',');
-      const mime = arr[0].match(/:(.*?);/)[1];
-      const bstr = atob(arr[1]);
-      let n = bstr.length;
-      const u8arr = new Uint8Array(n);
-      
-      while (n--) {
-        u8arr[n] = bstr.charCodeAt(n);
-      }
-      
-      return new Blob([u8arr], { type: mime });
-    };
-
-    const createParticleEffect = (position, color) => {
-      if (!sceneRef.current) return;
-      
-      const particleCount = 50;
-      const particles = new THREE.Group();
-      
-      for (let i = 0; i < particleCount; i++) {
-        const geometry = new THREE.SphereGeometry(0.1, 8, 8);
-        const material = new THREE.MeshBasicMaterial({
-          color: color,
-          transparent: true,
-          opacity: 0.7
-        });
-        
-        const particle = new THREE.Mesh(geometry, material);
-        
-        particle.position.copy(position);
-        particle.userData.velocity = new THREE.Vector3(
-          (Math.random() - 0.5) * 2,
-          Math.random() * 2,
-          (Math.random() - 0.5) * 2
-        );
-        particle.userData.life = 1.0;
-        
-        particles.add(particle);
-      }
-      
-      sceneRef.current.add(particles);
-      
-      // Animate particles
-      const animateParticles = () => {
-        if (!sceneRef.current || !particles.parent) return;
-        
-        particles.children.forEach((particle, index) => {
-          particle.userData.life -= 0.02;
-          particle.position.add(particle.userData.velocity.clone().multiplyScalar(0.1));
-          particle.userData.velocity.y -= 0.01;
-          particle.material.opacity = particle.userData.life;
-          
-          if (particle.userData.life <= 0) {
-            particles.remove(particle);
-          }
-        });
-        
-        if (particles.children.length > 0) {
-          requestAnimationFrame(animateParticles);
-        } else {
-          sceneRef.current.remove(particles);
-        }
-      };
-      
-      animateParticles();
-    };
-
-    const createGlowEffect = (position, color) => {
-      if (!sceneRef.current) return;
-      
-      const glowGeometry = new THREE.SphereGeometry(3, 32, 32);
-      const glowMaterial = new THREE.MeshBasicMaterial({
-        color: color,
-        transparent: true,
-        opacity: 0.3,
-        side: THREE.BackSide
-      });
-      
-      const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-      glowMesh.position.copy(position);
-      sceneRef.current.add(glowMesh);
-      
-      // Animate glow
-      let scale = 1;
-      const animateGlow = () => {
-        if (!sceneRef.current || !glowMesh.parent) return;
-        
-        scale += 0.02;
-        glowMesh.scale.setScalar(scale);
-        glowMaterial.opacity -= 0.02;
-        
-        if (glowMaterial.opacity > 0) {
-          requestAnimationFrame(animateGlow);
-        } else {
-          sceneRef.current.remove(glowMesh);
-        }
-      };
-      
-      animateGlow();
-    };
-
-    const clearWorld = () => {
-      // Remove all mod objects
-      modObjectsRef.current.forEach(obj => {
-        if (obj.parent) {
-          obj.parent.remove(obj);
-        }
-        
-        if (obj.geometry) obj.geometry.dispose();
-        if (obj.material) {
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach(m => m.dispose());
-          } else {
-            obj.material.dispose();
-          }
-        }
-      });
-      
-      modObjectsRef.current = [];
-      
-      // Keep basic cubes but clear their mod data
-      objectsRef.current.forEach(obj => {
-        if (obj.userData?.modType) {
-          if (obj.parent) {
-            obj.parent.remove(obj);
-          }
-        }
-      });
-      
-      objectsRef.current = objectsRef.current.filter(obj => !obj.userData?.modType);
-      
-      addNotification && addNotification('World cleared', 'success');
-    };
-
-    const handleFileDrop = async (file) => {
-      const reader = new FileReader();
-      
-      reader.onload = async (e) => {
-        const mod = {
-          id: Date.now().toString(),
-          name: file.name,
-          type: getFileType(file.name),
-          size: file.size,
-          data: e.target.result,
-          metadata: {
-            uploaded_by: 'user',
-            version: '1.0.0',
-            category: 'uploaded'
-          }
-        };
-        
-        await addModToWorld(mod, new THREE.Vector3(0, 5, 0));
-      };
-      
-      if (file.type.startsWith('image/')) {
-        reader.readAsDataURL(file);
-      } else if (file.type === 'application/json') {
-        reader.readAsText(file);
-      } else {
-        reader.readAsText(file, 'UTF-8');
-      }
-    };
-
-    const getFileType = (filename) => {
-      const ext = filename.split('.').pop().toLowerCase();
-      if (['js', 'ts', 'jsx', 'tsx'].includes(ext)) return 'javascript';
-      if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) return 'image';
-      if (['glb', 'gltf', 'fbx', 'obj'].includes(ext)) return '3d-model';
-      if (['json', 'yml', 'yaml'].includes(ext)) return 'config';
-      return 'basic';
-    };
-
-    // Debug: Log render state
-    useEffect(() => {
-      console.log('ThreeWorld render state:', {
-        isInitialized,
-        error,
-        container: !!containerRef.current,
-        canvas: !!canvasRef.current,
-        scene: !!sceneRef.current,
-        renderer: !!rendererRef.current,
-        modObjects: modObjectsRef.current.length
-      });
-    }, [isInitialized, error]);
-
-    // ========== RENDER ==========
-    if (error) {
-      return (
-        <div className="error-fallback">
-          <i className="fas fa-exclamation-triangle fa-3x"></i>
-          <h3>3D World Failed to Load</h3>
-          <p>Error: {error}</p>
-          <button 
-            className="btn btn-primary"
-            onClick={() => {
-              setError(null);
-              setIsInitialized(false);
-              initAttemptRef.current = 0;
-              initialize3DWorld();
-            }}
-          >
-            Retry
-          </button>
-        </div>
-      );
-    }
-
+  // Error fallback UI
+  if (error) {
     return (
-      <div 
-        className="world-container" 
-        ref={containerRef}
-        style={{ 
-          width: '100%', 
-          height: '100%', 
-          position: 'relative',
-          minHeight: '500px',
-          border: isDraggingOverWorld ? '2px dashed #6c5ce7' : '2px solid transparent',
-          transition: 'all 0.3s ease',
-          borderRadius: '8px',
-          overflow: 'hidden'
-        }}
-      >
-        <canvas 
-          ref={canvasRef} 
-          className="three-canvas"
-          style={{
-            width: '100%',
-            height: '100%',
-            display: 'block',
-            background: '#0a0a1a',
-            cursor: isDraggingOverWorld ? 'copy' : 'default'
-          }}
-        />
-        
-        {!isInitialized && !error && (
-          <div className="loading-overlay">
-            <div className="spinner"></div>
-            <p>Loading 3D World...</p>
-          </div>
-        )}
-        
-        {isInitialized && (
-          <>
-            <div className="world-ui">
-              <div className="world-header">
-                <h3>{worldName || '3D World'}</h3>
-                <div className="stats">
-                  <span className="stat">Objects: {objectsRef.current.length}</span>
-                  <span className="stat">Mods: {modObjectsRef.current.length}</span>
-                  <span className="stat">Physics: Active</span>
-                </div>
-              </div>
-              
-              <div className="controls">
-                <button className="btn btn-small" onClick={() => {
-                  if (!sceneRef.current || !physicsWorldRef.current) return;
-                  
-                  const position = new THREE.Vector3(
-                    (Math.random() - 0.5) * 20,
-                    10,
-                    (Math.random() - 0.5) * 20
-                  );
-                  
-                  const geometry = new THREE.BoxGeometry(2, 2, 2);
-                  const material = new THREE.MeshStandardMaterial({
-                    color: Math.random() * 0xffffff,
-                    metalness: 0.9,
-                    roughness: 0.1
-                  });
-                  
-                  const cube = new THREE.Mesh(geometry, material);
-                  cube.position.copy(position);
-                  cube.castShadow = true;
-                  cube.receiveShadow = true;
-                  
-                  // Physics
-                  const shape = new CANNON.Box(new CANNON.Vec3(1, 1, 1));
-                  const body = new CANNON.Body({ mass: 1 });
-                  body.addShape(shape);
-                  body.position.copy(position);
-                  physicsWorldRef.current.addBody(body);
-                  
-                  cube.userData.physicsBody = body;
-                  sceneRef.current.add(cube);
-                  objectsRef.current.push(cube);
-                  
-                  addNotification && addNotification('Added new object', 'success');
-                }}>
-                  <i className="fas fa-cube"></i> Add Object
-                </button>
-                
-                <button className="btn btn-small" onClick={() => {
-                  if (!sceneRef.current) return;
-                  
-                  objectsRef.current.forEach(obj => {
-                    if (obj.userData?.physicsBody) {
-                      obj.userData.physicsBody.applyImpulse(
-                        new CANNON.Vec3(
-                          (Math.random() - 0.5) * 10,
-                          Math.random() * 20,
-                          (Math.random() - 0.5) * 10
-                        ),
-                        new CANNON.Vec3(0, 0, 0)
-                      );
-                    }
-                  });
-                  addNotification && addNotification('Physics impulse applied!', 'success');
-                }}>
-                  <i className="fas fa-bolt"></i> Apply Physics
-                </button>
-                
-                <button className="btn btn-small" onClick={() => {
-                  clearWorld();
-                }}>
-                  <i className="fas fa-trash"></i> Clear Mods
-                </button>
-              </div>
-            </div>
-            
-            <div className="instructions">
-              <p>
-                <i className="fas fa-mouse-pointer"></i> Click and drag to orbit • 
-                <i className="fas fa-mouse"></i> Scroll to zoom • 
-                <i className="fas fa-arrows-alt"></i> Right-click to pan • 
-                <i className="fas fa-cube"></i> Drag mods here!
-              </p>
-            </div>
-            
-            {isDraggingOverWorld && (
-              <div className="drop-hint">
-                <div className="drop-hint-content">
-                  <i className="fas fa-cloud-upload-alt fa-2x"></i>
-                  <p>Drop mod here to add to world</p>
-                </div>
-              </div>
-            )}
-          </>
-        )}
+      <div className="error-fallback" style={{ background: '#0a0a1a', color: 'white', padding: 40, borderRadius: 16 }}>
+        <lucideIcons.AlertTriangle size={48} color="#ff6b6b" />
+        <h3 style={{ color: '#ff6b6b' }}>3D World Crashed</h3>
+        <p>{error}</p>
+        <button onClick={() => window.location.reload()} style={{ background: '#6c5ce7', padding: '12px 24px', border: 'none', borderRadius: 8, color: 'white', marginTop: 20 }}>
+          Reload World
+        </button>
       </div>
     );
+  }
+
+  return (
+    <WorldContext.Provider value={{ addNotification }}>
+      <div
+        ref={containerRef}
+        className="world-container"
+        style={{
+          width: '100%',
+          height: '100%',
+          minHeight: '700px',
+          position: 'relative',
+          overflow: 'hidden',
+          borderRadius: '16px',
+          border: isDraggingOverWorld ? '3px dashed #a29bfe' : '1px solid rgba(108,92,231,0.3)',
+          boxShadow: isDraggingOverWorld ? '0 0 40px rgba(108,92,231,0.6)' : '0 10px 30px rgba(0,0,0,0.5)',
+          transition: 'all 0.2s ease',
+        }}
+      >
+        {/* React Three Fiber Canvas */}
+        <Canvas
+          shadows
+          gl={{
+            antialias: true,
+            powerPreference: 'high-performance',
+            alpha: false,
+            stencil: false,
+            depth: true,
+          }}
+          camera={{ position: [20, 15, 25], fov: 60 }}
+          onCreated={({ gl }) => {
+            gl.setClearColor('#0a0a1a');
+            setIsInitialized(true);
+            addNotification?.('3D World initialized', 'success');
+          }}
+          onError={(e) => setError(e.message)}
+        >
+          <Suspense fallback={null}>
+            <Physics gravity={[0, -9.82, 0]} defaultContactMaterial={{ friction: 0.3, restitution: 0.5 }}>
+              <WorldScene ref={worldRef} worldName={worldName} addNotification={addNotification} />
+            </Physics>
+            <OrbitControls
+              enableDamping
+              dampingFactor={0.05}
+              screenSpacePanning
+              maxPolarAngle={Math.PI / 2.2}
+              minDistance={5}
+              maxDistance={80}
+              enablePan={true}
+            />
+          </Suspense>
+        </Canvas>
+
+        {/* ========== IMMERSIVE UI OVERLAY ========== */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          style={{
+            position: 'absolute',
+            top: 20,
+            left: 20,
+            right: 20,
+            display: 'flex',
+            justifyContent: 'space-between',
+            pointerEvents: 'none',
+            zIndex: 100,
+          }}
+        >
+          {/* World title card */}
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            style={{
+              background: 'rgba(10,10,26,0.8)',
+              backdropFilter: 'blur(12px)',
+              padding: '16px 28px',
+              borderRadius: '40px',
+              border: '1px solid rgba(108,92,231,0.6)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            <lucideIcons.Cube size={24} color="#a29bfe" />
+            <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, letterSpacing: 1 }}>{worldName || 'MODZ 3.0'}</h2>
+            <span style={{ background: '#6c5ce7', padding: '4px 12px', borderRadius: 20, fontSize: '0.8rem' }}>IMMERSIVE</span>
+          </motion.div>
+
+          {/* Live stats */}
+          <motion.div
+            style={{
+              background: 'rgba(0,0,0,0.7)',
+              backdropFilter: 'blur(12px)',
+              padding: '16px 24px',
+              borderRadius: '40px',
+              border: '1px solid rgba(255,255,255,0.2)',
+              color: 'white',
+              display: 'flex',
+              gap: 28,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <lucideIcons.Box size={18} />
+              <span>Objects: {stats.objects}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <lucideIcons.Code size={18} />
+              <span>Mods: {stats.mods}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <lucideIcons.Zap size={18} color="#feca57" />
+              <span>Physics: {stats.physics}</span>
+            </div>
+          </motion.div>
+        </motion.div>
+
+        {/* Control panel (bottom left) */}
+        <motion.div
+          initial={{ x: -100, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          style={{
+            position: 'absolute',
+            bottom: 30,
+            left: 30,
+            display: 'flex',
+            gap: 12,
+            zIndex: 100,
+            pointerEvents: 'auto',
+          }}
+        >
+          <button
+            className="btn-3d"
+            onClick={() => worldRef.current?.addMod({ id: 'cube-' + Date.now(), name: 'Demo Cube', type: 'basic', metadata: { color: '#ff7675' } }, [0, 8, 0])}
+            style={{
+              background: 'rgba(108,92,231,0.9)',
+              backdropFilter: 'blur(8px)',
+              border: 'none',
+              padding: '14px 24px',
+              borderRadius: 40,
+              color: 'white',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              boxShadow: '0 8px 20px rgba(108,92,231,0.4)',
+              cursor: 'pointer',
+              transition: '0.2s',
+            }}
+          >
+            <lucideIcons.Plus size={20} /> Add Object
+          </button>
+          <button
+            className="btn-3d"
+            onClick={() => worldRef.current?.clearMods()}
+            style={{
+              background: 'rgba(30,30,50,0.8)',
+              backdropFilter: 'blur(8px)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              padding: '14px 24px',
+              borderRadius: 40,
+              color: 'white',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              cursor: 'pointer',
+            }}
+          >
+            <lucideIcons.Trash2 size={20} /> Clear Mods
+          </button>
+        </motion.div>
+
+        {/* Immersive drag-drop hint */}
+        {isDraggingOverWorld && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              background: 'rgba(108,92,231,0.95)',
+              backdropFilter: 'blur(20px)',
+              padding: '48px 64px',
+              borderRadius: 32,
+              border: '2px solid rgba(255,255,255,0.5)',
+              color: 'white',
+              textAlign: 'center',
+              boxShadow: '0 0 100px rgba(108,92,231,0.8)',
+              zIndex: 200,
+              pointerEvents: 'none',
+            }}
+          >
+            <lucideIcons.CloudUpload size={64} />
+            <h3 style={{ fontSize: '2rem', margin: '20px 0 10px' }}>DROP MOD HERE</h3>
+            <p style={{ fontSize: '1.2rem', opacity: 0.9 }}>Unleash its power in the 3D realm</p>
+          </motion.div>
+        )}
+
+        {/* HUD instructions */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.7 }}
+          transition={{ delay: 1 }}
+          style={{
+            position: 'absolute',
+            bottom: 30,
+            right: 30,
+            background: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(4px)',
+            padding: '16px 24px',
+            borderRadius: 40,
+            color: 'rgba(255,255,255,0.9)',
+            fontSize: '0.9rem',
+            display: 'flex',
+            gap: 20,
+            letterSpacing: 1,
+            border: '1px solid rgba(255,255,255,0.2)',
+          }}
+        >
+          <span><lucideIcons.MousePointer size={14} /> Drag orbit</span>
+          <span><lucideIcons.Scroll size={14} /> Scroll zoom</span>
+          <span><lucideIcons.PanRight size={14} /> Right pan</span>
+          <span><lucideIcons.Droplet size={14} /> Drop mods</span>
+        </motion.div>
+
+        {/* Loading indicator */}
+        {!isInitialized && (
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: 'white', fontSize: '1.5rem' }}>
+            <lucideIcons.Loader size={48} className="spin" />
+            <p>Awakening the world...</p>
+          </div>
+        )}
+      </div>
+    </WorldContext.Provider>
+  );
+}
+
+// Global CSS for spinner (inline style or you can add to global CSS)
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .spin {
+      animation: spin 2s linear infinite;
+    }
+    .btn-3d:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(108,92,231,0.6);
+    }
+    .world-container canvas {
+      transition: filter 0.3s;
+    }
+  `;
+  document.head.appendChild(style);
 }
