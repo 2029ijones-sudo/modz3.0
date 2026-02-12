@@ -160,7 +160,7 @@ export default function ThreeWorld({
     }, 1000);
   }, [addNotification]);
 
-  // ========== CREATE FLOATING ISLANDS ==========
+   // ========== CREATE FLOATING ISLANDS ==========
   const createFloatingIslands = useCallback((scene, physicsWorld) => {
     if (!scene || gpuTier === 'low') return;
     
@@ -178,7 +178,7 @@ export default function ThreeWorld({
       
       islandGroup.position.set(x, y, z);
       
-      // Main island body
+      // Main island body - RENAMED from 'body' to 'islandMesh' to avoid conflict
       const bodyGeo = new THREE.DodecahedronGeometry(3 + Math.random() * 2);
       const bodyMat = new THREE.MeshStandardMaterial({
         color: new THREE.Color().setHSL(0.75 + Math.random() * 0.2, 0.7, 0.3),
@@ -188,10 +188,10 @@ export default function ThreeWorld({
         metalness: 0.6,
         wireframe: Math.random() > 0.8
       });
-      const body = new THREE.Mesh(bodyGeo, bodyMat);
-      body.castShadow = !performanceMode.disableShadows;
-      body.receiveShadow = !performanceMode.disableShadows;
-      islandGroup.add(body);
+      const islandMesh = new THREE.Mesh(bodyGeo, bodyMat); // FIXED: renamed from 'body' to 'islandMesh'
+      islandMesh.castShadow = !performanceMode.disableShadows;
+      islandMesh.receiveShadow = !performanceMode.disableShadows;
+      islandGroup.add(islandMesh);
       
       // Crystal formations
       const crystalCount = 5 + Math.floor(Math.random() * 10);
@@ -259,18 +259,18 @@ export default function ThreeWorld({
         islandGroup.userData.particles = particles;
       }
       
-      // Add physics body
+      // Add physics body - RENAMED from 'body' to 'physicsBody' to avoid conflict
       const shape = new CANNON.Sphere(3);
-      const body = new CANNON.Body({ 
+      const physicsBody = new CANNON.Body({ // FIXED: renamed from 'body' to 'physicsBody'
         mass: 0,
         material: new CANNON.Material('island')
       });
-      body.addShape(shape);
-      body.position.copy(islandGroup.position);
-      physicsWorld.addBody(body);
+      physicsBody.addShape(shape);
+      physicsBody.position.copy(islandGroup.position);
+      physicsWorld.addBody(physicsBody);
       
       islandGroup.userData = {
-        physicsBody: body,
+        physicsBody: physicsBody, // FIXED: using 'physicsBody'
         type: 'floatingIsland',
         rotationSpeed: 0.001 + Math.random() * 0.002,
         floatSpeed: 0.5 + Math.random() * 0.5,
@@ -282,7 +282,6 @@ export default function ThreeWorld({
       environmentRef.current[`island${i}`] = islandGroup;
     }
   }, [performanceMode, gpuTier]);
-
   // ========== CREATE QUANTUM PORTALS ==========
   const createPortals = useCallback((scene) => {
     if (!scene || gpuTier === 'low' || performanceMode.disableEffects) return;
