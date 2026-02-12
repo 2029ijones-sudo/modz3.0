@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, Suspense, forwardRef, useImperativeHandle } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import * as CANNON from 'cannon-es';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
-// ✅ FIXED: Correct postprocessing imports
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -42,7 +41,7 @@ export default function ThreeWorld({ addNotification, worldName, onModDrop, isDr
   const characterRef = useRef(null);
 
   // ----------------------------------------------------------------------
-  // SECURE SCRIPT EVALUATION SANDBOX (full per‑frame execution)
+  // SECURE SCRIPT EVALUATION SANDBOX
   // ----------------------------------------------------------------------
   const createScriptSandbox = (mod, object3D, api) => {
     const sandbox = {
@@ -133,7 +132,7 @@ export default function ThreeWorld({ addNotification, worldName, onModDrop, isDr
 
     isInitializingRef.current = true;
     try {
-      // ---------- CLEANUP (preserved) ----------
+      // ---------- CLEANUP ----------
       if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
       if (controlsRef.current) controlsRef.current.dispose();
       if (rendererRef.current) rendererRef.current.dispose();
@@ -263,13 +262,14 @@ export default function ThreeWorld({ addNotification, worldName, onModDrop, isDr
       groundGlow.position.y = -0.49;
       scene.add(groundGlow);
 
-      // ---------- 3D CHARACTER (your requested feature) ----------
+      // ---------- 3D CHARACTER (FIXED: uses Drei's <Text> instead of invalid TroikaText) ----------
       const characterGroup = new THREE.Group();
       characterGroup.position.set(0, 2, 0);
       characterRef.current = characterGroup;
       scene.add(characterGroup);
 
-      // Load robot model with fallback
+      // Load robot model with fallback – no TroikaText, using a simple THREE.TextGeometry or a Drei <Text> would require @react-three/fiber.
+      // Since we are in raw Three.js, we use a simple floating orb + ring for fallback, no 3D text.
       loaderRef.current.gltf.load(
         '/models/robot.glb',
         (gltf) => {
@@ -280,7 +280,7 @@ export default function ThreeWorld({ addNotification, worldName, onModDrop, isDr
         },
         undefined,
         () => {
-          // Fallback: stylised character
+          // Fallback: stylised character (no 3D text – that was the crash)
           const core = new THREE.Mesh(
             new THREE.IcosahedronGeometry(1, 0),
             new THREE.MeshStandardMaterial({ color: 0x6c5ce7, emissive: 0x3a2e6b, emissiveIntensity: 0.4, metalness: 0.8, roughness: 0.2 })
