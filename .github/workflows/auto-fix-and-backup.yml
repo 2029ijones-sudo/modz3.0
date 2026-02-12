@@ -50,31 +50,16 @@ jobs:
       # ==========================================================================
       # 🚀 INSTANT MAINTENANCE MODE USING EDGE CONFIG (NO REDEPLOY)
       # ==========================================================================
-      - name: 🔍 Get Edge Config ID
+      - name: 🔧 Enable Maintenance Mode (INSTANT - Edge Config)
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          echo "🔍 Fetching Edge Config ID..."
-          # List all Edge Configs and filter by name "quantum-maintenance"
-          RESPONSE=$(curl -s -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-            "https://api.vercel.com/v1/edge-config")
-          
-          EDGE_CONFIG_ID=$(echo "$RESPONSE" | jq -r '.edgeConfigs[] | select(.slug=="quantum-maintenance") | .id')
-          
-          if [ -z "$EDGE_CONFIG_ID" ] || [ "$EDGE_CONFIG_ID" = "null" ]; then
-            echo "❌ Edge Config 'quantum-maintenance' not found. Please create it in Vercel Dashboard → Storage → Edge Config."
-            exit 1
-          fi
-          
-          echo "✅ Edge Config ID: $EDGE_CONFIG_ID"
-          echo "EDGE_CONFIG_ID=${EDGE_CONFIG_ID}" >> $GITHUB_ENV
-
-      - name: 🔧 Enable Maintenance Mode (INSTANT)
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          EDGE_CONFIG_ID: ${{ env.EDGE_CONFIG_ID }}
         run: |
           echo "🛠️ Enabling maintenance mode instantly via Edge Config..."
+          
+          # 🔥 YOUR EDGE CONFIG ID (hardcoded)
+          EDGE_CONFIG_ID="ecfg_iseyjgzxjxubbehh6at0yf7qw4gs"
+          
+          # Update the value to true
           RESPONSE=$(curl -s -X PATCH \
             -H "Authorization: Bearer ${VERCEL_TOKEN}" \
             -H "Content-Type: application/json" \
@@ -194,13 +179,17 @@ jobs:
           }
           echo "✅ Vercel deploy hook triggered successfully"
 
-      - name: 🔧 Disable Maintenance Mode (INSTANT)
+      - name: 🔧 Disable Maintenance Mode (INSTANT - Edge Config)
         if: always()
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          EDGE_CONFIG_ID: ${{ env.EDGE_CONFIG_ID }}
         run: |
           echo "🛠️ Disabling maintenance mode instantly via Edge Config..."
+          
+          # 🔥 YOUR EDGE CONFIG ID (hardcoded)
+          EDGE_CONFIG_ID="ecfg_iseyjgzxjxubbehh6at0yf7qw4gs"
+          
+          # Update the value to false
           RESPONSE=$(curl -s -X PATCH \
             -H "Authorization: Bearer ${VERCEL_TOKEN}" \
             -H "Content-Type: application/json" \
