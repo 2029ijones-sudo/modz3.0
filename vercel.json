@@ -65,11 +65,5 @@
       "source": "/api/quantum/chaos-stream",
       "destination": "/api/quantum/chaos-stream"
     }
-  ],
-  "functions": {
-    "api/quantum/*.js": {
-      "maxDuration": 10,
-      "memory": 1024
-    }
-  }
+  ]
 }
