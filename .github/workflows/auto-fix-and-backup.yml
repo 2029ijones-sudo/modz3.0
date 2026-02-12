@@ -47,6 +47,30 @@ jobs:
             fi
           fi
 
+      - name: 🔧 Enable Maintenance Mode
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          echo "🛠️ Enabling maintenance mode..."
+          RESPONSE=$(curl -s -X POST \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env" \
+            -d '{
+              "key": "MAINTENANCE_MODE",
+              "value": "true",
+              "target": ["production"],
+              "type": "plain"
+            }' 2>&1)
+          
+          if echo "$RESPONSE" | grep -q '"key"'; then
+            echo "✅ Maintenance mode enabled"
+          else
+            echo "⚠️ Failed to enable maintenance mode (may already be enabled)"
+            echo "Response: $RESPONSE"
+          fi
+
       - name: 🐛 Run ESLint Auto-Fix
         run: |
           if [ -f "package.json" ]; then
@@ -144,6 +168,30 @@ jobs:
           }
           echo "✅ Vercel deploy hook triggered successfully"
 
+      - name: 🔧 Disable Maintenance Mode
+        if: always()
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          echo "🛠️ Disabling maintenance mode..."
+          
+          # First, get the env var ID
+          ENV_ID=$(curl -s -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env" | \
+            grep -o '"key":"MAINTENANCE_MODE","id":"[^"]*"' | \
+            cut -d'"' -f6)
+          
+          if [ -n "$ENV_ID" ]; then
+            # Delete the env var
+            curl -s -X DELETE \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env/${ENV_ID}" || true
+            echo "✅ Maintenance mode disabled"
+          else
+            echo "⚠️ Maintenance mode already disabled or not found"
+          fi
+
       - name: 📝 Generate Fix Report
         if: always()
         env:
@@ -167,12 +215,14 @@ jobs:
           
           ## ✅ Changes Applied
           - Created backup branch: \`${BACKUP_BRANCH}\`
+          - Enabled maintenance mode
           - Ran ESLint auto-fix
           - Formatted code with Prettier
           - Removed console.log statements
           - Removed debugger statements
           - Attempted TypeScript fixes
           - Ran security audit fixes
+          - Disabled maintenance mode
           
           ## 📊 Summary
           - **Status:** ✅ Complete
@@ -181,6 +231,7 @@ jobs:
           
           ## 🚀 Next Steps
           Vercel deployment triggered via deploy hook. Site will update in 1-2 minutes.
+          Maintenance mode was active during the fix process.
           
           *To revert to original code:*
           \`\`\`bash
@@ -214,7 +265,7 @@ jobs:
               -H "Accept: application/vnd.github.v3+json" \
               "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
               -d '{
-                "body": "🤖 **Quantum Auto-Fix Complete**\n\n✅ Backup branch: `'"${BACKUP_BRANCH}"'`\n🔧 Fixes applied: `'"${FIXES_APPLIED}"'`\n🚀 Vercel deploy hook triggered\n📊 [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n*This comment was automatically posted by the Quantum Auto-Fix Bot*"
+                "body": "🤖 **Quantum Auto-Fix Complete**\n\n✅ Backup branch: `'"${BACKUP_BRANCH}"'`\n🔧 Fixes applied: `'"${FIXES_APPLIED}"'`\n🛠️ Maintenance mode was enabled during the fix\n🚀 Vercel deploy hook triggered\n📊 [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n*This comment was automatically posted by the Quantum Auto-Fix Bot*"
               }'
           fi
 
