@@ -137,7 +137,7 @@ export default function ThreeWorld({
       console.error('Failed to initialize WebGL context:', err);
       return null;
     }
-  }, [performanceMode.simpleRendering, gpuTier]);
+  }, [performanceMode.simpleRendering, gpuTier, handleContextLost, handleContextRestored]);
 
   const handleContextLost = useCallback((event) => {
     event.preventDefault();
@@ -158,9 +158,9 @@ export default function ThreeWorld({
         initialize3DWorld();
       }
     }, 1000);
-  }, [addNotification]);
+  }, [addNotification, initialize3DWorld]);
 
-   // ========== CREATE FLOATING ISLANDS ==========
+  // ========== CREATE FLOATING ISLANDS ==========
   const createFloatingIslands = useCallback((scene, physicsWorld) => {
     if (!scene || gpuTier === 'low') return;
     
@@ -178,7 +178,7 @@ export default function ThreeWorld({
       
       islandGroup.position.set(x, y, z);
       
-      // Main island body - RENAMED from 'body' to 'islandMesh' to avoid conflict
+      // Main island body
       const bodyGeo = new THREE.DodecahedronGeometry(3 + Math.random() * 2);
       const bodyMat = new THREE.MeshStandardMaterial({
         color: new THREE.Color().setHSL(0.75 + Math.random() * 0.2, 0.7, 0.3),
@@ -188,7 +188,7 @@ export default function ThreeWorld({
         metalness: 0.6,
         wireframe: Math.random() > 0.8
       });
-      const islandMesh = new THREE.Mesh(bodyGeo, bodyMat); // FIXED: renamed from 'body' to 'islandMesh'
+      const islandMesh = new THREE.Mesh(bodyGeo, bodyMat);
       islandMesh.castShadow = !performanceMode.disableShadows;
       islandMesh.receiveShadow = !performanceMode.disableShadows;
       islandGroup.add(islandMesh);
@@ -222,9 +222,10 @@ export default function ThreeWorld({
       }
       
       // Floating particles around island
+      let particles = null;
       if (!performanceMode.reduceParticles) {
+        particles = new THREE.Group();
         const particleCount = 20;
-        const particles = new THREE.Group();
         for (let j = 0; j < particleCount; j++) {
           const particleGeo = new THREE.SphereGeometry(0.1, 4, 4);
           const particleMat = new THREE.MeshBasicMaterial({
@@ -256,12 +257,11 @@ export default function ThreeWorld({
           particles.add(particle);
         }
         islandGroup.add(particles);
-        islandGroup.userData.particles = particles;
       }
       
-      // Add physics body - RENAMED from 'body' to 'physicsBody' to avoid conflict
+      // Add physics body
       const shape = new CANNON.Sphere(3);
-      const physicsBody = new CANNON.Body({ // FIXED: renamed from 'body' to 'physicsBody'
+      const physicsBody = new CANNON.Body({ 
         mass: 0,
         material: new CANNON.Material('island')
       });
@@ -270,11 +270,12 @@ export default function ThreeWorld({
       physicsWorld.addBody(physicsBody);
       
       islandGroup.userData = {
-        physicsBody: physicsBody, // FIXED: using 'physicsBody'
+        physicsBody: physicsBody,
         type: 'floatingIsland',
         rotationSpeed: 0.001 + Math.random() * 0.002,
         floatSpeed: 0.5 + Math.random() * 0.5,
-        floatPhase: Math.random() * Math.PI * 2
+        floatPhase: Math.random() * Math.PI * 2,
+        particles: particles
       };
       
       scene.add(islandGroup);
@@ -282,6 +283,7 @@ export default function ThreeWorld({
       environmentRef.current[`island${i}`] = islandGroup;
     }
   }, [performanceMode, gpuTier]);
+
   // ========== CREATE QUANTUM PORTALS ==========
   const createPortals = useCallback((scene) => {
     if (!scene || gpuTier === 'low' || performanceMode.disableEffects) return;
@@ -345,8 +347,8 @@ export default function ThreeWorld({
       portalGroup.add(centerGlow);
       
       // Particle vortex
-      const particleCount = 50;
       const particles = new THREE.Group();
+      const particleCount = 50;
       for (let j = 0; j < particleCount; j++) {
         const particleGeo = new THREE.SphereGeometry(0.08, 4, 4);
         const particleMat = new THREE.MeshBasicMaterial({
@@ -954,6 +956,7 @@ export default function ThreeWorld({
     characterGroup.add(rightLeg);
     
     // ===== CAPE =====
+    let cape = null;
     if (!performanceMode.lowQuality) {
       const capeGeo = new THREE.BoxGeometry(1.2, 1.5, 0.1);
       const capeMat = new THREE.MeshStandardMaterial({
@@ -965,35 +968,37 @@ export default function ThreeWorld({
         transparent: true,
         opacity: 0.9
       });
-      const cape = new THREE.Mesh(capeGeo, capeMat);
+      cape = new THREE.Mesh(capeGeo, capeMat);
       cape.castShadow = !performanceMode.disableShadows;
       cape.receiveShadow = !performanceMode.disableShadows;
       cape.position.set(0, 1.2, -0.3);
       cape.rotation.x = 0.2;
       characterGroup.add(cape);
-      characterGroup.userData.cape = cape;
     }
     
-   // ===== ENERGY EFFECTS =====
-let aura = null; // FIX: DECLARE AURA OUTSIDE THE IF BLOCK
-if (!performanceMode.disableEffects && gpuTier !== 'low') {
-  // Energy aura
-  const auraGeo = new THREE.SphereGeometry(1.5, 24, 24);
-  const auraMat = new THREE.MeshBasicMaterial({
-    color: 0x6c5ce7,
-    transparent: true,
-    opacity: 0.08,
-    wireframe: true,
-    side: THREE.DoubleSide,
-    blending: THREE.AdditiveBlending
-  });
-  aura = new THREE.Mesh(auraGeo, auraMat); // FIX: REMOVE 'const' HERE
-  aura.position.y = 1.2;
-  characterGroup.add(aura);
-  
+    // ===== ENERGY EFFECTS =====
+    let aura = null;
+    let particles = null;
+    let beamGroup = null;
+    
+    if (!performanceMode.disableEffects && gpuTier !== 'low') {
+      // Energy aura
+      const auraGeo = new THREE.SphereGeometry(1.5, 24, 24);
+      const auraMat = new THREE.MeshBasicMaterial({
+        color: 0x6c5ce7,
+        transparent: true,
+        opacity: 0.08,
+        wireframe: true,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending
+      });
+      aura = new THREE.Mesh(auraGeo, auraMat);
+      aura.position.y = 1.2;
+      characterGroup.add(aura);
+      
       // Floating particles around character
       const particleCount = performanceMode.reduceParticles ? 20 : 45;
-      const particles = new THREE.Group();
+      particles = new THREE.Group();
       
       for (let i = 0; i < particleCount; i++) {
         const particleGeo = new THREE.SphereGeometry(0.06, 6, 6);
@@ -1027,10 +1032,9 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
       }
       
       characterGroup.add(particles);
-      characterGroup.userData.particles = particles;
       
       // Energy beams from shoulders
-      const beamGroup = new THREE.Group();
+      beamGroup = new THREE.Group();
       for (let i = 0; i < 2; i++) {
         const beamGeo = new THREE.ConeGeometry(0.1, 0.5, 8);
         const beamMat = new THREE.MeshStandardMaterial({
@@ -1048,7 +1052,6 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
         beamGroup.add(beam);
       }
       characterGroup.add(beamGroup);
-      characterGroup.userData.beams = beamGroup;
     }
     
     // Add name label
@@ -1075,16 +1078,16 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
     
     // Add physics body
     const shape = new CANNON.Cylinder(0.6, 0.6, 2.2, 8);
-    const body = new CANNON.Body({ 
+    const physicsBody = new CANNON.Body({ 
       mass: 0,
       material: new CANNON.Material('character')
     });
-    body.addShape(shape);
-    body.position.copy(characterGroup.position);
-    physicsWorld.addBody(body);
+    physicsBody.addShape(shape);
+    physicsBody.position.copy(characterGroup.position);
+    physicsWorld.addBody(physicsBody);
     
-        characterGroup.userData = {
-      physicsBody: physicsBody, // FIXED: renamed from 'body' to 'physicsBody'
+    characterGroup.userData = {
+      physicsBody: physicsBody,
       type: 'character',
       torso: torso,
       chest: chest,
@@ -1094,13 +1097,13 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
       crest: crest,
       arms: [leftArm, rightArm],
       legs: [leftLeg, rightLeg],
-      cape: cape, // ADDED: cape reference
-      aura: aura, // FIXED: now defined outside if block
-      particles: particles, // ADDED: particles reference
-      beams: beams, // ADDED: beams reference
+      cape: cape,
+      aura: aura,
+      particles: particles,
+      beams: beamGroup,
+      label: label,
       idlePhase: 0,
-      walkPhase: 0,
-      label: label
+      walkPhase: 0
     };
     
     return characterGroup;
@@ -1231,6 +1234,7 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
           
           cylinder.userData.physicsBody = body;
           cylinder.userData.modId = mod.id;
+          cylinder.userData.modName = mod.name;
           
           sceneRef.current.add(cylinder);
           objectsRef.current.push(cylinder);
@@ -1589,7 +1593,6 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
       controls.zoomSpeed = 1.0;
       controls.panSpeed = 0.8;
       controls.enableRotate = true;
-      controls.enableDamping = true;
       controlsRef.current = controls;
       
       // ===== PHYSICS =====
@@ -1718,7 +1721,7 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
               if (key.startsWith('orb')) {
                 const orb = environmentRef.current[key];
                 if (orb && orb.light) {
-                  const time = elapsedTime * orb.speed || 0.2;
+                  const time = elapsedTime * (orb.speed || 0.2);
                   orb.light.position.y = orb.height + Math.sin(time + orb.phase) * 3;
                   if (orb.mesh) {
                     orb.mesh.position.y = orb.height + Math.sin(time + orb.phase) * 3;
@@ -1745,10 +1748,12 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
                     portal.userData.innerRing.rotation.z += 0.01;
                   }
                   if (portal.userData?.particles) {
-                    portal.userData.particles.children.forEach((particle, i) => {
-                      particle.userData.angle += 0.02 * particle.userData.speed;
-                      particle.position.x = Math.cos(particle.userData.angle) * particle.userData.radius;
-                      particle.position.z = Math.sin(particle.userData.angle) * particle.userData.radius;
+                    portal.userData.particles.children.forEach((particle) => {
+                      if (particle.userData) {
+                        particle.userData.angle += 0.02 * particle.userData.speed;
+                        particle.position.x = Math.cos(particle.userData.angle) * particle.userData.radius;
+                        particle.position.z = Math.sin(particle.userData.angle) * particle.userData.radius;
+                      }
                     });
                   }
                 }
@@ -1774,50 +1779,54 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
               characterRef.current.position.y = 1 + Math.sin(elapsedTime * 1.2) * 0.08;
               
               // Core pulse
-              if (characterRef.current.userData.core) {
+              if (characterRef.current.userData?.core) {
                 characterRef.current.userData.core.scale.setScalar(1 + Math.sin(elapsedTime * 8) * 0.1);
                 characterRef.current.userData.core.material.emissiveIntensity = 0.8 + Math.sin(elapsedTime * 10) * 0.2;
               }
               
               // Rotate aura
-              if (characterRef.current.userData.aura) {
+              if (characterRef.current.userData?.aura) {
                 characterRef.current.userData.aura.rotation.y += 0.002;
                 characterRef.current.userData.aura.rotation.x += 0.001;
               }
               
               // Rotate particles
-              if (characterRef.current.userData.particles) {
+              if (characterRef.current.userData?.particles) {
                 characterRef.current.userData.particles.rotation.y += 0.01;
-                characterRef.current.userData.particles.children.forEach((particle, i) => {
-                  particle.userData.angle += 0.01 * particle.userData.speed;
-                  particle.position.x = Math.cos(particle.userData.angle) * particle.userData.radius;
-                  particle.position.z = Math.sin(particle.userData.angle) * particle.userData.radius;
+                characterRef.current.userData.particles.children.forEach((particle) => {
+                  if (particle.userData) {
+                    particle.userData.angle += 0.01 * particle.userData.speed;
+                    particle.position.x = Math.cos(particle.userData.angle) * particle.userData.radius;
+                    particle.position.z = Math.sin(particle.userData.angle) * particle.userData.radius;
+                  }
                 });
               }
               
               // Animate beams
-              if (characterRef.current.userData.beams) {
+              if (characterRef.current.userData?.beams) {
                 characterRef.current.userData.beams.children.forEach((beam, i) => {
                   beam.scale.y = 1 + Math.sin(elapsedTime * 10 + i) * 0.2;
                 });
               }
               
               // Animate cape
-              if (characterRef.current.userData.cape) {
+              if (characterRef.current.userData?.cape) {
                 characterRef.current.userData.cape.rotation.x = 0.2 + Math.sin(elapsedTime * 2) * 0.05;
               }
             }
             
             // Animate water
             if (waterRef.current) {
-              waterRef.current.material.uniforms['time'].value += delta * 0.3;
+              if (waterRef.current.material && waterRef.current.material.uniforms) {
+                waterRef.current.material.uniforms['time'].value += delta * 0.3;
+              }
             }
           }
           
           // Run mod animations
           if (window.__modAnimations) {
             Object.values(window.__modAnimations).forEach(anim => {
-              if (anim.active) {
+              if (anim && anim.active) {
                 try {
                   anim.callback(elapsedTime);
                 } catch (e) {
@@ -1873,7 +1882,7 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
         }
       }, 2000);
     }
-  }, [addNotification, worldName, initializeWebGLContext, createEnvironment, createCharacter, performanceMode, gpuTier]);
+  }, [addNotification, worldName, initializeWebGLContext, createEnvironment, createCharacter, performanceMode, gpuTier, cleanup3DWorld, handleFileDrop, addModToWorld]);
 
   // ========== CLEANUP ==========
   const cleanup3DWorld = useCallback(() => {
@@ -1943,7 +1952,7 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
       console.error('Error adding mod:', error);
       addNotification?.(`Failed to add ${mod.name}`, 'error');
     }
-  }, [addNotification, executeJavaScriptMod]);
+  }, [addNotification, executeJavaScriptMod, load3DModel, addTextureToWorld, applyConfigMod, createBasicObjectFromMod]);
 
   // ========== LOAD 3D MODEL ==========
   const load3DModel = useCallback(async (mod, modelData, position) => {
@@ -1969,10 +1978,12 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
               if (child.material) {
                 if (Array.isArray(child.material)) {
                   child.material.forEach(mat => {
-                    mat.emissive = new THREE.Color(mod.metadata?.color || 0x6c5ce7);
-                    mat.emissiveIntensity = 0.2;
-                    mat.metalness = 0.7;
-                    mat.roughness = 0.3;
+                    if (mat) {
+                      mat.emissive = new THREE.Color(mod.metadata?.color || 0x6c5ce7);
+                      mat.emissiveIntensity = 0.2;
+                      mat.metalness = 0.7;
+                      mat.roughness = 0.3;
+                    }
                   });
                 } else {
                   child.material.emissive = new THREE.Color(mod.metadata?.color || 0x6c5ce7);
@@ -2222,7 +2233,7 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material) {
         if (Array.isArray(obj.material)) {
-          obj.material.forEach(m => m.dispose());
+          obj.material.forEach(m => m && m.dispose());
         } else {
           obj.material.dispose();
         }
@@ -2353,7 +2364,7 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
     return new Blob([u8arr], { type: mime });
   };
 
-  const createParticleEffect = (position, color) => {
+  const createParticleEffect = useCallback((position, color) => {
     if (!sceneRef.current || performanceMode.reduceParticles) return;
     
     const particleCount = performanceMode.lowQuality ? 20 : 50;
@@ -2411,9 +2422,9 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
     };
     
     animateParticles();
-  };
+  }, [performanceMode]);
 
-  const createGlowEffect = (position, color) => {
+  const createGlowEffect = useCallback((position, color) => {
     if (!sceneRef.current || performanceMode.disableEffects) return;
     
     const glowGeometry = new THREE.SphereGeometry(2, 16, 16);
@@ -2446,7 +2457,7 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
     };
     
     animateGlow();
-  };
+  }, [performanceMode]);
 
   // ========== EFFECTS ==========
   useEffect(() => {
@@ -2944,7 +2955,7 @@ if (!performanceMode.disableEffects && gpuTier !== 'low') {
         </>
       )}
       
-      <style jsx>{`
+      <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
