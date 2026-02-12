@@ -16,7 +16,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4  # Also update to v4
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -33,7 +33,7 @@ jobs:
           echo "✅ Created backup branch: ${BACKUP_BRANCH}"
 
       - name: 🐛 Setup Node
-        uses: actions/setup-node@v4  # Update to v4
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
 
@@ -42,7 +42,8 @@ jobs:
           if [ -f "package.json" ]; then
             npm install --silent
             if [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ] || [ -f ".eslintrc" ]; then
-              npx eslint --fix . || echo "ESLint fixes attempted"
+              npx eslint --fix . || true
+              echo "✅ ESLint fixes attempted"
             else
               echo "No ESLint config found, skipping"
             fi
@@ -52,7 +53,8 @@ jobs:
         run: |
           if [ -f "package.json" ]; then
             if grep -q "prettier" package.json; then
-              npx prettier --write "**/*.{js,jsx,ts,tsx,json,css,md}" || echo "Prettier formatting complete"
+              npx prettier --write "**/*.{js,jsx,ts,tsx,json,css,md}" || true
+              echo "✅ Prettier formatting complete"
             else
               echo "Prettier not found, skipping"
             fi
@@ -62,13 +64,13 @@ jobs:
         run: |
           if [ -f "tsconfig.json" ]; then
             npm install typescript --save-dev --silent
-            npx tsc --noEmit || echo "TypeScript errors exist - manual review needed"
+            npx tsc --noEmit || echo "⚠️ TypeScript errors exist - manual review needed"
           fi
 
       - name: 🌳 Check for Security Vulnerabilities
         run: |
           if [ -f "package.json" ]; then
-            npm audit fix || npm audit fix --force || echo "Some vulnerabilities require manual fix"
+            npm audit fix || npm audit fix --force || echo "⚠️ Some vulnerabilities require manual fix"
           fi
 
       - name: 🧹 Remove Console.logs and Debuggers
@@ -85,6 +87,7 @@ jobs:
             -not -path "./dist/*" \
             -not -path "./build/*" \
             -exec sed -i 's/debugger;//g' {} \; 2>/dev/null || true
+          echo "✅ Console logs and debuggers removed"
 
       - name: 📝 Generate Fix Report
         run: |
@@ -122,15 +125,17 @@ jobs:
             git commit -m "🤖 Auto-fix: ESLint, Prettier, console cleanup [skip ci]"
             git push origin HEAD:${GITHUB_REF_NAME}
             echo "FIXES_APPLIED=true" >> $GITHUB_ENV
+            echo "✅ Auto-fixes committed"
           else
             echo "FIXES_APPLIED=false" >> $GITHUB_ENV
+            echo "✅ No fixes needed"
           fi
 
       - name: 🚦 Run Tests
         run: |
           if [ -f "package.json" ]; then
             if grep -q '"test"' package.json; then
-              npm test || echo "Tests failed - manual review required"
+              npm test || echo "⚠️ Tests failed - manual review required"
             else
               echo "No test script found, skipping"
             fi
@@ -150,7 +155,7 @@ jobs:
             }'
 
       - name: 📊 Upload Fix Report
-        uses: actions/upload-artifact@v4  # FIXED: v4 instead of v3
+        uses: actions/upload-artifact@v4
         with:
           name: fix-report
           path: fix-report.md
