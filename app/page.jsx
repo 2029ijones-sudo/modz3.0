@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import CryptoJS from 'crypto-js';
 
 // Dynamically import components with accessibility - ALL TABS NOW FULLSCREEN
-const ThreeWorld = dynamic(() => import('@/ThreeWorlds'), { 
+const ThreeWorld = dynamic(() => import('@/Src/ThreeWorlds'), { 
   ssr: false,
   loading: () => (
     <div className="quantum-tab-loading-full">
