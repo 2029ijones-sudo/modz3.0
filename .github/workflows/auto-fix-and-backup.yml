@@ -47,28 +47,59 @@ jobs:
             fi
           fi
 
-      - name: 🔧 Enable Maintenance Mode
+      - name: 🔧 Set Maintenance Mode ON
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          echo "🛠️ Enabling maintenance mode..."
-          RESPONSE=$(curl -s -X POST \
-            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-            -H "Content-Type: application/json" \
-            "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env" \
-            -d '{
-              "key": "MAINTENANCE_MODE",
-              "value": "true",
-              "target": ["production"],
-              "type": "plain"
-            }' 2>&1)
+          echo "🛠️ Setting maintenance mode to ON..."
           
-          if echo "$RESPONSE" | grep -q '"key"'; then
-            echo "✅ Maintenance mode enabled"
+          # Get existing env var ID
+          ENV_ID=$(curl -s -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env" | \
+            grep -o '"key":"MAINTENANCE_MODE","id":"[^"]*"' | \
+            cut -d'"' -f6)
+          
+          if [ -n "$ENV_ID" ]; then
+            # Update existing
+            RESPONSE=$(curl -s -X PATCH \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env/${ENV_ID}" \
+              -d '{
+                "key": "MAINTENANCE_MODE",
+                "value": "true",
+                "target": ["production"],
+                "type": "plain"
+              }' 2>&1)
+            
+            if echo "$RESPONSE" | grep -q '"key"'; then
+              echo "✅ Maintenance mode updated to ON"
+            else
+              echo "❌ Failed to update maintenance mode"
+              echo "Response: $RESPONSE"
+              exit 1
+            fi
           else
-            echo "⚠️ Failed to enable maintenance mode (may already be enabled)"
-            echo "Response: $RESPONSE"
+            # Create new
+            RESPONSE=$(curl -s -X POST \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env" \
+              -d '{
+                "key": "MAINTENANCE_MODE",
+                "value": "true",
+                "target": ["production"],
+                "type": "plain"
+              }' 2>&1)
+            
+            if echo "$RESPONSE" | grep -q '"key"'; then
+              echo "✅ Maintenance mode created and set to ON"
+            else
+              echo "❌ Failed to create maintenance mode"
+              echo "Response: $RESPONSE"
+              exit 1
+            fi
           fi
 
       - name: 🐛 Run ESLint Auto-Fix
@@ -167,29 +198,64 @@ jobs:
             exit 1
           }
           echo "✅ Vercel deploy hook triggered successfully"
+          
+          # Give Vercel a moment to start the build before we turn off maintenance mode
+          sleep 5
 
-      - name: 🔧 Disable Maintenance Mode
+      - name: 🔧 Set Maintenance Mode OFF
         if: always()
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          echo "🛠️ Disabling maintenance mode..."
+          echo "🛠️ Setting maintenance mode to OFF..."
           
-          # First, get the env var ID
+          # Get existing env var ID
           ENV_ID=$(curl -s -H "Authorization: Bearer ${VERCEL_TOKEN}" \
             "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env" | \
             grep -o '"key":"MAINTENANCE_MODE","id":"[^"]*"' | \
             cut -d'"' -f6)
           
           if [ -n "$ENV_ID" ]; then
-            # Delete the env var
-            curl -s -X DELETE \
+            # Update existing to false
+            RESPONSE=$(curl -s -X PATCH \
               -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-              "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env/${ENV_ID}" || true
-            echo "✅ Maintenance mode disabled"
+              -H "Content-Type: application/json" \
+              "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env/${ENV_ID}" \
+              -d '{
+                "key": "MAINTENANCE_MODE",
+                "value": "false",
+                "target": ["production"],
+                "type": "plain"
+              }' 2>&1)
+            
+            if echo "$RESPONSE" | grep -q '"key"'; then
+              echo "✅ Maintenance mode updated to OFF"
+            else
+              echo "❌ Failed to update maintenance mode to OFF"
+              echo "Response: $RESPONSE"
+              exit 1
+            fi
           else
-            echo "⚠️ Maintenance mode already disabled or not found"
+            # Create new with false
+            RESPONSE=$(curl -s -X POST \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/env" \
+              -d '{
+                "key": "MAINTENANCE_MODE",
+                "value": "false",
+                "target": ["production"],
+                "type": "plain"
+              }' 2>&1)
+            
+            if echo "$RESPONSE" | grep -q '"key"'; then
+              echo "✅ Maintenance mode created and set to OFF"
+            else
+              echo "❌ Failed to create maintenance mode OFF"
+              echo "Response: $RESPONSE"
+              exit 1
+            fi
           fi
 
       - name: 📝 Generate Fix Report
@@ -215,14 +281,14 @@ jobs:
           
           ## ✅ Changes Applied
           - Created backup branch: \`${BACKUP_BRANCH}\`
-          - Enabled maintenance mode
+          - Enabled maintenance mode (set to true)
           - Ran ESLint auto-fix
           - Formatted code with Prettier
           - Removed console.log statements
           - Removed debugger statements
           - Attempted TypeScript fixes
           - Ran security audit fixes
-          - Disabled maintenance mode
+          - Disabled maintenance mode (set to false)
           
           ## 📊 Summary
           - **Status:** ✅ Complete
