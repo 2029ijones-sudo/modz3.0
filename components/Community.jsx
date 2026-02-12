@@ -3183,13 +3183,12 @@ Version 3, 29 June 2007`,
                 ))}
               </div>
             </div>
-          </motion.div>
+                 </motion.div>
         )}
       </AnimatePresence>
-     </div>  {/* ← THIS closes quantum-repository-view - ONLY ONE */}
-  );        {/* ← THIS closes the return */}
-};          {/* ← THIS closes the function */};    
-       
+    </div>
+  );
+};
         <style jsx>{`
           .quantum-repository-view {
             display: flex;
