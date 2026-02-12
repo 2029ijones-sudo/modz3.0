@@ -3751,7 +3751,220 @@ const createRelease = async () => {
       </div>
     );
   }
+// ============= REALTIME SUBSCRIPTIONS =============
+// ADD THIS RIGHT BEFORE THE FINAL return STATEMENT
+useEffect(() => {
+  if (!user || !selectedRepo) return;
 
+  const subscriptions = [];
+
+  console.log('🎯 Setting up realtime subscriptions for repository:', selectedRepo?.id);
+
+  // 1. Subscribe to commits
+  const commitsSub = supabase
+    .channel(`commits-${selectedRepo.id}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'commits',
+        filter: `repo_id=eq.${selectedRepo.id}`
+      },
+      (payload) => {
+        console.log('📝 New commit:', payload);
+        setCommitHistory(prev => [payload.new, ...prev].slice(0, 50));
+        setRepoStats(prev => ({ ...prev, commits: prev.commits + 1 }));
+        if (addNotification) addNotification(`New commit: ${payload.new.message}`, 'info');
+      }
+    )
+    .subscribe();
+
+  subscriptions.push(commitsSub);
+
+  // 2. Subscribe to issues
+  const issuesSub = supabase
+    .channel(`issues-${selectedRepo.id}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'repo_issues',
+        filter: `repo_id=eq.${selectedRepo.id}`
+      },
+      (payload) => {
+        console.log('🐛 Issues update:', payload);
+        
+        if (payload.eventType === 'INSERT') {
+          setIssues(prev => [payload.new, ...prev]);
+          if (addNotification) addNotification(`New issue: ${payload.new.title}`, 'warning');
+        } else if (payload.eventType === 'UPDATE') {
+          setIssues(prev => prev.map(i => i.id === payload.new.id ? payload.new : i));
+        } else if (payload.eventType === 'DELETE') {
+          setIssues(prev => prev.filter(i => i.id !== payload.old.id));
+        }
+      }
+    )
+    .subscribe();
+
+  subscriptions.push(issuesSub);
+
+  // 3. Subscribe to pull requests
+  const prSub = supabase
+    .channel(`pr-${selectedRepo.id}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'pull_requests',
+        filter: `repo_id=eq.${selectedRepo.id}`
+      },
+      (payload) => {
+        console.log('🔀 PR update:', payload);
+        
+        if (payload.eventType === 'INSERT') {
+          setPullRequests(prev => [payload.new, ...prev]);
+          if (addNotification) addNotification(`New pull request: ${payload.new.title}`, 'info');
+        } else if (payload.eventType === 'UPDATE' && payload.new.status === 'merged') {
+          setPullRequests(prev => prev.map(pr => pr.id === payload.new.id ? payload.new : pr));
+          if (addNotification) addNotification(`Pull request #${payload.new.id} merged! 🎉`, 'success');
+        }
+      }
+    )
+    .subscribe();
+
+  subscriptions.push(prSub);
+
+  // 4. Subscribe to branches - USING YOUR EXISTING STATE FORMAT
+  const branchesSub = supabase
+    .channel(`branches-${selectedRepo.id}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'branches',
+        filter: `repo_id=eq.${selectedRepo.id}`
+      },
+      (payload) => {
+        console.log('🌿 Branches update:', payload);
+        
+        if (payload.eventType === 'INSERT') {
+          // Match your existing state format: { name: 'main', default: true }
+          const newBranch = { 
+            name: payload.new.name, 
+            default: payload.new.is_default || false // Convert is_default to default
+          };
+          setBranches(prev => [...prev, newBranch]);
+          setRepoStats(prev => ({ ...prev, branches: prev.branches + 1 }));
+          if (addNotification) addNotification(`New branch: ${payload.new.name}`, 'info');
+        } else if (payload.eventType === 'DELETE') {
+          setBranches(prev => prev.filter(b => b.name !== payload.old.name));
+          setRepoStats(prev => ({ ...prev, branches: prev.branches - 1 }));
+        }
+      }
+    )
+    .subscribe();
+
+  subscriptions.push(branchesSub);
+
+  // 5. Subscribe to releases
+  const releasesSub = supabase
+    .channel(`releases-${selectedRepo.id}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'releases',
+        filter: `repo_id=eq.${selectedRepo.id}`
+      },
+      (payload) => {
+        console.log('🏷️ New release:', payload);
+        setReleases(prev => [payload.new, ...prev]);
+        setRepoStats(prev => ({ ...prev, releases: prev.releases + 1 }));
+        if (addNotification) addNotification(`New release: ${payload.new.tag_name}`, 'success');
+      }
+    )
+    .subscribe();
+
+  subscriptions.push(releasesSub);
+
+  // 6. Subscribe to repository content updates
+  const contentSub = supabase
+    .channel(`repo-content-${selectedRepo.id}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'repositories',
+        filter: `id=eq.${selectedRepo.id}`
+      },
+      (payload) => {
+        console.log('📁 Repository updated:', payload);
+        
+        if (payload.new.content) {
+          setRepoContent(payload.new.content);
+          
+          const readmeFile = payload.new.content.files?.find(f => 
+            f.name.toLowerCase() === 'readme.md' || f.name.toLowerCase() === 'readme'
+          );
+          if (readmeFile) {
+            setReadme(readmeFile.content);
+          }
+        }
+        
+        if (addNotification) addNotification('Repository updated', 'info');
+      }
+    )
+    .subscribe();
+
+  subscriptions.push(contentSub);
+
+  // 7. Subscribe to stars (only if user is logged in)
+  if (user) {
+    const starsSub = supabase
+      .channel('user-stars')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'repo_stars',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('⭐ Stars update:', payload);
+          
+          if (payload.eventType === 'INSERT') {
+            setRepositories(prev => prev.map(repo => 
+              repo.id === payload.new.repo_id 
+                ? { ...repo, is_starred: true, star_count: (repo.star_count || 0) + 1 }
+                : repo
+            ));
+          } else if (payload.eventType === 'DELETE') {
+            setRepositories(prev => prev.map(repo => 
+              repo.id === payload.old.repo_id 
+                ? { ...repo, is_starred: false, star_count: Math.max(0, (repo.star_count || 0) - 1) }
+                : repo
+            ));
+          }
+        }
+      )
+      .subscribe();
+
+    subscriptions.push(starsSub);
+  }
+
+  // Cleanup
+  return () => {
+    console.log('🧹 Cleaning up realtime subscriptions');
+    subscriptions.forEach(sub => sub?.unsubscribe());
+  };
+}, [user, selectedRepo?.id]); // REMOVED addNotification from dependencies
   return (
     <div className="quantum-community-container">
       {/* Quantum Background */}
