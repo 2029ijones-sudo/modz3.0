@@ -1,26 +1,27 @@
 // ============================================================================
-// QUANTUM MAINTENANCE MODE MIDDLEWARE - ZERO ADDITIONAL SECRETS, ZERO API ROUTES
+// QUANTUM MAINTENANCE MODE MIDDLEWARE - EDGE CONFIG INTEGRATION
 // ============================================================================
 // Location: /middleware.js (project root)
-// Purpose:  Instantly shows maintenance.html when MAINTENANCE_MODE=true
+// Purpose:  INSTANT maintenance mode using Vercel Edge Config (no redeploy)
 // ============================================================================
 
 import { NextResponse } from 'next/server';
+import { get } from '@vercel/edge-config';
 
 /**
  * Quantum Maintenance Mode Middleware
  * 
- * This middleware runs on EVERY request and checks if maintenance mode is active.
- * If MAINTENANCE_MODE=true, ALL routes (except static assets) are rewritten to
- * /maintenance.html INSTANTLY - no build required, no redeploy needed.
+ * This middleware runs on EVERY request and checks if maintenance mode is active
+ * via Vercel Edge Config. Updates are INSTANT - no redeploy, no waiting.
  * 
- * Environment Variables (NO NEW SECRETS, NO API ROUTES):
- * - MAINTENANCE_MODE: "true" = ON, anything else = OFF (managed by GitHub Action)
+ * Edge Config Item:
+ * - key: "enabled"
+ * - value: true/false
  * 
  * @param {NextRequest} request - The incoming request object
  * @returns {NextResponse} - Rewritten response or next()
  */
-export function middleware(request) {
+export async function middleware(request) {
   // ==========================================================================
   // 1. QUANTUM STATE OBSERVATION - Wave function collapse
   // ==========================================================================
@@ -36,9 +37,20 @@ export function middleware(request) {
   const requestId = `${timeEntropy}-${randomEntropy}-${pathEntropy}`;
   
   // ==========================================================================
-  // 2. MAINTENANCE MODE OBSERVATION - Collapse the quantum state
+  // 2. EDGE CONFIG MAINTENANCE MODE OBSERVATION - INSTANT UPDATES
   // ==========================================================================
-  const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === 'true';
+  let MAINTENANCE_MODE = false;
+  let edgeConfigAvailable = false;
+  
+  try {
+    // ⚡⚡⚡ INSTANT - Reads from Edge Config, no redeploy needed ⚡⚡⚡
+    MAINTENANCE_MODE = await get('enabled') === true;
+    edgeConfigAvailable = true;
+  } catch (error) {
+    // Fallback to env var if Edge Config fails
+    console.error('❌ Edge Config error:', error.message);
+    MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === 'true';
+  }
   
   // ==========================================================================
   // 3. STATIC ASSET DETECTION MATRIX - 7 layers of classification
@@ -147,7 +159,7 @@ export function middleware(request) {
     pathname.startsWith('.next/') ||
     pathname.includes('/_next/');
   
-  // FINAL STATIC ASSET DECISION - Quantum superposition resolved
+  // FINAL STATIC ASSET DECISION
   const isStaticAsset = 
     isNextJsInternal ||
     isWebStandard ||
@@ -199,14 +211,15 @@ export function middleware(request) {
     isBackground;                  // Background requests bypass
   
   // ==========================================================================
-  // 8. QUANTUM STATE LOGGING - Collapse the wave function
+  // 8. QUANTUM STATE LOGGING - Full visibility
   // ==========================================================================
   console.log(`\n⚛️ [${timestamp}] QUANTUM MAINTENANCE DECOHERENCE #${requestId}`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   console.log(`📡 REQ: ${method} ${pathname} ${Object.keys(url.searchParams).length ? '?' + url.search : ''}`);
   console.log(`🌀 DEPTH: ${pathDepth} | EXT: ${fileExtension || 'none'} | ROOT: ${isRootPath}`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  console.log(`🔮 MAINTENANCE: ${MAINTENANCE_MODE ? '🟢 ACTIVE' : '⚫ INACTIVE'}`);
+  console.log(`🔮 MAINTENANCE SOURCE: ${edgeConfigAvailable ? '⚡ EDGE CONFIG (INSTANT)' : '⚠️ ENV VAR (NEEDS REDEPLOY)'}`);
+  console.log(`🔮 MAINTENANCE MODE: ${MAINTENANCE_MODE ? '🟢 ACTIVE' : '⚫ INACTIVE'}`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   console.log(`📦 ASSET ANALYSIS:`);
   console.log(`  ├─ Next.js Internal: ${isNextJsInternal ? '✅' : '❌'}`);
@@ -215,7 +228,7 @@ export function middleware(request) {
   console.log(`  ├─ Service Worker: ${isServiceWorkerAsset ? '✅' : '❌'}`);
   console.log(`  ├─ Static Extension: ${isStaticExtension ? '✅' : '❌'}`);
   console.log(`  ├─ Versioned File: ${isVersionedFile ? '✅' : '❌'}`);
-  console.log(`  └─ Build Artifact: ${isBuildArtifact ? '✅' : '❌'}`);
+  console.log(`  ├─ Build Artifact: ${isBuildArtifact ? '✅' : '❌'}`);
   console.log(`  └─ TOTAL STATIC: ${isStaticAsset ? '✅ YES' : '❌ NO'}`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   console.log(`🧠 REQUEST ANALYSIS:`);
@@ -232,7 +245,7 @@ export function middleware(request) {
   
   if (!MAINTENANCE_MODE) {
     // Quantum state: NORMAL OPERATION
-    console.log(`💫 ACTION: ➡️ CONTINUE (normal operation)`);
+    console.log(`💫 ACTION: ➡️ CONTINUE (maintenance inactive)`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
     response = NextResponse.next();
     
@@ -248,8 +261,8 @@ export function middleware(request) {
     if (isStaticAsset) response.headers.set('X-Quantum-Bypass', 'static');
     
   } else {
-    // Quantum state: MAINTENANCE MODE
-    console.log(`💫 ACTION: 🔄 REWRITE → /maintenance.html`);
+    // Quantum state: MAINTENANCE MODE ACTIVE
+    console.log(`💫 ACTION: 🔄 REWRITE → /maintenance.html (INSTANT)`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
     
     const maintenanceUrl = new URL('/maintenance.html', request.url);
@@ -258,6 +271,7 @@ export function middleware(request) {
     // Quantum state headers
     response.headers.set('X-Quantum-State', 'maintenance');
     response.headers.set('X-Maintenance-Mode', 'true');
+    response.headers.set('X-Maintenance-Source', edgeConfigAvailable ? 'edge-config' : 'env-var');
     response.headers.set('X-Original-Path', pathname);
     response.headers.set('X-Request-ID', requestId);
     response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -266,6 +280,7 @@ export function middleware(request) {
   // Common headers for all responses
   response.headers.set('X-Quantum-Timestamp', timestamp);
   response.headers.set('X-Quantum-Request-ID', requestId);
+  response.headers.set('X-Edge-Config-Available', edgeConfigAvailable ? 'true' : 'false');
   
   return response;
 }
