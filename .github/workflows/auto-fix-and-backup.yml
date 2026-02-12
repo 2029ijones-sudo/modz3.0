@@ -74,7 +74,8 @@ jobs:
               ]
             }')
           
-          if echo "$RESPONSE" | grep -q '"key":"enabled"'; then
+          # ✅ Vercel Edge Config API returns {"status":"ok"} on success
+          if echo "$RESPONSE" | grep -q '"status":"ok"'; then
             echo "✅ Maintenance mode is NOW ACTIVE (instant, no redeploy)"
           else
             echo "❌ Failed to enable maintenance mode"
@@ -204,7 +205,8 @@ jobs:
               ]
             }')
           
-          if echo "$RESPONSE" | grep -q '"key":"enabled"'; then
+          # ✅ Vercel Edge Config API returns {"status":"ok"} on success
+          if echo "$RESPONSE" | grep -q '"status":"ok"'; then
             echo "✅ Maintenance mode is NOW INACTIVE (instant, no redeploy)"
           else
             echo "❌ Failed to disable maintenance mode"
