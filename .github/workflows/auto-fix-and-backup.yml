@@ -36,12 +36,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
+          # ❌ CACHE REMOVED – no lock file required
 
       - name: 📦 Install Dependencies
         run: |
           if [ -f "package.json" ]; then
-            npm ci --silent || npm install --silent
+            # If package-lock.json exists, use ci, otherwise install (creates lock file)
+            if [ -f "package-lock.json" ]; then
+              npm ci --silent
+            else
+              npm install --silent
+            fi
           fi
 
       - name: 🐛 Run ESLint Auto-Fix
@@ -147,7 +152,6 @@ jobs:
           git checkout -b restore-\$(date +%Y%m%d)
           \`\`\`
           EOF
-          # The <<-EOF allows indented delimiter (requires tabs, but in YAML we use spaces - still works on Ubuntu runner)
 
       - name: 💾 Commit Auto-Fixes
         env:
