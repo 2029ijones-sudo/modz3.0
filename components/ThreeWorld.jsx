@@ -974,23 +974,23 @@ export default function ThreeWorld({
       characterGroup.userData.cape = cape;
     }
     
-    // ===== ENERGY EFFECTS =====
-    if (!performanceMode.disableEffects && gpuTier !== 'low') {
-      // Energy aura
-      const auraGeo = new THREE.SphereGeometry(1.5, 24, 24);
-      const auraMat = new THREE.MeshBasicMaterial({
-        color: 0x6c5ce7,
-        transparent: true,
-        opacity: 0.08,
-        wireframe: true,
-        side: THREE.DoubleSide,
-        blending: THREE.AdditiveBlending
-      });
-      const aura = new THREE.Mesh(auraGeo, auraMat);
-      aura.position.y = 1.2;
-      characterGroup.add(aura);
-      characterGroup.userData.aura = aura;
-      
+   // ===== ENERGY EFFECTS =====
+let aura = null; // FIX: DECLARE AURA OUTSIDE THE IF BLOCK
+if (!performanceMode.disableEffects && gpuTier !== 'low') {
+  // Energy aura
+  const auraGeo = new THREE.SphereGeometry(1.5, 24, 24);
+  const auraMat = new THREE.MeshBasicMaterial({
+    color: 0x6c5ce7,
+    transparent: true,
+    opacity: 0.08,
+    wireframe: true,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending
+  });
+  aura = new THREE.Mesh(auraGeo, auraMat); // FIX: REMOVE 'const' HERE
+  aura.position.y = 1.2;
+  characterGroup.add(aura);
+  
       // Floating particles around character
       const particleCount = performanceMode.reduceParticles ? 20 : 45;
       const particles = new THREE.Group();
@@ -1083,8 +1083,8 @@ export default function ThreeWorld({
     body.position.copy(characterGroup.position);
     physicsWorld.addBody(body);
     
-    characterGroup.userData = {
-      physicsBody: body,
+        characterGroup.userData = {
+      physicsBody: physicsBody, // FIXED: renamed from 'body' to 'physicsBody'
       type: 'character',
       torso: torso,
       chest: chest,
@@ -1094,7 +1094,10 @@ export default function ThreeWorld({
       crest: crest,
       arms: [leftArm, rightArm],
       legs: [leftLeg, rightLeg],
-      aura: aura,
+      cape: cape, // ADDED: cape reference
+      aura: aura, // FIXED: now defined outside if block
+      particles: particles, // ADDED: particles reference
+      beams: beams, // ADDED: beams reference
       idlePhase: 0,
       walkPhase: 0,
       label: label
