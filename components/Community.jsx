@@ -1023,34 +1023,29 @@ export default function Community({
 
   const router = useRouter();
 
-// ============= GOOGLE AUTH =============
-useEffect(() => {
-  initializeAuth();
-  
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-    if (session?.user) {
-      setUser(session.user);
-      await fetchProfile(session.user.id);
-      if (!selectedRepo) {
-        await fetchRepositories();
+  // ============= GOOGLE AUTH =============
+  useEffect(() => {
+    initializeAuth();
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        setUser(session.user);
+        await fetchProfile(session.user.id);
+        if (!selectedRepo) {
+          await fetchRepositories();
+        }
+      } else {
+        setUser(null);
+        setProfile(null);
+        setRepositories([]);
+        setSelectedRepo(null);
+        setRepoContent(null);
       }
-    } else {
-      setUser(null);
-      setProfile(null);
-      setRepositories([]);
-      setSelectedRepo(null);
-      setRepoContent(null);
-    }
-  });
+    });
 
-  return () => subscription?.unsubscribe();
-}, []);
+    return () => subscription?.unsubscribe();
+  }, []);
 
-// ✅ ADD THIS RIGHT HERE - keep ref in sync with state
-useEffect(() => {
-  selectedRepoRef.current = selectedRepo;
-}, [selectedRepo]);
-  
   const initializeAuth = async () => {
     try {
       const { data: { user }, error } = await supabase.auth.getUser();
@@ -1440,75 +1435,56 @@ useEffect(() => {
     };
   }, [selectedRepo?.id]);
 
- const handleRealtimeUpdate = useCallback((type, payload) => {
-  const { eventType, new: newRecord, old: oldRecord } = payload;
-  
-  // ✅ USE THE REF INSTEAD OF selectedRepo STATE
-  const currentRepo = selectedRepoRef.current;
-  
-  switch (type) {
-    case 'repositories':
-      handleRepositoryRealtime(eventType, newRecord, oldRecord);
-      break;
+  // ============= REALTIME UPDATE HANDLERS =============
+
+  const handleRealtimeUpdate = useCallback((type, payload) => {
+    const { eventType, new: newRecord, old: oldRecord } = payload;
     
-    case 'repo_stars':
-      handleStarRealtime(eventType, newRecord, oldRecord);
-      break;
-    
-    case 'repo_watchers':
-      handleWatcherRealtime(eventType, newRecord, oldRecord);
-      break;
-    
-    case 'repo_issues':
-      // ✅ FIXED - uses currentRepo from ref
-      if (currentRepo && newRecord?.repo_id === currentRepo.id) {
+    switch (type) {
+      case 'repositories':
+        handleRepositoryRealtime(eventType, newRecord, oldRecord);
+        break;
+      
+      case 'repo_stars':
+        handleStarRealtime(eventType, newRecord, oldRecord);
+        break;
+      
+      case 'repo_watchers':
+        handleWatcherRealtime(eventType, newRecord, oldRecord);
+        break;
+      
+      case 'repo_issues':
         handleIssuesRealtime(eventType, newRecord, oldRecord);
-      }
-      break;
-    
-    case 'pull_requests':
-      // ✅ FIXED - uses currentRepo from ref
-      if (currentRepo && newRecord?.repo_id === currentRepo.id) {
+        break;
+      
+      case 'pull_requests':
         handlePullRequestsRealtime(eventType, newRecord, oldRecord);
-      }
-      break;
-    
-    case 'commits':
-      // ✅ FIXED - uses currentRepo from ref
-      if (currentRepo && newRecord?.repo_id === currentRepo.id) {
+        break;
+      
+      case 'commits':
         handleCommitsRealtime(eventType, newRecord, oldRecord);
-      }
-      break;
-    
-    case 'branches':
-      // ✅ FIXED - uses currentRepo from ref
-      if (currentRepo && newRecord?.repo_id === currentRepo.id) {
+        break;
+      
+      case 'branches':
         handleBranchesRealtime(eventType, newRecord, oldRecord);
-      }
-      break;
-    
-    case 'releases':
-      // ✅ FIXED - uses currentRepo from ref
-      if (currentRepo && newRecord?.repo_id === currentRepo.id) {
+        break;
+      
+      case 'releases':
         handleReleasesRealtime(eventType, newRecord, oldRecord);
-      }
-      break;
-    
-    case 'repo_comments':
-      // ✅ FIXED - uses currentRepo from ref
-      if (currentRepo && newRecord?.repo_id === currentRepo.id) {
+        break;
+      
+      case 'repo_comments':
         handleCommentsRealtime(eventType, newRecord, oldRecord);
-      }
-      break;
-    
-    case 'profiles':
-      handleProfileRealtime(eventType, newRecord, oldRecord);
-      break;
-    
-    default:
-      break;
-  }
-}, [user]); // ✅ REMOVED selectedRepo FROM DEPS - NOW IT WON'T STALE!
+        break;
+      
+      case 'profiles':
+        handleProfileRealtime(eventType, newRecord, oldRecord);
+        break;
+      
+      default:
+        break;
+    }
+  }, [user, selectedRepo]);
 
   const handleRepositoryRealtime = (eventType, newRecord, oldRecord) => {
     if (!selectedRepo) {
