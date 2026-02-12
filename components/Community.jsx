@@ -3980,7 +3980,7 @@ useEffect(() => {
     });
   };
 
-}, [user, selectedRepo?.id, addNotification]);
+}, [user, selectedRepo?.id]);
   return (
     <div className="quantum-community-container">
       {/* Quantum Background */}
