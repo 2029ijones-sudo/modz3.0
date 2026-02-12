@@ -2163,7 +2163,147 @@ Version 3, 29 June 2007`,
     };
     return iconMap[ext] || <File size={18} />;
   };
+const createIssue = async () => {
+  if (!user) {
+    toast.error('Please login to create issues');
+    return;
+  }
 
+  const title = prompt('Enter issue title:');
+  if (!title) return;
+
+  const description = prompt('Enter issue description (optional):');
+
+  try {
+    const { error } = await supabase
+      .from('repo_issues')
+      .insert([{
+        repo_id: selectedRepo.id,
+        user_id: user.id,
+        title,
+        description,
+        status: 'open',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }]);
+
+    if (error) throw error;
+
+    toast.success('Issue created successfully');
+    fetchIssues(selectedRepo.id); // Refresh issues list
+  } catch (error) {
+    console.error('Error creating issue:', error);
+    toast.error('Failed to create issue');
+  }
+};
+
+const createPullRequest = async () => {
+  if (!user) {
+    toast.error('Please login to create pull requests');
+    return;
+  }
+
+  const title = prompt('Enter pull request title:');
+  if (!title) return;
+
+  const base_branch = prompt('Base branch (default: main):') || 'main';
+  const head_branch = prompt('Head branch:');
+  if (!head_branch) return;
+
+  try {
+    const { error } = await supabase
+      .from('pull_requests')
+      .insert([{
+        repo_id: selectedRepo.id,
+        user_id: user.id,
+        title,
+        base_branch,
+        head_branch,
+        status: 'open',
+        commits: 0, // You'd calculate this based on commit differences
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }]);
+
+    if (error) throw error;
+
+    toast.success('Pull request created successfully');
+    fetchPullRequests(selectedRepo.id);
+  } catch (error) {
+    console.error('Error creating pull request:', error);
+    toast.error('Failed to create pull request');
+  }
+};
+
+const createBranch = async () => {
+  if (!user) {
+    toast.error('Please login to create branches');
+    return;
+  }
+
+  const branchName = prompt('Enter branch name:');
+  if (!branchName) return;
+
+  const sourceBranch = prompt('Source branch (default: main):') || 'main';
+
+  try {
+    const { error } = await supabase
+      .from('branches')
+      .insert([{
+        repo_id: selectedRepo.id,
+        name: branchName,
+        source_branch: sourceBranch,
+        default: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }]);
+
+    if (error) throw error;
+
+    toast.success('Branch created successfully');
+    fetchBranches(selectedRepo.id);
+  } catch (error) {
+    console.error('Error creating branch:', error);
+    toast.error('Failed to create branch');
+  }
+};
+
+const createRelease = async () => {
+  if (!user) {
+    toast.error('Please login to create releases');
+    return;
+  }
+
+  const tagName = prompt('Enter tag name (e.g., v1.0.0):');
+  if (!tagName) return;
+
+  const title = prompt('Enter release title:');
+  if (!title) return;
+
+  const prerelease = confirm('Is this a pre-release? Click OK for yes, Cancel for no');
+
+  try {
+    const { error } = await supabase
+      .from('releases')
+      .insert([{
+        repo_id: selectedRepo.id,
+        user_id: user.id,
+        tag_name: tagName,
+        title,
+        prerelease,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }]);
+
+    if (error) throw error;
+
+    toast.success('Release created successfully');
+    fetchReleases(selectedRepo.id);
+  } catch (error) {
+    console.error('Error creating release:', error);
+    toast.error('Failed to create release');
+  }
+};
   // ============= RENDER METHODS =============
   const renderFileExplorer = () => {
     if (!selectedRepo || !repoContent) return null;
@@ -2919,9 +3059,9 @@ Version 3, 29 June 2007`,
               <div className="issues-view">
                 <div className="issues-header">
                   <h3>Issues</h3>
-                  <button className="create-issue-btn">
-                    <Plus size={14} /> New Issue
-                  </button>
+<button className="create-issue-btn" onClick={createIssue}>
+  <Plus size={14} /> New Issue
+</button>
                 </div>
                 
                 {issues.length === 0 ? (
@@ -2954,9 +3094,9 @@ Version 3, 29 June 2007`,
               <div className="prs-view">
                 <div className="prs-header">
                   <h3>Pull Requests</h3>
-                  <button className="create-pr-btn">
-                    <GitPullRequest size={14} /> New Pull Request
-                  </button>
+                 <button className="create-pr-btn" onClick={createPullRequest}>
+  <GitPullRequest size={14} /> New Pull Request
+</button>
                 </div>
                 
                 {pullRequests.length === 0 ? (
@@ -2989,9 +3129,9 @@ Version 3, 29 June 2007`,
               <div className="branches-view">
                 <div className="branches-header">
                   <h3>Branches</h3>
-                  <button className="create-branch-btn">
-                    <GitBranch size={14} /> New Branch
-                  </button>
+                 <button className="create-branch-btn" onClick={createBranch}>
+  <GitBranch size={14} /> New Branch
+</button>
                 </div>
                 
                 <div className="branches-list">
@@ -3017,9 +3157,9 @@ Version 3, 29 June 2007`,
               <div className="releases-view">
                 <div className="releases-header">
                   <h3>Releases</h3>
-                  <button className="create-release-btn">
-                    <Tag size={14} /> New Release
-                  </button>
+                  <button className="create-release-btn" onClick={createRelease}>
+  <Tag size={14} /> New Release
+</button>
                 </div>
                 
                 {releases.length === 0 ? (
