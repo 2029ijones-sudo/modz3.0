@@ -983,7 +983,7 @@ export default function Community({
   const [showStats, setShowStats] = useState(false);
   const [showGraph, setShowGraph] = useState(false);
   const [commitHistory, setCommitHistory] = useState([]);
-  const [branches, setBranches] = useState([{ name: 'main', default: true }]);
+const [branches, setBranches] = useState([{ name: 'main', is_default: true }]);
   const [currentBranch, setCurrentBranch] = useState('main');
   const [pullRequests, setPullRequests] = useState([]);
   const [issues, setIssues] = useState([]);
@@ -3142,7 +3142,7 @@ const createRelease = async () => {
                       <div className="branch-content">
                         <h4>
                           {branch.name}
-                          {branch.default && <span className="default-badge">default</span>}
+                      {branch.is_default && <span className="default-badge">default</span>}
                         </h4>
                         <p className="branch-meta">
                           Updated {formatDistanceToNow(new Date(branch.updated_at || Date.now()))} ago
