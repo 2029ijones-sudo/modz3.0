@@ -116,7 +116,7 @@ jobs:
           
           if [ -n "$(git status --porcelain)" ]; then
             git add .
-            git commit -m "🤖 Auto-fix: ESLint, Prettier, console cleanup [skip ci]"
+            git commit -m "🤖 Auto-fix: ESLint, Prettier, console cleanup"
             
             if git push origin HEAD:${GITHUB_REF_NAME}; then
               echo "FIXES_APPLIED=true" >> $GITHUB_ENV
