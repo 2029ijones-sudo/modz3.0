@@ -72,6 +72,22 @@ const nextConfig = {
   },
   
   productionBrowserSourceMaps: true,
+  
+  // ✅ ADD THIS - Maintenance mode rewrite
+  async rewrites() {
+    const maintenanceMode = process.env.MAINTENANCE_MODE === 'true';
+    
+    if (maintenanceMode) {
+      return [
+        {
+          source: '/:path*',
+          destination: '/maintenance.html',
+        },
+      ];
+    }
+    
+    return [];
+  },
 };
 
 module.exports = nextConfig;
