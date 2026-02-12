@@ -59,7 +59,6 @@ jobs:
           # 🔥 YOUR EDGE CONFIG ID (hardcoded)
           EDGE_CONFIG_ID="ecfg_iseyjgzxjxubbehh6at0yf7qw4gs"
           
-          # Update the value to true
           RESPONSE=$(curl -s -X PATCH \
             -H "Authorization: Bearer ${VERCEL_TOKEN}" \
             -H "Content-Type: application/json" \
@@ -74,7 +73,6 @@ jobs:
               ]
             }')
           
-          # ✅ Vercel Edge Config API returns {"status":"ok"} on success
           if echo "$RESPONSE" | grep -q '"status":"ok"'; then
             echo "✅ Maintenance mode is NOW ACTIVE (instant, no redeploy)"
           else
@@ -88,7 +86,7 @@ jobs:
           if [ -f "package.json" ]; then
             if [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ] || [ -f ".eslintrc" ] || [ -f ".eslintrc.yml" ]; then
               npx eslint --fix . || true
-              echo "✅ ESLint fixes attempted"
+              echo "✅ ESLint fixes attempted (safe, AST-based)"
             else
               echo "⚠️ No ESLint config found, creating default..."
               printf '{\n  "extends": "next/core-web-vitals",\n  "rules": {\n    "no-console": "warn",\n    "no-debugger": "error",\n    "no-unused-vars": "warn"\n  }\n}\n' > .eslintrc.json
@@ -126,22 +124,9 @@ jobs:
             npm audit fix || npm audit fix --force || echo "⚠️ Some vulnerabilities require manual fix"
           fi
 
-      - name: 🧹 Remove Console.logs and Debuggers
-        run: |
-          FILES=$(find . -type f \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" \) \
-            -not -path "./node_modules/*" \
-            -not -path "./.git/*" \
-            -not -path "./dist/*" \
-            -not -path "./build/*" \
-            -not -path "./.next/*" 2>/dev/null || true)
-          
-          if [ -n "$FILES" ]; then
-            echo "$FILES" | xargs sed -i 's/console\.log(.*);//g' 2>/dev/null || true
-            echo "$FILES" | xargs sed -i 's/debugger;//g' 2>/dev/null || true
-            echo "✅ Console logs and debuggers removed"
-          else
-            echo "📝 No JavaScript/TypeScript files found"
-          fi
+      # ❌ The dangerous 'sed' step has been removed.
+      # Console logs and debuggers are NOT automatically removed to avoid code corruption.
+      # To remove them, configure ESLint's 'no-console' rule to 'error' and run --fix.
 
       - name: 💾 Commit Auto-Fixes
         env:
@@ -152,7 +137,7 @@ jobs:
           
           if [ -n "$(git status --porcelain)" ]; then
             git add .
-            git commit -m "🤖 Auto-fix: ESLint, Prettier, console cleanup"
+            git commit -m "🤖 Auto-fix: ESLint, Prettier"
             
             if git push origin HEAD:${GITHUB_REF_NAME}; then
               echo "FIXES_APPLIED=true" >> $GITHUB_ENV
@@ -187,10 +172,8 @@ jobs:
         run: |
           echo "🛠️ Disabling maintenance mode instantly via Edge Config..."
           
-          # 🔥 YOUR EDGE CONFIG ID (hardcoded)
           EDGE_CONFIG_ID="ecfg_iseyjgzxjxubbehh6at0yf7qw4gs"
           
-          # Update the value to false
           RESPONSE=$(curl -s -X PATCH \
             -H "Authorization: Bearer ${VERCEL_TOKEN}" \
             -H "Content-Type: application/json" \
@@ -205,7 +188,6 @@ jobs:
               ]
             }')
           
-          # ✅ Vercel Edge Config API returns {"status":"ok"} on success
           if echo "$RESPONSE" | grep -q '"status":"ok"'; then
             echo "✅ Maintenance mode is NOW INACTIVE (instant, no redeploy)"
           else
@@ -238,11 +220,11 @@ jobs:
           ## ✅ Changes Applied
           - Created backup branch: \`${BACKUP_BRANCH}\`
           - ✅ **INSTANT MAINTENANCE MODE ENABLED** (Edge Config)
-          - Ran ESLint auto-fix
+          - Ran ESLint auto-fix (safe, AST-based)
           - Formatted code with Prettier
-          - Removed console.log statements
-          - Removed debugger statements
-          - Attempted TypeScript fixes
+          - ⚠️ **Console logs and debuggers were NOT automatically removed** to prevent code corruption.
+            To remove them, configure ESLint's \`no-console\` rule to \`error\` and run \`--fix\`.
+          - Attempted TypeScript checks (non-blocking)
           - Ran security audit fixes
           - ✅ **INSTANT MAINTENANCE MODE DISABLED** (Edge Config)
           
@@ -288,7 +270,7 @@ jobs:
               -H "Accept: application/vnd.github.v3+json" \
               "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
               -d '{
-                "body": "🤖 **Quantum Auto-Fix Complete**\n\n✅ Backup branch: `'"${BACKUP_BRANCH}"'`\n🔧 Fixes applied: `'"${FIXES_APPLIED}"'`\n⚡ **Maintenance mode toggled INSTANTLY via Edge Config**\n🚀 Vercel deploy hook triggered\n📊 [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n*This comment was automatically posted by the Quantum Auto-Fix Bot*"
+                "body": "🤖 **Quantum Auto-Fix Complete**\n\n✅ Backup branch: `'"${BACKUP_BRANCH}"'`\n🔧 Fixes applied: `'"${FIXES_APPLIED}"'`\n⚡ **Maintenance mode toggled INSTANTLY via Edge Config**\n🚀 Vercel deploy hook triggered\n📊 [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n⚠️ **Console logs were NOT automatically removed** to avoid breaking code.\n\n*This comment was automatically posted by the Quantum Auto-Fix Bot*"
               }'
           fi
 
