@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "buildCacheBuster": "2026-02-12-16-30-00",
   "builds": [
     {
       "src": "package.json",
@@ -20,7 +19,8 @@
     "NEXT_PUBLIC_VERCEL_URL": "$VERCEL_URL",
     "NEXT_PUBLIC_QUANTUM_BACKUP_BRANCH": "BackUp",
     "NEXT_PUBLIC_QUANTUM_AUTO_FIX_ENABLED": "true",
-    "CACHE_BUSTER": "$VERCEL_GIT_COMMIT_SHA"
+    "CACHE_BUSTER": "$VERCEL_GIT_COMMIT_SHA",
+    "VERCEL_CACHE_BUSTER": "2026-02-12-16-45-00"
   },
   "github": {
     "silent": false,
