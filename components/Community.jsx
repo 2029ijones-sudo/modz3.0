@@ -48,13 +48,32 @@ const encryptData = (data) => {
   }
 };
 
+// REPLACE your existing decryptData function (around line 50) with this:
 const decryptData = (encrypted) => {
+  // If no encrypted data, return null
+  if (!encrypted) return null;
+  
   try {
-    const decrypted = CryptoJS.AES.decrypt(decodeURIComponent(encrypted), ENCRYPTION_KEY);
-    return JSON.parse(decrypted.toString(CryptoJS.enc.Utf8));
+    // Try to decode
+    let decoded;
+    try {
+      decoded = decodeURIComponent(encrypted);
+    } catch {
+      decoded = encrypted; // If decoding fails, use original
+    }
+    
+    // Try to decrypt
+    const decrypted = CryptoJS.AES.decrypt(decoded, ENCRYPTION_KEY);
+    const decryptedString = decrypted.toString(CryptoJS.enc.Utf8);
+    
+    // If decryption produced no result, return null
+    if (!decryptedString) return null;
+    
+    // Try to parse JSON
+    return JSON.parse(decryptedString);
   } catch (error) {
-    console.error('Decryption error:', error);
-    return null;
+    console.warn('Decryption failed (this is normal if no encrypted params):', error.message);
+    return null; // Always return null on error, don't crash
   }
 };
 
@@ -1025,30 +1044,35 @@ export default function Community({
     return () => subscription?.unsubscribe();
   }, []);
 
-  const initializeAuth = async () => {
-    try {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      
-      if (error) throw error;
-      
-      if (user) {
-        setUser(user);
-        await fetchProfile(user.id);
-      }
-      
-      // Handle encrypted params
-      if (encryptedParams) {
+ const initializeAuth = async () => {
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (error) throw error;
+    
+    if (user) {
+      setUser(user);
+      await fetchProfile(user.id);
+    }
+    
+    // Handle encrypted params - SAFELY
+    if (encryptedParams) {
+      // Only attempt decryption if it looks like our encrypted format
+      if (typeof encryptedParams === 'string' && encryptedParams.includes('U2FsdGVkX1')) {
         const decrypted = decryptData(encryptedParams);
         if (decrypted?.repo) {
           setSelectedRepo(decrypted.repo);
         }
+      } else {
+        console.log('Skipping decryption - not valid encrypted data');
       }
-    } catch (error) {
-      console.error('Auth error:', error);
-    } finally {
-      setLoading(false);
     }
-  };
+  } catch (error) {
+    console.error('Auth error:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchProfile = async (userId) => {
     try {
