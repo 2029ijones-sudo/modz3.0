@@ -73,31 +73,7 @@ const nextConfig = {
   
   productionBrowserSourceMaps: true,
   
-  // ✅ FIXED - Maintenance mode rewrite with beforeFiles
-  async rewrites() {
-    const maintenanceMode = process.env.MAINTENANCE_MODE === 'true';
-    
-    if (maintenanceMode) {
-      console.log('🚧 MAINTENANCE MODE ACTIVE - Rewriting all routes');
-      
-      return {
-        beforeFiles: [
-          {
-            source: '/:path*',
-            destination: '/maintenance.html',
-          },
-        ],
-        afterFiles: [],
-        fallback: [],
-      };
-    }
-    
-    return {
-      beforeFiles: [],
-      afterFiles: [],
-      fallback: [],
-    };
-  },
-}; // ← Added missing closing brace and semicolon
+  // ❌ REMOVED - Maintenance mode rewrite (now handled by middleware.js)
+};
 
 module.exports = nextConfig;
