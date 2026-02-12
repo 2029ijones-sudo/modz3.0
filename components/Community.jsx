@@ -116,7 +116,6 @@ const linesRef = useRef([]);
 const containerRef = useRef(null);
 const autoSaveTimer = useRef(null);
 const channelRef = useRef(null);
-const selectedRepoRef = useRef(selectedRepo);
   // Language detection
   useEffect(() => {
     if (file?.name) {
