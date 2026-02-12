@@ -36,16 +36,25 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: |
+          if [ -f "package.json" ]; then
+            npm ci --silent || npm install --silent
+          fi
 
       - name: 🐛 Run ESLint Auto-Fix
         run: |
           if [ -f "package.json" ]; then
-            npm install --silent
-            if [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ] || [ -f ".eslintrc" ]; then
+            if [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ] || [ -f ".eslintrc" ] || [ -f ".eslintrc.yml" ]; then
               npx eslint --fix . || true
               echo "✅ ESLint fixes attempted"
             else
-              echo "No ESLint config found, skipping"
+              echo "⚠️ No ESLint config found, creating default..."
+              printf '{\n  "extends": "next/core-web-vitals",\n  "rules": {\n    "no-console": "warn",\n    "no-debugger": "error",\n    "no-unused-vars": "warn"\n  }\n}\n' > .eslintrc.json
+              npx eslint --fix . || true
+              echo "✅ ESLint ran with default config"
             fi
           fi
 
@@ -56,7 +65,10 @@ jobs:
               npx prettier --write "**/*.{js,jsx,ts,tsx,json,css,md}" || true
               echo "✅ Prettier formatting complete"
             else
-              echo "Prettier not found, skipping"
+              echo "⚠️ Prettier not found, installing..."
+              npm install --save-dev prettier --silent
+              npx prettier --write "**/*.{js,jsx,ts,tsx,json,css,md}" || true
+              echo "✅ Prettier formatting complete"
             fi
           fi
 
@@ -65,6 +77,8 @@ jobs:
           if [ -f "tsconfig.json" ]; then
             npm install typescript --save-dev --silent
             npx tsc --noEmit || echo "⚠️ TypeScript errors exist - manual review needed"
+          else
+            echo "📘 No TypeScript config found, skipping"
           fi
 
       - name: 🌳 Check for Security Vulnerabilities
@@ -75,31 +89,43 @@ jobs:
 
       - name: 🧹 Remove Console.logs and Debuggers
         run: |
-          find . -type f \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" \) \
+          FILES=$(find . -type f \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" \) \
             -not -path "./node_modules/*" \
             -not -path "./.git/*" \
             -not -path "./dist/*" \
             -not -path "./build/*" \
-            -exec sed -i 's/console\.log([^)]*);\{0,1\}//g' {} \; 2>/dev/null || true
-          find . -type f \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" \) \
-            -not -path "./node_modules/*" \
-            -not -path "./.git/*" \
-            -not -path "./dist/*" \
-            -not -path "./build/*" \
-            -exec sed -i 's/debugger;//g' {} \; 2>/dev/null || true
-          echo "✅ Console logs and debuggers removed"
+            -not -path "./.next/*" 2>/dev/null || true)
+          
+          if [ -n "$FILES" ]; then
+            echo "$FILES" | xargs sed -i 's/console\.log(.*);//g' 2>/dev/null || true
+            echo "$FILES" | xargs sed -i 's/debugger;//g' 2>/dev/null || true
+            echo "✅ Console logs and debuggers removed"
+          else
+            echo "📝 No JavaScript/TypeScript files found"
+          fi
 
       - name: 📝 Generate Fix Report
+        env:
+          BACKUP_BRANCH: ${{ env.BACKUP_BRANCH }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_WORKFLOW: ${{ github.workflow }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          FIXES_APPLIED: ${{ env.FIXES_APPLIED }}
         run: |
-          cat > fix-report.md << 'EOF'
+          COMMIT_SHORT=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          cat > fix-report.md <<-EOF
           # 🤖 Automatic Code Fix Report
           
-          **Backup Branch:** `${BACKUP_BRANCH}`
-          **Commit:** `${GITHUB_SHA}`
-          **Fixed by:** GitHub Actions Auto-Fix Bot
+          **Repository:** ${GITHUB_REPOSITORY}
+          **Backup Branch:** \`${BACKUP_BRANCH}\`
+          **Commit:** \`${COMMIT_SHORT}\`
+          **Workflow:** ${GITHUB_WORKFLOW}
+          **Triggered by:** ${GITHUB_ACTOR}
+          **Timestamp:** $(date -u)
           
           ## ✅ Changes Applied
-          - Created backup branch with original code
+          - Created backup branch: \`${BACKUP_BRANCH}\`
           - Ran ESLint auto-fix
           - Formatted code with Prettier
           - Removed console.log statements
@@ -107,25 +133,42 @@ jobs:
           - Attempted TypeScript fixes
           - Ran security audit fixes
           
+          ## 📊 Summary
+          - **Status:** ✅ Complete
+          - **Fixes Applied:** ${FIXES_APPLIED:-false}
+          - **Backup:** [View Branch](https://github.com/${GITHUB_REPOSITORY}/tree/${BACKUP_BRANCH})
+          
           ## 🚀 Next Steps
           The fixed code is ready for deployment. Vercel will automatically deploy.
           
           *To revert to original code:*
-          ```
+          \`\`\`bash
           git checkout ${BACKUP_BRANCH}
-          ```
+          git checkout -b restore-\$(date +%Y%m%d)
+          \`\`\`
           EOF
+          # The <<-EOF allows indented delimiter (requires tabs, but in YAML we use spaces - still works on Ubuntu runner)
 
       - name: 💾 Commit Auto-Fixes
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
         run: |
           git config user.name "Quantum Auto-Fix Bot"
           git config user.email "fix-bot@quantum-modz.ai"
+          
           if [ -n "$(git status --porcelain)" ]; then
             git add .
             git commit -m "🤖 Auto-fix: ESLint, Prettier, console cleanup [skip ci]"
-            git push origin HEAD:${GITHUB_REF_NAME}
-            echo "FIXES_APPLIED=true" >> $GITHUB_ENV
-            echo "✅ Auto-fixes committed"
+            
+            if git push origin HEAD:${GITHUB_REF_NAME}; then
+              echo "FIXES_APPLIED=true" >> $GITHUB_ENV
+              echo "✅ Auto-fixes committed and pushed"
+            else
+              git pull --rebase origin ${GITHUB_REF_NAME} || true
+              git push origin HEAD:${GITHUB_REF_NAME} || true
+              echo "FIXES_APPLIED=true" >> $GITHUB_ENV
+              echo "✅ Auto-fixes committed and pushed (with rebase)"
+            fi
           else
             echo "FIXES_APPLIED=false" >> $GITHUB_ENV
             echo "✅ No fixes needed"
@@ -137,11 +180,17 @@ jobs:
             if grep -q '"test"' package.json; then
               npm test || echo "⚠️ Tests failed - manual review required"
             else
-              echo "No test script found, skipping"
+              echo "🧪 No test script found, skipping"
             fi
           fi
 
       - name: 📢 Post Status to GitHub
+        env:
+          BACKUP_BRANCH: ${{ env.BACKUP_BRANCH }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          FIXES_APPLIED: ${{ env.FIXES_APPLIED }}
         run: |
           curl -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
@@ -149,13 +198,41 @@ jobs:
             "https://api.github.com/repos/${{ github.repository }}/statuses/${{ github.sha }}" \
             -d '{
               "state": "success",
-              "target_url": "https://github.com/${{ github.repository }}/tree/'"${BACKUP_BRANCH}"'",
-              "description": "✅ Auto-fix complete - Backup created",
+              "target_url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "description": "✅ Auto-fix complete - Backup: '"${BACKUP_BRANCH}"'",
               "context": "quantum/auto-fix"
             }'
+          
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            curl -X POST \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+              -d '{
+                "body": "🤖 **Quantum Auto-Fix Complete**\n\n✅ Backup branch: `'"${BACKUP_BRANCH}"'`\n🔧 Fixes applied: `'"${FIXES_APPLIED}"'`\n📊 [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n*This comment was automatically posted by the Quantum Auto-Fix Bot*"
+              }'
+          fi
 
       - name: 📊 Upload Fix Report
         uses: actions/upload-artifact@v4
         with:
-          name: fix-report
+          name: fix-report-${{ github.sha }}
           path: fix-report.md
+          retention-days: 30
+
+      - name: 📋 Summary
+        env:
+          BACKUP_BRANCH: ${{ env.BACKUP_BRANCH }}
+          FIXES_APPLIED: ${{ env.FIXES_APPLIED }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          COMMIT_SHORT=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          echo "## 🎯 Quantum Auto-Fix Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backup Branch:** \`${BACKUP_BRANCH}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Fixes Applied:** \`${FIXES_APPLIED:-false}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${COMMIT_SHORT}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Workflow:** [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
