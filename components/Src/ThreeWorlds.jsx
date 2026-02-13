@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback, Suspense, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import * as CANNON from 'cannon-es';
@@ -39,6 +39,22 @@ export default function ThreeWorld({ addNotification, worldName, onModDrop, isDr
   const loaderRef = useRef(null);
   const composerRef = useRef(null);
   const characterRef = useRef(null);
+
+  // ----------------------------------------------------------------------
+  // CONTEXT LOSS HANDLERS – lifted to component scope (FIXED)
+  // ----------------------------------------------------------------------
+  const handleContextLost = useCallback((event) => {
+    event.preventDefault();
+    setError('WebGL context lost. Trying to restore...');
+  }, []);
+
+  const handleContextRestored = useCallback(() => {
+    setError(null);
+    setTimeout(() => {
+      initAttemptRef.current = 0;
+      initialize3DWorld();
+    }, 1000);
+  }, []);
 
   // ----------------------------------------------------------------------
   // SECURE SCRIPT EVALUATION SANDBOX
@@ -82,7 +98,7 @@ export default function ThreeWorld({ addNotification, worldName, onModDrop, isDr
   };
 
   // ----------------------------------------------------------------------
-  // ORIGINAL initializeWebGLContext (preserved)
+  // ORIGINAL initializeWebGLContext (uses lifted handlers)
   // ----------------------------------------------------------------------
   const initializeWebGLContext = useCallback(() => {
     if (!canvasRef.current) return null;
@@ -102,8 +118,6 @@ export default function ThreeWorld({ addNotification, worldName, onModDrop, isDr
                  canvas.getContext('experimental-webgl', contextAttributes);
       if (!gl) throw new Error('WebGL not supported');
 
-      const handleContextLost = (e) => { e.preventDefault(); setError('WebGL context lost. Trying to restore...'); };
-      const handleContextRestored = () => { setError(null); setTimeout(() => { initAttemptRef.current = 0; initialize3DWorld(); }, 1000); };
       canvas.addEventListener('webglcontextlost', handleContextLost, false);
       canvas.addEventListener('webglcontextrestored', handleContextRestored, false);
       return gl;
@@ -111,7 +125,7 @@ export default function ThreeWorld({ addNotification, worldName, onModDrop, isDr
       console.error('Failed to initialize WebGL context:', err);
       return null;
     }
-  }, []);
+  }, [handleContextLost, handleContextRestored]);
 
   // ----------------------------------------------------------------------
   // MAIN INITIALIZATION (YOUR STRUCTURE + IMMERSIVE UPGRADES)
@@ -262,14 +276,12 @@ export default function ThreeWorld({ addNotification, worldName, onModDrop, isDr
       groundGlow.position.y = -0.49;
       scene.add(groundGlow);
 
-      // ---------- 3D CHARACTER (FIXED: uses Drei's <Text> instead of invalid TroikaText) ----------
+      // ---------- 3D CHARACTER ----------
       const characterGroup = new THREE.Group();
       characterGroup.position.set(0, 2, 0);
       characterRef.current = characterGroup;
       scene.add(characterGroup);
 
-      // Load robot model with fallback – no TroikaText, using a simple THREE.TextGeometry or a Drei <Text> would require @react-three/fiber.
-      // Since we are in raw Three.js, we use a simple floating orb + ring for fallback, no 3D text.
       loaderRef.current.gltf.load(
         '/models/robot.glb',
         (gltf) => {
@@ -280,7 +292,7 @@ export default function ThreeWorld({ addNotification, worldName, onModDrop, isDr
         },
         undefined,
         () => {
-          // Fallback: stylised character (no 3D text – that was the crash)
+          // Fallback: stylised character
           const core = new THREE.Mesh(
             new THREE.IcosahedronGeometry(1, 0),
             new THREE.MeshStandardMaterial({ color: 0x6c5ce7, emissive: 0x3a2e6b, emissiveIntensity: 0.4, metalness: 0.8, roughness: 0.2 })
@@ -368,19 +380,16 @@ export default function ThreeWorld({ addNotification, worldName, onModDrop, isDr
         try {
           if (physicsWorldRef.current) physicsWorldRef.current.step(1/60);
           
-          // Character idle animation
           if (characterRef.current) {
             characterRef.current.position.y = 2 + Math.sin(Date.now() * 0.002) * 0.1;
             characterRef.current.rotation.y += 0.005;
           }
 
-          // Update mod objects: physics + script execution
           objectsRef.current.forEach(obj => {
             if (obj.userData?.physicsBody) {
               obj.position.copy(obj.userData.physicsBody.position);
               obj.quaternion.copy(obj.userData.physicsBody.quaternion);
             }
-            // Execute per-frame script
             if (obj.userData?.modType === 'javascript' && obj.userData?.sandbox) {
               obj.userData.sandbox.time = Date.now() * 0.001;
               obj.userData.sandbox.delta = 1/60;
@@ -388,7 +397,6 @@ export default function ThreeWorld({ addNotification, worldName, onModDrop, isDr
             }
           });
 
-          // Animate orbs
           orb1.position.x = -4 + Math.sin(Date.now() * 0.001) * 0.5;
           orb2.position.z = -3 + Math.cos(Date.now() * 0.001) * 0.5;
 
@@ -746,7 +754,7 @@ export default function ThreeWorld({ addNotification, worldName, onModDrop, isDr
   };
 
   // ----------------------------------------------------------------------
-  // CLEANUP & EFFECTS (preserved)
+  // CLEANUP & EFFECTS – FIXED: no more undefined handler references
   // ----------------------------------------------------------------------
   const cleanup3DWorld = useCallback(() => {
     console.log('Cleaning up 3D world...');
@@ -759,6 +767,8 @@ export default function ThreeWorld({ addNotification, worldName, onModDrop, isDr
       canvas.removeEventListener('dragover', () => {});
       canvas.removeEventListener('dragleave', () => {});
       canvas.removeEventListener('drop', () => {});
+      canvas.removeEventListener('webglcontextlost', handleContextLost);
+      canvas.removeEventListener('webglcontextrestored', handleContextRestored);
     }
     if (controlsRef.current) {
       controlsRef.current.dispose();
@@ -787,7 +797,7 @@ export default function ThreeWorld({ addNotification, worldName, onModDrop, isDr
     }
     cameraRef.current = null;
     physicsWorldRef.current = null;
-  }, []);
+  }, [handleContextLost, handleContextRestored]); // ✅ Now they are in scope
 
   useEffect(() => {
     isMountedRef.current = true;
