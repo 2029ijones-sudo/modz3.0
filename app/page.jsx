@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 
 // ===== 1. IMPORT CHAOS ENGINE =====
-import ChaosEngine from '@/components/Chaos';
+import ChaosEngine from '@/Chaos';
 
 // ===== 2. DYNAMIC IMPORTS OF MAIN COMPONENTS =====
 const ThreeWorld = dynamic(() => import('@/Src/ThreeWorlds'), {
