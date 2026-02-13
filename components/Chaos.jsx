@@ -88,7 +88,6 @@ export const ChaosProvider = ({ children }) => {
       const level = e.detail?.chaosLevel ?? e.detail?.quantumState?.chaosLevel ?? 0;
       if (!manualOverride) {
         setChaosLevel(level);
-        // Record history
         setChaosHistory((h) => [...h.slice(-50), { time: Date.now(), level }]);
       }
     };
@@ -124,7 +123,6 @@ export const ChaosProvider = ({ children }) => {
     if (manualOverride) {
       setManualLevel((prev) => Math.min(100, prev + amount));
     } else {
-      // Dispatch event to quantum system
       window.dispatchEvent(
         new CustomEvent('quantum-chaos-trigger', {
           detail: { type: 'spike', intensity: amount },
@@ -194,7 +192,6 @@ export const ChaosProvider = ({ children }) => {
       }}
     >
       {children}
-      {/* Global CSS variables for corruption – applied to :root */}
       <style jsx global>{`
         :root {
           --chaos-level: ${effectiveChaos};
@@ -204,7 +201,6 @@ export const ChaosProvider = ({ children }) => {
           --chaos-skew: calc(var(--chaos-intensity) * 3deg);
           --chaos-scale: ${1 + (effectiveChaos / 100) * glitchIntensity * 0.1};
         }
-        /* Optional: apply to body via CorruptionInjector */
       `}</style>
     </ChaosContext.Provider>
   );
@@ -225,11 +221,9 @@ const CorruptionInjector = () => {
     }
     const intensity = (chaosLevel / 100) * glitchIntensity;
     if (reducedMotion) {
-      // Only apply subtle effects
       document.body.style.filter = `hue-rotate(${intensity * 90}deg)`;
       document.body.style.transform = '';
     } else {
-      // Use GSAP for smooth animation
       gsap.to(document.body, {
         filter: `hue-rotate(${intensity * 180}deg) blur(${intensity * 2}px)`,
         transform: `skew(${intensity * 3}deg) scale(${1 + intensity * 0.1})`,
@@ -265,7 +259,6 @@ const P5Glitch = () => {
         const intensity = chaosLevel / 100;
         if (intensity < 0.1) return;
 
-        // Glitch rectangles
         for (let i = 0; i < 20 * intensity; i++) {
           p.fill(
             Math.random() * 255,
@@ -281,7 +274,6 @@ const P5Glitch = () => {
           );
         }
 
-        // Scanlines
         p.stroke(0, 0, 0, 50 * intensity);
         p.strokeWeight(1);
         for (let y = 0; y < p.height; y += 4) {
@@ -365,7 +357,6 @@ const PhysicsEngine = ({ children }) => {
     runnerRef.current = runner;
     Matter.Runner.run(runner, engine);
 
-    // Walls
     const walls = [
       Matter.Bodies.rectangle(window.innerWidth / 2, -50, window.innerWidth, 100, { isStatic: true }),
       Matter.Bodies.rectangle(window.innerWidth / 2, window.innerHeight + 50, window.innerWidth, 100, { isStatic: true }),
@@ -430,16 +421,10 @@ const BrokenComponentOverlay = () => {
       setVisible([]);
       return;
     }
-    // Spawn random broken components based on chaos level
     const interval = setInterval(() => {
       const randomComp = components[Math.floor(Math.random() * components.length)];
       const id = uuidv4();
-      setVisible((prev) => {
-        // Keep max 5 floating windows
-        const newVis = [...prev, { id, ...randomComp }];
-        return newVis.slice(-5);
-      });
-      // Auto-remove after a few seconds
+      setVisible((prev) => [...prev.slice(-4), { id, ...randomComp }]); // keep max 5
       setTimeout(() => {
         setVisible((prev) => prev.filter((v) => v.id !== id));
       }, 5000 + Math.random() * 3000);
@@ -469,7 +454,7 @@ const BrokenComponentOverlay = () => {
             overflow: 'hidden',
             zIndex: 10000,
             boxShadow: '0 0 50px #e84393',
-            pointerEvents: 'none', // make non-interactive to avoid interfering
+            pointerEvents: 'none',
           }}
         >
           <div style={{ padding: '10px', background: '#e84393', color: 'white', fontWeight: 'bold' }}>
@@ -477,7 +462,6 @@ const BrokenComponentOverlay = () => {
           </div>
           <div style={{ padding: '10px', height: 'calc(100% - 40px)', overflow: 'auto' }}>
             <Comp
-              // Pass dummy props – these components expect certain props, so we provide minimal
               addNotification={console.log}
               worldName="Chaos Realm"
               onModDrop={() => {}}
@@ -499,13 +483,10 @@ const BrokenComponentOverlay = () => {
 const ChaosPanel = () => {
   const {
     chaosLevel,
-    rawChaosLevel,
     manualOverride,
     setManualOverride,
     manualLevel,
     setManualLevel,
-    corruptionRate,
-    setCorruptionRate,
     chaosHistory,
     enabled,
     setEnabled,
@@ -521,7 +502,6 @@ const ChaosPanel = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('chaos');
 
-  // Keyboard shortcut: Ctrl+Shift+C toggles panel, Ctrl+Shift+X spikes
   useEffect(() => {
     const handleKey = (e) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'C') {
@@ -568,7 +548,6 @@ const ChaosPanel = () => {
               </button>
             </div>
 
-            {/* Tabs */}
             <div className="flex gap-2 border-b border-gray-700 pb-2 mb-4">
               {['chaos', 'graphs', 'export'].map((tab) => (
                 <button
@@ -586,7 +565,6 @@ const ChaosPanel = () => {
               ))}
             </div>
 
-            {/* Chaos Controls */}
             {activeTab === 'chaos' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -690,7 +668,6 @@ const ChaosPanel = () => {
               </div>
             )}
 
-            {/* Graphs */}
             {activeTab === 'graphs' && (
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
@@ -707,7 +684,6 @@ const ChaosPanel = () => {
               </div>
             )}
 
-            {/* Export/Import */}
             {activeTab === 'export' && (
               <div className="space-y-3">
                 <button
@@ -744,7 +720,7 @@ const ChaosPanel = () => {
                         ).toString(CryptoJS.enc.Utf8);
                         const state = JSON.parse(decrypted);
                         setGlitchIntensity(state.glitchIntensity);
-                        if (state.physicsEnabled) togglePhysics(); // simplistic
+                        if (state.physicsEnabled) togglePhysics();
                         if (state.showOverlay) toggleOverlay();
                         toast.success('Chaos state loaded');
                       } catch {
@@ -809,7 +785,6 @@ const VersionRandomizer = () => {
           newVersions[randomComponent] = randomVersion;
         }
         localStorage.setItem('quantum-component-versions', JSON.stringify(newVersions));
-        // Notify page.jsx
         window.dispatchEvent(
           new StorageEvent('storage', {
             key: 'quantum-component-versions',
@@ -850,7 +825,7 @@ export default function ChaosEngine() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  if (!mounted) return null; // Avoid SSR mismatch
+  if (!mounted) return null;
 
   return (
     <ChaosProvider>
@@ -859,7 +834,6 @@ export default function ChaosEngine() {
       <VersionRandomizer />
       <BrokenComponentOverlay />
 
-      {/* Three.js background – only render if needed (performance) */}
       <div
         style={{
           position: 'fixed',
@@ -882,5 +856,5 @@ export default function ChaosEngine() {
   );
 }
 
-// Export context and provider for advanced usage
-export { useChaos, ChaosProvider };
+// Note: useChaos and ChaosProvider are already exported above.
+// No duplicate export statement needed.
