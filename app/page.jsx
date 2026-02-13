@@ -33,6 +33,64 @@ const QuantumPWAInstaller = dynamic(() => import('@/PWAInstaller'), {
   loading: () => <div className="quantum-tab-loading">Quantum Entangling PWA...</div>
 });
 
+// ============================================
+// ===== VERSIONED IMPORTS – QUANTUM MIXER =====
+// ============================================
+// ThreeWorlds versions
+const ThreeWorldStable = dynamic(() => import('@/Src/ThreeWorlds'), {
+  ssr: false,
+  loading: () => <div className="quantum-tab-loading-full">🌍 Stable World</div>
+});
+const ThreeWorldLite = dynamic(() => import('@/Shared/ThreeWorlds.lite'), {
+  ssr: false,
+  loading: () => <div className="quantum-tab-loading-full">⚡ Lite World</div>
+});
+const ThreeWorldBroken = dynamic(() => import('@/Shared/ThreeWorlds.broken'), {
+  ssr: false,
+  loading: () => <div className="quantum-tab-loading-full">⚠️ Broken World</div>
+});
+
+// CodeEditor versions
+const CodeEditorStable = dynamic(() => import('@/CodeEditor'), { ssr: false });
+const CodeEditorLite = dynamic(() => import('@/Shared/CodeEditor.lite'), { ssr: false });
+const CodeEditorBroken = dynamic(() => import('@/Shared/CodeEditor.broken'), { ssr: false });
+
+// ModManager versions
+const ModManagerStable = dynamic(() => import('@/ModManager'), { ssr: false });
+const ModManagerLite = dynamic(() => import('@/Shared/ModManager.lite'), { ssr: false });
+const ModManagerBroken = dynamic(() => import('@/Shared/ModManager.broken'), { ssr: false });
+
+// Community versions
+const CommunityStable = dynamic(() => import('@/Community'), { ssr: false });
+const CommunityLite = dynamic(() => import('@/Shared/Community.lite'), { ssr: false });
+const CommunityBroken = dynamic(() => import('@/Shared/Community.broken'), { ssr: false });
+
+// Profile versions
+const ProfileStable = dynamic(() => import('@/Profile'), { ssr: false });
+const ProfileLite = dynamic(() => import('@/Shared/Profile.lite'), { ssr: false });
+const ProfileBroken = dynamic(() => import('@/Shared/Profile.broken'), { ssr: false });
+
+// CWAInstaller versions
+const CWAInstallerStable = dynamic(() => import('@/CWAInstaller'), { ssr: false });
+const CWAInstallerLite = dynamic(() => import('@/Shared/CWAInstaller.lite'), { ssr: false });
+const CWAInstallerBroken = dynamic(() => import('@/Shared/CWAInstaller.broken'), { ssr: false });
+
+// QuantumPWAInstaller versions
+const QuantumPWAInstallerStable = dynamic(() => import('@/PWAInstaller'), { ssr: false });
+const QuantumPWAInstallerLite = dynamic(() => import('@/Shared/PWAInstaller.lite'), { ssr: false });
+const QuantumPWAInstallerBroken = dynamic(() => import('@/Shared/PWAInstaller.broken'), { ssr: false });
+
+// ===== COMPONENT VERSION MAP =====
+const VERSION_MAP = {
+  ThreeWorld:   { stable: ThreeWorldStable,   lite: ThreeWorldLite,   broken: ThreeWorldBroken },
+  CodeEditor:   { stable: CodeEditorStable,   lite: CodeEditorLite,   broken: CodeEditorBroken },
+  ModManager:   { stable: ModManagerStable,   lite: ModManagerLite,   broken: ModManagerBroken },
+  Community:    { stable: CommunityStable,    lite: CommunityLite,    broken: CommunityBroken },
+  Profile:      { stable: ProfileStable,      lite: ProfileLite,      broken: ProfileBroken },
+  CWAInstaller: { stable: CWAInstallerStable, lite: CWAInstallerLite, broken: CWAInstallerBroken },
+  QuantumPWAInstaller: { stable: QuantumPWAInstallerStable, lite: QuantumPWAInstallerLite, broken: QuantumPWAInstallerBroken }
+};
+
 // Quantum Installation System
 import { quantumInstallation, getQuantumStateSummary } from '~/quantum-installation';
 
@@ -134,6 +192,51 @@ function AppContent() {
     fpsLimit: 60
   });
 
+  // ========================================
+  // ===== QUANTUM VERSION MIXER =====
+  // ========================================
+  const STORAGE_KEY = 'quantum-component-versions';
+  const defaultVersions = {
+    ThreeWorld: 'stable',
+    CodeEditor: 'stable',
+    ModManager: 'stable',
+    Community: 'stable',
+    Profile: 'stable',
+    CWAInstaller: 'stable',
+    QuantumPWAInstaller: 'stable'
+  };
+
+  const [componentVersions, setComponentVersions] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          return { ...defaultVersions, ...JSON.parse(saved) };
+        } catch (e) {}
+      }
+    }
+    return defaultVersions;
+  });
+
+  // Persist version choices
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(componentVersions));
+    }
+  }, [componentVersions]);
+
+  // Helper: get current component based on selected version
+  const getComponent = useCallback((componentName) => {
+    const version = componentVersions[componentName] || 'stable';
+    return VERSION_MAP[componentName]?.[version] || VERSION_MAP[componentName]?.stable;
+  }, [componentVersions]);
+
+  // Update single component version
+  const setComponentVersion = useCallback((component, version) => {
+    setComponentVersions(prev => ({ ...prev, [component]: version }));
+    addNotification(`⚛️ ${component} set to ${version}`, 'quantum');
+  }, []);
+
   // ========== ACCESSIBILITY DETECTION ==========
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -159,9 +262,10 @@ function AppContent() {
       if (e.altKey && e.key === 'w') { e.preventDefault(); navigateToTab('world'); }
       if (e.altKey && e.key === 'e') { e.preventDefault(); toggleQuantumEditor(); }
       if (e.altKey && e.key === 'c') { e.preventDefault(); navigateToTab('community'); }
-      if (e.altKey && e.key === 'p') { e.preventDefault(); setShowProfileOverlay(true); } // Profile overlay
-      if (e.altKey && e.key === 'i') { e.preventDefault(); navigateToTab('installer'); } // New installer tab
-      if (e.altKey && e.key === 'a') { e.preventDefault(); navigateToTab('cwa'); } // New CWA tab
+      if (e.altKey && e.key === 'p') { e.preventDefault(); setShowProfileOverlay(true); }
+      if (e.altKey && e.key === 'i') { e.preventDefault(); navigateToTab('installer'); }
+      if (e.altKey && e.key === 'a') { e.preventDefault(); navigateToTab('cwa'); }
+      if (e.altKey && e.key === 'm') { e.preventDefault(); navigateToTab('mixer'); } // NEW MIXER TAB
       if (e.altKey && e.key === 'n') { e.preventDefault(); handleNewWorld(); }
       if (e.altKey && e.shiftKey && e.key === 'P') { e.preventDefault(); togglePerformanceMode(); }
     };
@@ -470,7 +574,7 @@ function AppContent() {
     return () => { window.removeEventListener('resize', handleResize); if (animationRef.current) cancelAnimationFrame(animationRef.current); };
   }, [chaosLevel, quantumField, isReducedMotion, performanceMode]);
 
-  // ========== RENDER FULLSCREEN TAB ==========
+  // ========== RENDER FULLSCREEN TAB (VERSION AWARE) ==========
   const renderFullscreenTab = useCallback(() => {
     if (activeTab === 'loading') {
       return (
@@ -482,10 +586,13 @@ function AppContent() {
     }
     
     switch (activeTab) {
-      case 'world':
+      case 'world': {
+        const ThreeWorldComponent = getComponent('ThreeWorld');
+        const CodeEditorComponent = showEditor ? getComponent('CodeEditor') : null;
+        const ModManagerComponent = getComponent('ModManager');
         return (
           <div className="quantum-fullscreen-tab world-tab">
-            <ThreeWorld 
+            <ThreeWorldComponent 
               addNotification={addNotification}
               worldName={worldName}
               onModDrop={handleModDropIntoWorld}
@@ -497,9 +604,9 @@ function AppContent() {
               highContrast={highContrast}
               performanceMode={performanceMode}
             />
-            {showEditor && (
+            {showEditor && CodeEditorComponent && (
               <div className="quantum-editor-floating">
-                <CodeEditor 
+                <CodeEditorComponent 
                   onClose={() => setShowEditor(false)}
                   addNotification={addNotification}
                   quantumState={quantumState}
@@ -507,9 +614,8 @@ function AppContent() {
                 />
               </div>
             )}
-            {/* Mod Manager Sidebar - overlaid on fullscreen world */}
             <aside className="quantum-mod-sidebar">
-              <ModManager 
+              <ModManagerComponent 
                 addNotification={addNotification}
                 onModDragStart={handleModDragStart}
                 isWorldReady={isThreeWorldReady && !webGLError}
@@ -519,11 +625,13 @@ function AppContent() {
             </aside>
           </div>
         );
+      }
       
-      case 'community':
+      case 'community': {
+        const CommunityComponent = getComponent('Community');
         return (
           <div className="quantum-fullscreen-tab community-tab">
-            <Community 
+            <CommunityComponent 
               addNotification={addNotification}
               encryptedParams={encryptedParams}
               reducedMotion={isReducedMotion}
@@ -533,29 +641,76 @@ function AppContent() {
             />
           </div>
         );
+      }
       
-      case 'installer':
+      case 'installer': {
+        const QuantumPWAInstallerComponent = getComponent('QuantumPWAInstaller');
         return (
           <div className="quantum-fullscreen-tab installer-tab">
             <div className="installer-grid">
-              <QuantumPWAInstaller addNotification={addNotification} />
+              <QuantumPWAInstallerComponent addNotification={addNotification} />
             </div>
           </div>
         );
+      }
       
-      case 'cwa':
+      case 'cwa': {
+        const CWAInstallerComponent = getComponent('CWAInstaller');
         return (
           <div className="quantum-fullscreen-tab cwa-tab">
             <div className="installer-grid">
-              <CWAInstaller addNotification={addNotification} />
+              <CWAInstallerComponent addNotification={addNotification} />
+            </div>
+          </div>
+        );
+      }
+
+      // ===== NEW: VERSION MIXER TAB =====
+      case 'mixer':
+        return (
+          <div className="quantum-fullscreen-tab mixer-tab">
+            <div className="mixer-container">
+              <h2 className="mixer-title">🌀 Quantum Version Mixer</h2>
+              <p className="mixer-subtitle">
+                Choose which reality each component manifests from.<br/>
+                Mix stable, lite, and broken versions to generate emergent chaos.
+              </p>
+              <div className="mixer-grid">
+                {Object.keys(VERSION_MAP).map(component => (
+                  <div key={component} className="mixer-card">
+                    <span className="mixer-component-name">{component}</span>
+                    <select
+                      className="mixer-select"
+                      value={componentVersions[component] || 'stable'}
+                      onChange={(e) => setComponentVersion(component, e.target.value)}
+                    >
+                      <option value="stable">🧬 Stable</option>
+                      <option value="lite">⚡ Lite</option>
+                      <option value="broken">💥 Broken</option>
+                    </select>
+                    <div className="mixer-quantum-effect">
+                      {componentVersions[component] === 'broken' && '⚠️ Chaos imminent'}
+                      {componentVersions[component] === 'lite' && '⚡ Performance mode'}
+                      {componentVersions[component] === 'stable' && '🧊 Reality stable'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                className="mixer-reset-btn"
+                onClick={() => setComponentVersions(defaultVersions)}
+              >
+                ↺ Reset to Stable Reality
+              </button>
             </div>
           </div>
         );
       
-      default:
+      default: {
+        const ThreeWorldComponent = getComponent('ThreeWorld');
         return (
           <div className="quantum-fullscreen-tab world-tab">
-            <ThreeWorld 
+            <ThreeWorldComponent 
               addNotification={addNotification}
               worldName={worldName}
               onReady={handleThreeWorldReady}
@@ -567,11 +722,16 @@ function AppContent() {
             />
           </div>
         );
+      }
     }
-  }, [activeTab, worldName, handleModDropIntoWorld, isDraggingOverWorld, handleThreeWorldReady, 
-      handleWebGLError, chaosLevel, realityCoefficient, temporalDisplacement, spatialDistortion, 
-      quantumField, encryptedParams, quantumState, isReducedMotion, highContrast, screenReaderMode,
-      performanceMode, showEditor, isThreeWorldReady, webGLError]);
+  }, [
+    activeTab, worldName, handleModDropIntoWorld, isDraggingOverWorld,
+    handleThreeWorldReady, handleWebGLError, chaosLevel, realityCoefficient,
+    temporalDisplacement, spatialDistortion, quantumField, encryptedParams,
+    quantumState, isReducedMotion, highContrast, screenReaderMode, performanceMode,
+    showEditor, isThreeWorldReady, webGLError, getComponent, componentVersions,
+    setComponentVersion
+  ]);
 
   // ========== RENDER JSX WITH EMBEDDED CSS ==========
   return (
@@ -663,7 +823,7 @@ function AppContent() {
           padding: 0;
         }
 
-        .community-tab, .installer-tab, .cwa-tab {
+        .community-tab, .installer-tab, .cwa-tab, .mixer-tab {
           padding: 2rem;
         }
 
@@ -858,7 +1018,7 @@ function AppContent() {
         .quantum-avatar-3d:hover { transform: scale(1.1); border-color: white; }
         .avatar-quantum-core { position: absolute; width: 100%; height: 100%; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.3), transparent); }
 
-        /* ---------- PROFILE OVERLAY (USING REAL PROFILE COMPONENT) ---------- */
+        /* ---------- PROFILE OVERLAY ---------- */
         .profile-overlay-global {
           position: fixed;
           top: 0;
@@ -883,7 +1043,7 @@ function AppContent() {
           100% { opacity: 1; transform: scale(1) translateY(0); }
         }
 
-        /* ---------- MOD MANAGER SIDEBAR (OVERLAY ON WORLD) ---------- */
+        /* ---------- MOD MANAGER SIDEBAR ---------- */
         .quantum-mod-sidebar {
           position: absolute;
           top: 100px;
@@ -906,7 +1066,7 @@ function AppContent() {
           to { opacity: 1; transform: translateX(0); }
         }
 
-        /* ---------- INSTALLER GRID (FULLSCREEN TABS) ---------- */
+        /* ---------- INSTALLER GRID ---------- */
         .installer-grid {
           display: flex;
           align-items: center;
@@ -972,6 +1132,114 @@ function AppContent() {
         }
         .status-icon { color: var(--quantum-secondary); font-size: 1rem; }
 
+        /* ---------- NEW: VERSION MIXER STYLES ---------- */
+        .mixer-tab {
+          padding: 2rem;
+          display: flex;
+          align-items: flex-start;
+          justify-content: center;
+          overflow-y: auto;
+        }
+        .mixer-container {
+          max-width: 1200px;
+          width: 100%;
+          background: var(--quantum-surface-glass);
+          backdrop-filter: blur(20px);
+          border: 1px solid var(--quantum-border);
+          border-radius: 32px;
+          padding: 40px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+          animation: mixerAppear 0.5s ease;
+        }
+        @keyframes mixerAppear {
+          from { opacity: 0; transform: scale(0.96); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        .mixer-title {
+          font-size: 2.5rem;
+          font-weight: 800;
+          background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          margin-bottom: 16px;
+          text-align: center;
+        }
+        .mixer-subtitle {
+          color: rgba(255,255,255,0.7);
+          text-align: center;
+          margin-bottom: 40px;
+          font-size: 1.1rem;
+        }
+        .mixer-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 24px;
+          margin-bottom: 40px;
+        }
+        .mixer-card {
+          background: rgba(20, 30, 50, 0.6);
+          border: 1px solid var(--quantum-border);
+          border-radius: 20px;
+          padding: 24px;
+          transition: all 0.3s ease;
+        }
+        .mixer-card:hover {
+          border-color: var(--quantum-primary);
+          box-shadow: 0 0 30px rgba(108,92,231,0.2);
+          transform: translateY(-2px);
+        }
+        .mixer-component-name {
+          display: block;
+          font-size: 1.4rem;
+          font-weight: 700;
+          margin-bottom: 16px;
+          color: white;
+          text-shadow: 0 0 10px rgba(108,92,231,0.3);
+        }
+        .mixer-select {
+          width: 100%;
+          padding: 12px 16px;
+          background: rgba(10, 15, 30, 0.8);
+          border: 1px solid var(--quantum-border);
+          border-radius: 40px;
+          color: white;
+          font-size: 1rem;
+          cursor: pointer;
+          outline: none;
+          transition: all 0.2s;
+          margin-bottom: 12px;
+        }
+        .mixer-select:hover {
+          border-color: var(--quantum-secondary);
+          background: rgba(30, 40, 70, 0.8);
+        }
+        .mixer-quantum-effect {
+          font-size: 0.9rem;
+          color: var(--quantum-secondary);
+          opacity: 0.9;
+          padding-top: 8px;
+          border-top: 1px dashed rgba(162,155,254,0.3);
+        }
+        .mixer-reset-btn {
+          background: linear-gradient(135deg, #fd79a8, #e84393);
+          border: none;
+          padding: 16px 32px;
+          border-radius: 50px;
+          color: white;
+          font-weight: 700;
+          font-size: 1.1rem;
+          cursor: pointer;
+          display: block;
+          margin: 0 auto;
+          transition: all 0.3s;
+          box-shadow: 0 0 30px rgba(253,121,168,0.3);
+        }
+        .mixer-reset-btn:hover {
+          transform: scale(1.05);
+          box-shadow: 0 0 50px rgba(253,121,168,0.6);
+        }
+
         /* ---------- RESPONSIVE ---------- */
         @media (max-width: 1200px) {
           .quantum-header { flex-direction: column; align-items: stretch; height: auto; border-radius: 20px; }
@@ -1018,6 +1286,10 @@ function AppContent() {
             <button className={`quantum-nav-link ${activeTab === 'cwa' ? 'active' : ''}`} onClick={() => navigateToTab('cwa')}>
               <i className="fas fa-bolt" /> CWA
             </button>
+            {/* NEW MIXER TAB */}
+            <button className={`quantum-nav-link ${activeTab === 'mixer' ? 'active' : ''}`} onClick={() => navigateToTab('mixer')}>
+              <i className="fas fa-sliders-h" /> Mixer
+            </button>
             <button className="quantum-nav-link" onClick={toggleQuantumEditor} aria-pressed={showEditor}>
               <i className="fas fa-atom" /> Editor
             </button>
@@ -1030,7 +1302,7 @@ function AppContent() {
               <button className="btn-quantum-accent" onClick={handleShareWorld}><i className="fas fa-share" /> Share</button>
             </div>
             
-            {/* AVATAR - CLICK TO SHOW PROFILE OVERLAY (REAL Profile.jsx) */}
+            {/* AVATAR - CLICK TO SHOW PROFILE OVERLAY */}
             <div className="quantum-avatar-container">
               <button className="quantum-avatar-3d" onClick={() => setShowProfileOverlay(true)} aria-label="Open quantum profile">
                 <div className="avatar-quantum-core"></div>
@@ -1045,17 +1317,22 @@ function AppContent() {
           {renderFullscreenTab()}
         </main>
 
-        {/* PROFILE OVERLAY - USING REAL IMPORTED PROFILE COMPONENT */}
+        {/* PROFILE OVERLAY - VERSIONED PROFILE COMPONENT */}
         {showProfileOverlay && (
           <div className="profile-overlay-global">
-            <Profile 
-              addNotification={addNotification}
-              quantumState={quantumState}
-              reducedMotion={isReducedMotion}
-              highContrast={highContrast}
-              performanceMode={performanceMode}
-              onClose={() => setShowProfileOverlay(false)}
-            />
+            {(() => {
+              const ProfileComponent = getComponent('Profile');
+              return (
+                <ProfileComponent 
+                  addNotification={addNotification}
+                  quantumState={quantumState}
+                  reducedMotion={isReducedMotion}
+                  highContrast={highContrast}
+                  performanceMode={performanceMode}
+                  onClose={() => setShowProfileOverlay(false)}
+                />
+              );
+            })()}
           </div>
         )}
 
@@ -1081,11 +1358,19 @@ function AppContent() {
           ))}
         </div>
 
-        {/* QUANTUM INSTALLERS (if not dismissed) */}
+        {/* QUANTUM INSTALLERS (versioned) */}
         {showQuantumInstaller && (
           <>
-            <CWAInstaller addNotification={addNotification} />
-            <QuantumPWAInstaller addNotification={addNotification} />
+            {(() => {
+              const CWAComponent = getComponent('CWAInstaller');
+              const PWAComponent = getComponent('QuantumPWAInstaller');
+              return (
+                <>
+                  <CWAComponent addNotification={addNotification} />
+                  <PWAComponent addNotification={addNotification} />
+                </>
+              );
+            })()}
           </>
         )}
       </div>
