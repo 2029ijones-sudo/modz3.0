@@ -26,6 +26,7 @@ import {
   HardDrive,
   Gauge,
   AlertTriangle,
+  X, // <-- Added missing import
 } from 'lucide-react';
 
 // ===== 1. IMPORT CHAOS ENGINE =====
@@ -216,6 +217,37 @@ function AppContent() {
     resolutionScale: 1.0,
   });
 
+  // ===== FIX #1: ADD MISSING performanceMode STATE =====
+  // Simple flags derived from performanceSettings for quick checks
+  const [performanceMode, setPerformanceMode] = useState(() => {
+    // Initialize from default performanceSettings (high profile)
+    return {
+      lowQuality: false,
+      disableEffects: false,
+      disableAnimations: false,
+      reduceParticles: false,
+      disableShadows: false,
+      simpleRendering: false,
+      fpsLimit: 60,
+    };
+  });
+
+  // ===== FIX #2: SYNC performanceMode WITH performanceSettings =====
+  // Whenever performanceSettings changes, update the simple flags
+  useEffect(() => {
+    const settings = performanceSettings;
+    const newMode = {
+      lowQuality: settings.textureQuality === 'low' || settings.shadows === 'off',
+      disableEffects: !settings.postProcessing,
+      disableAnimations: settings.particles < 50,
+      reduceParticles: settings.particles < 150,
+      disableShadows: settings.shadows === 'off',
+      simpleRendering: settings.antiAliasing === 'off' && !settings.postProcessing,
+      fpsLimit: settings.fpsLimit,
+    };
+    setPerformanceMode(newMode);
+  }, [performanceSettings]);
+
   // Predefined performance profiles
   const performanceProfiles = {
     ultra: {
@@ -328,10 +360,12 @@ function AppContent() {
     detectCapabilities();
   }, []);
 
-  // FPS monitoring
+  // ===== FIX #3: PROPER RAF CLEANUP FOR FPS MONITORING =====
   useEffect(() => {
     let frameCount = 0;
     let lastTime = performance.now();
+    let rafId;
+
     const measureFPS = () => {
       frameCount++;
       const now = performance.now();
@@ -342,10 +376,11 @@ function AppContent() {
         frameCount = 0;
         lastTime = now;
       }
-      requestAnimationFrame(measureFPS);
+      rafId = requestAnimationFrame(measureFPS);
     };
-    const raf = requestAnimationFrame(measureFPS);
-    return () => cancelAnimationFrame(raf);
+
+    rafId = requestAnimationFrame(measureFPS);
+    return () => cancelAnimationFrame(rafId);
   }, []);
 
   // Auto-adjust performance based on FPS and chaos
@@ -353,7 +388,6 @@ function AppContent() {
     if (fps < 20 && performanceLevel !== 'potato') {
       setPerformanceLevel('potato');
       setPerformanceSettings(performanceProfiles.potato);
-      addNotification('⚠️ Performance dropped to POTATO mode', 'warning');
     } else if (fps < 30 && performanceLevel === 'high') {
       setPerformanceLevel('medium');
       setPerformanceSettings(performanceProfiles.medium);
@@ -479,7 +513,7 @@ function AppContent() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTab, showEditor]);
+  }, [activeTab, showEditor, navigateToTab, toggleQuantumEditor, handleNewWorld, togglePerformanceMode]);
 
   // ===== PERFORMANCE DETECTION (original) =====
   useEffect(() => {
@@ -513,6 +547,8 @@ function AppContent() {
       simpleRendering: false,
       fpsLimit: 60,
     };
+    let settings = { ...performanceProfiles.high };
+
     if (performanceScore < 3 || isLowEndGPU || detectedMemoryValue < 2) {
       level = 'extreme';
       perfFlags = {
@@ -524,6 +560,7 @@ function AppContent() {
         simpleRendering: true,
         fpsLimit: 30,
       };
+      settings = performanceProfiles.potato;
     } else if (performanceScore < 6 || detectedMemoryValue < 4) {
       level = 'low';
       perfFlags = {
@@ -535,6 +572,7 @@ function AppContent() {
         simpleRendering: false,
         fpsLimit: 40,
       };
+      settings = performanceProfiles.low;
     } else if (performanceScore < 9 || detectedMemoryValue < 6) {
       level = 'medium';
       perfFlags = {
@@ -546,16 +584,21 @@ function AppContent() {
         simpleRendering: false,
         fpsLimit: 50,
       };
+      settings = performanceProfiles.medium;
     }
+
     setPerformanceLevel(level);
-    setPerformanceMode(perfFlags);
+    setPerformanceMode(perfFlags);   // <-- now defined
+    setPerformanceSettings(settings); // keep settings in sync
   }, []);
 
+  // ===== FIX #4: TOGGLE PERFORMANCE MODE UPDATES BOTH =====
   const togglePerformanceMode = useCallback(() => {
     const body = document.body;
     const isExtreme = body.classList.contains('extreme-performance-mode');
     const isLow = body.classList.contains('low-performance');
-    let newMode, newPerfFlags;
+    let newMode, newPerfFlags, newSettings;
+
     if (isExtreme) {
       body.classList.remove('extreme-performance-mode');
       body.classList.add('low-performance');
@@ -569,6 +612,7 @@ function AppContent() {
         simpleRendering: false,
         fpsLimit: 40,
       };
+      newSettings = performanceProfiles.low;
       setPerformanceLevel('low');
     } else if (isLow) {
       body.classList.remove('low-performance');
@@ -582,6 +626,7 @@ function AppContent() {
         simpleRendering: false,
         fpsLimit: 60,
       };
+      newSettings = performanceProfiles.high;
       setPerformanceLevel('high');
     } else {
       body.classList.add('extreme-performance-mode');
@@ -595,9 +640,12 @@ function AppContent() {
         simpleRendering: true,
         fpsLimit: 30,
       };
+      newSettings = performanceProfiles.potato;
       setPerformanceLevel('extreme');
     }
+
     setPerformanceMode(newPerfFlags);
+    setPerformanceSettings(newSettings); // <-- now also updates settings
     addNotification(`Performance mode: ${newMode}`, 'info');
   }, []);
 
@@ -619,7 +667,7 @@ function AppContent() {
         console.error('Quantum initialization failed:', error);
       }
     }
-  }, [isReducedMotion, performanceMode.disableAnimations]);
+  }, [isReducedMotion, performanceMode.disableAnimations, startQuantumVisualization]);
 
   const handleQuantumEvent = useCallback((event) => {
     const { detail } = event;
@@ -659,7 +707,7 @@ function AppContent() {
       3000
     );
     addNotification(`Quantum ${type} effect triggered!`, 'info');
-  }, []);
+  }, [addNotification]);
 
   // ===== FULLSCREEN TAB NAVIGATION =====
   const navigateToTab = useCallback(
@@ -681,13 +729,13 @@ function AppContent() {
         window.history.replaceState({}, '', `?e=${encrypted}`);
       }
     },
-    [worldName]
+    [worldName, addNotification] // added addNotification dependency
   );
 
   const toggleQuantumEditor = useCallback(() => {
     setShowEditor(!showEditor);
     addNotification(!showEditor ? 'Quantum code editor activated' : 'Quantum editor closed', 'info');
-  }, [showEditor]);
+  }, [showEditor, addNotification]);
 
   // ===== NOTIFICATIONS =====
   const addNotification = useCallback(
@@ -708,18 +756,18 @@ function AppContent() {
   const handleThreeWorldReady = useCallback(() => {
     setIsThreeWorldReady(true);
     addNotification('Quantum Reality Field stabilized. 3D World ready!', 'success');
-  }, []);
+  }, [addNotification]);
 
   const handleWebGLError = useCallback((errorMessage) => {
     setWebGLError(errorMessage);
     addNotification(`Quantum Rendering Error: ${errorMessage}`, 'error');
-  }, []);
+  }, [addNotification]);
 
   // ===== DRAG AND DROP =====
   const handleModDragStart = useCallback((mod) => {
     setDraggedMod(mod);
     addNotification(`Quantum entanglement established with ${mod.name}`, 'info');
-  }, []);
+  }, [addNotification]);
 
   const handleModDropIntoWorld = useCallback(
     (position) => {
@@ -731,7 +779,7 @@ function AppContent() {
         setDraggedMod(null);
       }
     },
-    [draggedMod]
+    [draggedMod, addNotification]
   );
 
   // ===== WORLD ACTIONS =====
@@ -741,14 +789,14 @@ function AppContent() {
       setWorldName(name);
       addNotification(`Quantum world "${name}" created.`, 'success');
     }
-  }, []);
+  }, [addNotification]);
 
   const handleClearWorld = useCallback(() => {
     if (confirm('Collapse quantum superposition? This will clear the entire reality field.')) {
       window.dispatchEvent(new CustomEvent('clear-world'));
       addNotification('Quantum reality field collapsed. World cleared.', 'success');
     }
-  }, []);
+  }, [addNotification]);
 
   const handleImportWorld = useCallback(() => {
     const input = document.createElement('input');
@@ -761,12 +809,12 @@ function AppContent() {
       }
     };
     input.click();
-  }, []);
+  }, [addNotification]);
 
   const handleExportWorld = useCallback(() => {
     addNotification('Quantum reality export in progress...', 'info');
     window.dispatchEvent(new CustomEvent('export-world'));
-  }, []);
+  }, [addNotification]);
 
   const generateQuantumShareLink = useCallback(() => {
     const data = {
@@ -793,7 +841,7 @@ function AppContent() {
       navigator.clipboard.writeText(shareLink);
       addNotification('Quantum share link copied to clipboard!', 'success');
     }
-  }, [worldName, generateQuantumShareLink]);
+  }, [worldName, generateQuantumShareLink, addNotification]);
 
   // ===== PWA / CWA INSTALLATION =====
   useEffect(() => {
@@ -838,7 +886,7 @@ function AppContent() {
     return () => {
       if (announcer) announcer.remove();
     };
-  }, [searchParams, initializeQuantumSystem]);
+  }, [searchParams, initializeQuantumSystem, addNotification]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -945,7 +993,7 @@ function AppContent() {
               reducedMotion={isReducedMotion}
               highContrast={highContrast}
               performanceMode={performanceMode}
-              performanceSettings={performanceSettings} // new prop
+              performanceSettings={performanceSettings}
             />
             {showEditor && CodeEditorComponent && (
               <div className="quantum-editor-floating">
@@ -1092,12 +1140,13 @@ function AppContent() {
     componentVersions,
     setComponentVersion,
     performanceSettings,
+    addNotification,
   ]);
 
   // ===== RENDER JSX =====
   return (
     <>
-      {/* ===== IMMERSIVE QUANTUM CSS ===== */}
+      {/* ===== IMMERSIVE QUANTUM CSS ===== (unchanged) */}
       <style jsx global>{`
         /* ---------- QUANTUM DESIGN SYSTEM 3.0 ---------- */
         :root {
@@ -1952,7 +2001,7 @@ function AppContent() {
                   <Gauge className="inline mr-2" size={20} /> Performance Dashboard
                 </span>
                 <button className="close-btn" onClick={() => setShowPerformanceDashboard(false)}>
-                  <X size={18} />
+                  <X size={18} /> {/* Now imported */}
                 </button>
               </div>
 
