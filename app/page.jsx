@@ -26,12 +26,12 @@ import {
   HardDrive,
   Gauge,
   AlertTriangle,
-  X, // <-- Added missing import
+  X,
 } from 'lucide-react';
 
-// ===== 1. IMPORT CHAOS ENGINE =====
+// ===== 1. DYNAMIC IMPORTS =====
 const ChaosEngine = dynamic(() => import('@/Chaos'), { ssr: false });
-// ===== 2. DYNAMIC IMPORTS OF MAIN COMPONENTS =====
+
 const ThreeWorld = dynamic(() => import('@/Src/ThreeWorlds'), {
   ssr: false,
   loading: () => (
@@ -57,7 +57,7 @@ const QuantumPWAInstaller = dynamic(() => import('@/PWAInstaller'), {
   loading: () => <div className="quantum-tab-loading">Quantum Entangling PWA...</div>,
 });
 
-// ===== 3. VERSIONED IMPORTS FOR QUANTUM MIXER =====
+// ===== 2. VERSIONED IMPORTS FOR QUANTUM MIXER =====
 const ThreeWorldStable = dynamic(() => import('@/Src/ThreeWorlds'), {
   ssr: false,
   loading: () => <div className="quantum-tab-loading-full">🌍 Stable World</div>,
@@ -95,7 +95,7 @@ const QuantumPWAInstallerStable = dynamic(() => import('@/PWAInstaller'), { ssr:
 const QuantumPWAInstallerLite = dynamic(() => import('@/Shared/PWAInstaller.lite'), { ssr: false });
 const QuantumPWAInstallerBroken = dynamic(() => import('@/Shared/PWAInstaller.broken'), { ssr: false });
 
-// ===== 4. COMPONENT VERSION MAP =====
+// ===== 3. COMPONENT VERSION MAP =====
 const VERSION_MAP = {
   ThreeWorld: { stable: ThreeWorldStable, lite: ThreeWorldLite, broken: ThreeWorldBroken },
   CodeEditor: { stable: CodeEditorStable, lite: CodeEditorLite, broken: CodeEditorBroken },
@@ -106,15 +106,13 @@ const VERSION_MAP = {
   QuantumPWAInstaller: { stable: QuantumPWAInstallerStable, lite: QuantumPWAInstallerLite, broken: QuantumPWAInstallerBroken },
 };
 
-// ===== 5. QUANTUM INSTALLATION SYSTEM =====
-import { quantumInstallation, getQuantumStateSummary } from '~/quantum-installation';
-
-// ===== 6. ENCRYPTION UTILITIES =====
+// ===== 4. ENCRYPTION UTILITIES (no external dependency) =====
 const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || 'quantum-mods-secret-key-2024';
 
 const encryptData = (data) => {
   try {
-    const quantumEntropy = quantumInstallation.quantumState?.quantumSignature || Math.random().toString(36);
+    // Use only Math.random() for entropy – no external module
+    const quantumEntropy = Math.random().toString(36);
     const enhancedKey = CryptoJS.SHA256(ENCRYPTION_KEY + quantumEntropy).toString();
     const encrypted = CryptoJS.AES.encrypt(JSON.stringify(data), enhancedKey).toString();
     return encodeURIComponent(encrypted);
@@ -126,7 +124,7 @@ const encryptData = (data) => {
 
 const decryptData = (encrypted) => {
   try {
-    const quantumEntropy = quantumInstallation.quantumState?.quantumSignature || Math.random().toString(36);
+    const quantumEntropy = Math.random().toString(36);
     const enhancedKey = CryptoJS.SHA256(ENCRYPTION_KEY + quantumEntropy).toString();
     const decrypted = CryptoJS.AES.decrypt(decodeURIComponent(encrypted), enhancedKey);
     return JSON.parse(decrypted.toString(CryptoJS.enc.Utf8));
@@ -136,7 +134,7 @@ const decryptData = (encrypted) => {
   }
 };
 
-// ===== 7. ACCESSIBILITY UTILITIES =====
+// ===== 5. ACCESSIBILITY UTILITIES =====
 const announceToScreenReader = (message, priority = 'polite') => {
   if (typeof window === 'undefined') return;
   const announcer = document.getElementById('quantum-announcer');
@@ -158,7 +156,7 @@ function AppContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // ===== FULLSCREEN TAB SYSTEM =====
+  // ===== STATE =====
   const [activeTab, setActiveTab] = useState('world');
   const [showEditor, setShowEditor] = useState(false);
   const [showProfileOverlay, setShowProfileOverlay] = useState(false);
@@ -171,13 +169,23 @@ function AppContent() {
   const [isDraggingOverWorld, setIsDraggingOverWorld] = useState(false);
   const [webGLError, setWebGLError] = useState(null);
   const [isThreeWorldReady, setIsThreeWorldReady] = useState(false);
-  const [quantumState, setQuantumState] = useState(null);
+
+  // Quantum state values (now static fallbacks, but can be updated by ChaosEngine events)
+  const [quantumState, setQuantumState] = useState({
+    chaosLevel: 0,
+    realityCoefficient: 1.0,
+    temporalDisplacement: 0,
+    spatialDistortion: 1.0,
+    quantumFieldStrength: 0,
+    quantumSignature: Math.random().toString(36),
+  });
   const [chaosLevel, setChaosLevel] = useState(0);
   const [realityCoefficient, setRealityCoefficient] = useState(1.0);
   const [temporalDisplacement, setTemporalDisplacement] = useState(0);
   const [spatialDistortion, setSpatialDistortion] = useState(1.0);
   const [quantumField, setQuantumField] = useState(0);
   const [quantumEffects, setQuantumEffects] = useState([]);
+
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
@@ -187,7 +195,7 @@ function AppContent() {
   const [highContrast, setHighContrast] = useState(false);
   const [screenReaderMode, setScreenReaderMode] = useState(false);
 
-  // ===== ADVANCED PERFORMANCE MODE =====
+  // ===== PERFORMANCE MODE =====
   const [fps, setFps] = useState(60);
   const [fpsHistory, setFpsHistory] = useState([]);
   const [memoryUsage, setMemoryUsage] = useState('--');
@@ -201,7 +209,6 @@ function AppContent() {
   const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false);
   const [detectedMemory, setDetectedMemory] = useState(8);
 
-  // Granular performance settings
   const [performanceSettings, setPerformanceSettings] = useState({
     shadows: 'medium',
     particles: 100,
@@ -216,23 +223,16 @@ function AppContent() {
     resolutionScale: 1.0,
   });
 
-  // ===== FIX #1: ADD MISSING performanceMode STATE =====
-  // Simple flags derived from performanceSettings for quick checks
-  const [performanceMode, setPerformanceMode] = useState(() => {
-    // Initialize from default performanceSettings (high profile)
-    return {
-      lowQuality: false,
-      disableEffects: false,
-      disableAnimations: false,
-      reduceParticles: false,
-      disableShadows: false,
-      simpleRendering: false,
-      fpsLimit: 60,
-    };
+  const [performanceMode, setPerformanceMode] = useState({
+    lowQuality: false,
+    disableEffects: false,
+    disableAnimations: false,
+    reduceParticles: false,
+    disableShadows: false,
+    simpleRendering: false,
+    fpsLimit: 60,
   });
 
-  // ===== FIX #2: SYNC performanceMode WITH performanceSettings =====
-  // Whenever performanceSettings changes, update the simple flags
   useEffect(() => {
     const settings = performanceSettings;
     const newMode = {
@@ -247,7 +247,6 @@ function AppContent() {
     setPerformanceMode(newMode);
   }, [performanceSettings]);
 
-  // Predefined performance profiles
   const performanceProfiles = {
     ultra: {
       shadows: 'high',
@@ -319,15 +318,8 @@ function AppContent() {
   // Detect device capabilities
   useEffect(() => {
     const detectCapabilities = async () => {
-      // Memory
-      if (navigator.deviceMemory) {
-        setDetectedMemory(navigator.deviceMemory);
-      }
-      // CPU cores
-      if (navigator.hardwareConcurrency) {
-        setCpuCores(navigator.hardwareConcurrency);
-      }
-      // GPU info
+      if (navigator.deviceMemory) setDetectedMemory(navigator.deviceMemory);
+      if (navigator.hardwareConcurrency) setCpuCores(navigator.hardwareConcurrency);
       try {
         const canvas = document.createElement('canvas');
         const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
@@ -339,14 +331,10 @@ function AppContent() {
           }
         }
       } catch (e) {}
-      // Battery
       if ('getBattery' in navigator) {
         try {
           const battery = await navigator.getBattery();
-          setBatteryInfo({
-            level: battery.level * 100,
-            charging: battery.charging,
-          });
+          setBatteryInfo({ level: battery.level * 100, charging: battery.charging });
           battery.addEventListener('levelchange', () =>
             setBatteryInfo((prev) => ({ ...prev, level: battery.level * 100 }))
           );
@@ -359,12 +347,11 @@ function AppContent() {
     detectCapabilities();
   }, []);
 
-  // ===== FIX #3: PROPER RAF CLEANUP FOR FPS MONITORING =====
+  // FPS monitoring
   useEffect(() => {
     let frameCount = 0;
     let lastTime = performance.now();
     let rafId;
-
     const measureFPS = () => {
       frameCount++;
       const now = performance.now();
@@ -377,12 +364,11 @@ function AppContent() {
       }
       rafId = requestAnimationFrame(measureFPS);
     };
-
     rafId = requestAnimationFrame(measureFPS);
     return () => cancelAnimationFrame(rafId);
   }, []);
 
-  // Auto-adjust performance based on FPS and chaos
+  // Auto-adjust performance
   useEffect(() => {
     if (fps < 20 && performanceLevel !== 'potato') {
       setPerformanceLevel('potato');
@@ -396,7 +382,7 @@ function AppContent() {
     }
   }, [fps, performanceLevel]);
 
-  // Keyboard shortcut: Ctrl+Shift+P toggles performance dashboard
+  // Keyboard shortcut for performance dashboard
   useEffect(() => {
     const handleKey = (e) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'P') {
@@ -408,7 +394,7 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKey);
   }, []);
 
-  // ===== QUANTUM VERSION MIXER =====
+  // ===== VERSION MIXER =====
   const STORAGE_KEY = 'quantum-component-versions';
   const defaultVersions = {
     ThreeWorld: 'stable',
@@ -512,7 +498,7 @@ function AppContent() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTab, showEditor, navigateToTab, toggleQuantumEditor, handleNewWorld, togglePerformanceMode]);
+  }, [activeTab, showEditor]);
 
   // ===== PERFORMANCE DETECTION (original) =====
   useEffect(() => {
@@ -587,11 +573,10 @@ function AppContent() {
     }
 
     setPerformanceLevel(level);
-    setPerformanceMode(perfFlags);   // <-- now defined
-    setPerformanceSettings(settings); // keep settings in sync
+    setPerformanceMode(perfFlags);
+    setPerformanceSettings(settings);
   }, []);
 
-  // ===== FIX #4: TOGGLE PERFORMANCE MODE UPDATES BOTH =====
   const togglePerformanceMode = useCallback(() => {
     const body = document.body;
     const isExtreme = body.classList.contains('extreme-performance-mode');
@@ -644,21 +629,29 @@ function AppContent() {
     }
 
     setPerformanceMode(newPerfFlags);
-    setPerformanceSettings(newSettings); // <-- now also updates settings
+    setPerformanceSettings(newSettings);
     addNotification(`Performance mode: ${newMode}`, 'info');
   }, []);
 
-  // ===== QUANTUM SYSTEM =====
+  // ===== QUANTUM SYSTEM (now uses local state, no external module) =====
   const initializeQuantumSystem = useCallback(() => {
     if (typeof window !== 'undefined') {
       try {
-        const state = getQuantumStateSummary();
-        setQuantumState(state);
-        setChaosLevel(state.chaosLevel);
-        setRealityCoefficient(state.realityCoefficient);
-        setTemporalDisplacement(state.temporalDisplacement);
-        setSpatialDistortion(state.spatialDistortion);
-        setQuantumField(state.quantumFieldStrength);
+        // Use fallback values
+        const fallbackState = {
+          chaosLevel: 0,
+          realityCoefficient: 1.0,
+          temporalDisplacement: 0,
+          spatialDistortion: 1.0,
+          quantumFieldStrength: 0,
+          quantumSignature: Math.random().toString(36),
+        };
+        setQuantumState(fallbackState);
+        setChaosLevel(fallbackState.chaosLevel);
+        setRealityCoefficient(fallbackState.realityCoefficient);
+        setTemporalDisplacement(fallbackState.temporalDisplacement);
+        setSpatialDistortion(fallbackState.spatialDistortion);
+        setQuantumField(fallbackState.quantumFieldStrength);
         if (!isReducedMotion && !performanceMode.disableAnimations) {
           startQuantumVisualization();
         }
@@ -666,13 +659,19 @@ function AppContent() {
         console.error('Quantum initialization failed:', error);
       }
     }
-  }, [isReducedMotion, performanceMode.disableAnimations, startQuantumVisualization]);
+  }, [isReducedMotion, performanceMode.disableAnimations]);
 
   const handleQuantumEvent = useCallback((event) => {
     const { detail } = event;
+    // If we receive events from ChaosEngine, update state accordingly
     switch (event.type) {
       case 'quantum-state-change':
         setQuantumState(detail.quantumState);
+        setChaosLevel(detail.quantumState.chaosLevel);
+        setRealityCoefficient(detail.quantumState.realityCoefficient);
+        setTemporalDisplacement(detail.quantumState.temporalDisplacement);
+        setSpatialDistortion(detail.quantumState.spatialDistortion);
+        setQuantumField(detail.quantumState.quantumFieldStrength);
         break;
       case 'quantum-chaos-trigger':
         handleQuantumChaosTrigger(detail);
@@ -690,10 +689,8 @@ function AppContent() {
         setRealityCoefficient(detail.realityCoefficient);
         break;
       default:
-        const state = getQuantumStateSummary();
-        setQuantumState(state);
-        setChaosLevel(state.chaosLevel);
-        setQuantumField(state.quantumFieldStrength);
+        // ignore
+        break;
     }
   }, []);
 
@@ -717,18 +714,26 @@ function AppContent() {
       addNotification(`Quantum reality shifted to ${tab} dimension`, 'quantum');
       announceToScreenReader(`Navigated to ${tab} tab`);
 
+      // Build data with current state (fallback)
       const data = {
         tab,
         world: worldName,
         timestamp: Date.now(),
-        quantumState: getQuantumStateSummary(),
+        quantumState: {
+          chaosLevel,
+          realityCoefficient,
+          temporalDisplacement,
+          spatialDistortion,
+          quantumFieldStrength: quantumField,
+          quantumSignature: Math.random().toString(36),
+        },
       };
       const encrypted = encryptData(data);
       if (encrypted && typeof window !== 'undefined') {
         window.history.replaceState({}, '', `?e=${encrypted}`);
       }
     },
-    [worldName, addNotification] // added addNotification dependency
+    [worldName, addNotification, chaosLevel, realityCoefficient, temporalDisplacement, spatialDistortion, quantumField]
   );
 
   const toggleQuantumEditor = useCallback(() => {
@@ -821,11 +826,18 @@ function AppContent() {
       world: worldName,
       timestamp: Date.now(),
       source: 'quantum_shared',
-      quantumState: getQuantumStateSummary(),
+      quantumState: {
+        chaosLevel,
+        realityCoefficient,
+        temporalDisplacement,
+        spatialDistortion,
+        quantumFieldStrength: quantumField,
+        quantumSignature: Math.random().toString(36),
+      },
     };
     const encrypted = encryptData(data);
     return encrypted ? `${window.location.origin}${window.location.pathname}?e=${encrypted}` : null;
-  }, [activeTab, worldName]);
+  }, [activeTab, worldName, chaosLevel, realityCoefficient, temporalDisplacement, spatialDistortion, quantumField]);
 
   const handleShareWorld = useCallback(() => {
     const shareLink = generateQuantumShareLink();
@@ -887,17 +899,25 @@ function AppContent() {
     };
   }, [searchParams, initializeQuantumSystem, addNotification]);
 
+  // Update URL with encrypted state
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const data = {
       tab: activeTab,
       world: worldName,
       timestamp: Date.now(),
-      quantumState: getQuantumStateSummary(),
+      quantumState: {
+        chaosLevel,
+        realityCoefficient,
+        temporalDisplacement,
+        spatialDistortion,
+        quantumFieldStrength: quantumField,
+        quantumSignature: Math.random().toString(36),
+      },
     };
     const encrypted = encryptData(data);
     if (encrypted) window.history.replaceState({}, '', `?e=${encrypted}`);
-  }, [activeTab, worldName]);
+  }, [activeTab, worldName, chaosLevel, realityCoefficient, temporalDisplacement, spatialDistortion, quantumField]);
 
   // ===== QUANTUM VISUALIZATION =====
   const startQuantumVisualization = useCallback(() => {
@@ -963,7 +983,7 @@ function AppContent() {
     };
   }, [chaosLevel, quantumField, isReducedMotion, performanceMode]);
 
-  // ===== RENDER FULLSCREEN TAB (VERSION AWARE) =====
+  // ===== RENDER FULLSCREEN TAB =====
   const renderFullscreenTab = useCallback(() => {
     if (activeTab === 'loading') {
       return (
@@ -1145,7 +1165,6 @@ function AppContent() {
   // ===== RENDER JSX =====
   return (
     <>
-      {/* ===== IMMERSIVE QUANTUM CSS ===== (unchanged) */}
       <style jsx global>{`
         /* ---------- QUANTUM DESIGN SYSTEM 3.0 ---------- */
         :root {
@@ -1195,7 +1214,6 @@ function AppContent() {
           background: radial-gradient(circle at 50% 50%, var(--quantum-void) 0%, var(--quantum-deep-space) 100%);
         }
 
-        /* ---------- FULLSCREEN TAB SYSTEM ---------- */
         .quantum-app-container {
           position: fixed;
           top: 0;
@@ -1236,17 +1254,9 @@ function AppContent() {
           }
         }
 
-        .world-tab {
-          padding: 0;
-        }
-        .community-tab,
-        .installer-tab,
-        .cwa-tab,
-        .mixer-tab {
-          padding: 2rem;
-        }
+        .world-tab { padding: 0; }
+        .community-tab, .installer-tab, .cwa-tab, .mixer-tab { padding: 2rem; }
 
-        /* ---------- QUANTUM BACKGROUND CANVAS ---------- */
         .quantum-background-canvas {
           position: fixed;
           top: 0;
@@ -1258,7 +1268,6 @@ function AppContent() {
           opacity: 0.7;
         }
 
-        /* ---------- QUANTUM HEADER ---------- */
         .quantum-header {
           position: fixed;
           top: 20px;
@@ -1279,13 +1288,8 @@ function AppContent() {
         }
 
         @keyframes headerFloat {
-          0%,
-          100% {
-            transform: translateY(0);
-          }
-          50% {
-            transform: translateY(-2px);
-          }
+          0%,100% { transform: translateY(0); }
+          50% { transform: translateY(-2px); }
         }
 
         .quantum-logo {
@@ -1343,18 +1347,9 @@ function AppContent() {
           animation-delay: 1s;
         }
         @keyframes ringPulse {
-          0% {
-            transform: scale(1);
-            opacity: 0.3;
-          }
-          50% {
-            transform: scale(1.2);
-            opacity: 0.1;
-          }
-          100% {
-            transform: scale(1);
-            opacity: 0.3;
-          }
+          0% { transform: scale(1); opacity: 0.3; }
+          50% { transform: scale(1.2); opacity: 0.1; }
+          100% { transform: scale(1); opacity: 0.3; }
         }
         .quantum-logo-text {
           font-size: 1.8rem;
@@ -1376,7 +1371,6 @@ function AppContent() {
           color: transparent;
         }
 
-        /* ---------- QUANTUM NAVIGATION ---------- */
         .quantum-nav-links {
           display: flex;
           gap: 12px;
@@ -1415,11 +1409,8 @@ function AppContent() {
           color: white;
           box-shadow: 0 5px 20px var(--quantum-glow);
         }
-        .quantum-nav-link.active i {
-          color: white;
-        }
+        .quantum-nav-link.active i { color: white; }
 
-        /* ---------- USER SECTION ---------- */
         .quantum-user-section {
           display: flex;
           align-items: center;
@@ -1482,7 +1473,6 @@ function AppContent() {
           background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.3), transparent);
         }
 
-        /* ---------- PROFILE OVERLAY ---------- */
         .profile-overlay-global {
           position: fixed;
           top: 0;
@@ -1503,17 +1493,10 @@ function AppContent() {
           animation: profileAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
         @keyframes profileAppear {
-          0% {
-            opacity: 0;
-            transform: scale(0.9) translateY(30px);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
+          0% { opacity: 0; transform: scale(0.9) translateY(30px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
         }
 
-        /* ---------- MOD MANAGER SIDEBAR ---------- */
         .quantum-mod-sidebar {
           position: absolute;
           top: 100px;
@@ -1532,17 +1515,10 @@ function AppContent() {
           animation: sidebarGlide 0.5s ease;
         }
         @keyframes sidebarGlide {
-          from {
-            opacity: 0;
-            transform: translateX(50px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
+          from { opacity: 0; transform: translateX(50px); }
+          to { opacity: 1; transform: translateX(0); }
         }
 
-        /* ---------- INSTALLER GRID ---------- */
         .installer-grid {
           display: flex;
           align-items: center;
@@ -1557,7 +1533,6 @@ function AppContent() {
           justify-content: center;
         }
 
-        /* ---------- NOTIFICATIONS ---------- */
         .quantum-notification-container {
           position: fixed;
           top: 100px;
@@ -1578,17 +1553,10 @@ function AppContent() {
           animation: notificationSlide 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
         @keyframes notificationSlide {
-          from {
-            opacity: 0;
-            transform: translateX(50px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
+          from { opacity: 0; transform: translateX(50px); }
+          to { opacity: 1; transform: translateX(0); }
         }
 
-        /* ---------- STATUS BAR ---------- */
         .quantum-status-bar {
           position: fixed;
           bottom: 20px;
@@ -1618,7 +1586,6 @@ function AppContent() {
           font-size: 1rem;
         }
 
-        /* ---------- VERSION MIXER STYLES ---------- */
         .mixer-tab {
           padding: 2rem;
           display: flex;
@@ -1638,14 +1605,8 @@ function AppContent() {
           animation: mixerAppear 0.5s ease;
         }
         @keyframes mixerAppear {
-          from {
-            opacity: 0;
-            transform: scale(0.96);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
+          from { opacity: 0; transform: scale(0.96); }
+          to { opacity: 1; transform: scale(1); }
         }
         .mixer-title {
           font-size: 2.5rem;
@@ -1732,7 +1693,6 @@ function AppContent() {
           box-shadow: 0 0 50px rgba(253, 121, 168, 0.6);
         }
 
-        /* ---------- PERFORMANCE DASHBOARD STYLES ---------- */
         .performance-dashboard {
           position: fixed;
           bottom: 100px;
@@ -1985,7 +1945,6 @@ function AppContent() {
           </>
         )}
 
-        {/* ===== PERFORMANCE DASHBOARD ===== */}
         <AnimatePresence>
           {showPerformanceDashboard && (
             <motion.div
@@ -2000,11 +1959,10 @@ function AppContent() {
                   <Gauge className="inline mr-2" size={20} /> Performance Dashboard
                 </span>
                 <button className="close-btn" onClick={() => setShowPerformanceDashboard(false)}>
-                  <X size={18} /> {/* Now imported */}
+                  <X size={18} />
                 </button>
               </div>
 
-              {/* Live metrics */}
               <div className="perf-grid">
                 <div className="perf-item">
                   <span className="perf-label">FPS</span>
@@ -2042,7 +2000,6 @@ function AppContent() {
                 </div>
               </div>
 
-              {/* FPS Chart */}
               <div className="chart-container">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={fpsHistory}>
@@ -2057,10 +2014,8 @@ function AppContent() {
                 </ResponsiveContainer>
               </div>
 
-              {/* Performance Profile Badge */}
               <div className="profile-badge">Current Profile: {performanceLevel.toUpperCase()}</div>
 
-              {/* Granular Settings */}
               <div>
                 <label className="text-sm">Particle Count</label>
                 <input
@@ -2117,13 +2072,11 @@ function AppContent() {
         </AnimatePresence>
       </div>
 
-      {/* ===== CHAOS ENGINE ===== */}
       <ChaosEngine />
     </>
   );
 }
 
-// ===== MAIN EXPORT =====
 export default function Home() {
   return (
     <Suspense
