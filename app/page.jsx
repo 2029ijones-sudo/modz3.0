@@ -107,7 +107,7 @@ const VERSION_MAP = {
 };
 
 // ===== 5. QUANTUM INSTALLATION SYSTEM =====
-import { quantumInstallation, getQuantumStateSummary } from '~/quantum-installation';
+const { quantumInstallation, getQuantumStateSummary } = await import('~/quantum-installation');
 
 // ===== 6. ENCRYPTION UTILITIES =====
 const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || 'quantum-mods-secret-key-2024';
