@@ -1,10 +1,16 @@
 'use client';
 
-import { useEffect, useState, useRef, Suspense, useCallback } from 'react';
+import { useEffect, useState, useRef, Suspense, useCallback, useContext, createContext, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import CryptoJS from 'crypto-js';
 import { motion, AnimatePresence } from 'framer-motion';
+import gsap from 'gsap';
+import * as THREE from 'three';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { Glitch, EffectComposer } from '@react-three/postprocessing';
+import p5 from 'p5';
+import Matter from 'matter-js';
 import {
   LineChart,
   Line,
@@ -14,105 +20,856 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+import { v4 as uuidv4 } from 'uuid';
+import toast, { Toaster } from 'react-hot-toast';
 import {
+  X,
   Zap,
-  Cpu,
-  Thermometer,
+  Skull,
+  Download,
+  Upload,
+  Settings,
   Eye,
   EyeOff,
-  Settings,
-  Activity,
-  Battery,
-  HardDrive,
-  Gauge,
-  AlertTriangle,
-  X,
+  Globe,
+  Code,
+  Package,
+  Users,
+  User,
 } from 'lucide-react';
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import classNames from 'classnames';
 
-// ===== 1. DYNAMIC IMPORTS =====
-const ChaosEngine = dynamic(() => import('@/Chaos'), { ssr: false });
+// ===== CHAOS CONTEXT & PROVIDER (embedded) =====
+const ChaosContext = createContext(null);
 
-const ThreeWorld = dynamic(() => import('@/Src/ThreeWorlds'), {
+const useChaos = () => useContext(ChaosContext);
+
+const ChaosProvider = ({ children }) => {
+  const [chaosLevel, setChaosLevel] = useState(0); // 0..100 from quantum system
+  const [manualOverride, setManualOverride] = useState(false);
+  const [manualLevel, setManualLevel] = useState(0);
+  const [corruptionRate, setCorruptionRate] = useState(0.5);
+  const [chaosHistory, setChaosHistory] = useState([]);
+  const [enabled, setEnabled] = useState(true);
+  const [physicsEnabled, setPhysicsEnabled] = useState(false);
+  const [glitchIntensity, setGlitchIntensity] = useState(1.0);
+  const [showOverlay, setShowOverlay] = useState(false);
+
+  // Sync with quantum system via events
+  useEffect(() => {
+    const handleQuantumChange = (e) => {
+      const level = e.detail?.chaosLevel ?? e.detail?.quantumState?.chaosLevel ?? 0;
+      if (!manualOverride) {
+        setChaosLevel(level);
+        setChaosHistory((h) => [...h.slice(-50), { time: Date.now(), level }]);
+      }
+    };
+    window.addEventListener('quantum-state-change', handleQuantumChange);
+    window.addEventListener('quantum-chaos-trigger', handleQuantumChange);
+
+    // Fallback: if no quantum system, start a gentle random walk
+    if (typeof window !== 'undefined' && !window.quantumState) {
+      const interval = setInterval(() => {
+        if (!manualOverride) {
+          setChaosLevel((prev) => {
+            const change = (Math.random() - 0.5) * 5;
+            const newLevel = Math.min(100, Math.max(0, prev + change));
+            setChaosHistory((h) => [...h.slice(-50), { time: Date.now(), level: newLevel }]);
+            return newLevel;
+          });
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+
+    return () => {
+      window.removeEventListener('quantum-state-change', handleQuantumChange);
+      window.removeEventListener('quantum-chaos-trigger', handleQuantumChange);
+    };
+  }, [manualOverride]);
+
+  const effectiveChaos = manualOverride ? manualLevel : chaosLevel;
+
+  const spike = useCallback((amount = 20) => {
+    if (manualOverride) {
+      setManualLevel((prev) => Math.min(100, prev + amount));
+    } else {
+      window.dispatchEvent(
+        new CustomEvent('quantum-chaos-trigger', {
+          detail: { type: 'spike', intensity: amount },
+        })
+      );
+    }
+    toast.custom(
+      (t) => (
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.8, opacity: 0 }}
+          className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3"
+        >
+          <Zap className="w-6 h-6" />
+          <span className="font-bold">CHAOS SPIKE +{amount}%</span>
+        </motion.div>
+      ),
+      { duration: 2000 }
+    );
+  }, [manualOverride]);
+
+  const reset = useCallback(() => {
+    if (manualOverride) {
+      setManualLevel(0);
+    } else {
+      window.dispatchEvent(new CustomEvent('quantum-chaos-trigger', { detail: { reset: true } }));
+    }
+    setChaosHistory([]);
+    toast.success('Chaos neutralized (for now)');
+  }, [manualOverride]);
+
+  const togglePhysics = useCallback(() => {
+    setPhysicsEnabled((p) => !p);
+    toast(physicsEnabled ? 'Physics disabled' : 'Physics enabled – brace for impact!');
+  }, [physicsEnabled]);
+
+  const toggleOverlay = useCallback(() => {
+    setShowOverlay((p) => !p);
+  }, []);
+
+  return (
+    <ChaosContext.Provider
+      value={{
+        chaosLevel: effectiveChaos,
+        rawChaosLevel: chaosLevel,
+        manualOverride,
+        setManualOverride,
+        manualLevel,
+        setManualLevel,
+        corruptionRate,
+        setCorruptionRate,
+        chaosHistory,
+        enabled,
+        setEnabled,
+        glitchIntensity,
+        setGlitchIntensity,
+        spike,
+        reset,
+        physicsEnabled,
+        togglePhysics,
+        showOverlay,
+        toggleOverlay,
+      }}
+    >
+      {children}
+      <style jsx global>{`
+        :root {
+          --chaos-level: ${effectiveChaos};
+          --chaos-intensity: ${(effectiveChaos / 100) * glitchIntensity};
+          --chaos-hue: calc(var(--chaos-intensity) * 180deg);
+          --chaos-blur: calc(var(--chaos-intensity) * 2px);
+          --chaos-skew: calc(var(--chaos-intensity) * 3deg);
+          --chaos-scale: ${1 + (effectiveChaos / 100) * glitchIntensity * 0.1};
+        }
+      `}</style>
+    </ChaosContext.Provider>
+  );
+};
+
+// ===== CHAOS COMPONENTS =====
+const useMediaQuery = (query) => {
+  const [matches, setMatches] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    if (media.matches !== matches) setMatches(media.matches);
+    const listener = () => setMatches(media.matches);
+    media.addEventListener('change', listener);
+    return () => media.removeEventListener('change', listener);
+  }, [query, matches]);
+  return matches;
+};
+
+const CorruptionInjector = () => {
+  const { chaosLevel, glitchIntensity, enabled } = useChaos();
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+
+  useEffect(() => {
+    if (!enabled) {
+      document.body.style.filter = '';
+      document.body.style.transform = '';
+      return;
+    }
+    const intensity = (chaosLevel / 100) * glitchIntensity;
+    if (reducedMotion) {
+      document.body.style.filter = `hue-rotate(${intensity * 90}deg)`;
+      document.body.style.transform = '';
+    } else {
+      gsap.to(document.body, {
+        filter: `hue-rotate(${intensity * 180}deg) blur(${intensity * 2}px)`,
+        transform: `skew(${intensity * 3}deg) scale(${1 + intensity * 0.1})`,
+        duration: 0.3,
+        ease: 'power2.out',
+      });
+    }
+  }, [chaosLevel, glitchIntensity, enabled, reducedMotion]);
+
+  return null;
+};
+
+const P5Glitch = () => {
+  const { chaosLevel, enabled } = useChaos();
+  const canvasRef = useRef();
+  const p5Instance = useRef();
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+
+  useEffect(() => {
+    if (!enabled || reducedMotion || !canvasRef.current) return;
+
+    const sketch = (p) => {
+      p.setup = () => {
+        p.createCanvas(window.innerWidth, window.innerHeight);
+        p.noStroke();
+      };
+
+      p.draw = () => {
+        p.clear();
+        const intensity = chaosLevel / 100;
+        if (intensity < 0.1) return;
+
+        for (let i = 0; i < 20 * intensity; i++) {
+          p.fill(
+            Math.random() * 255,
+            Math.random() * 255,
+            Math.random() * 255,
+            Math.random() * 100 * intensity
+          );
+          p.rect(
+            Math.random() * p.width,
+            Math.random() * p.height,
+            Math.random() * 200 * intensity,
+            Math.random() * 50 * intensity
+          );
+        }
+
+        p.stroke(0, 0, 0, 50 * intensity);
+        p.strokeWeight(1);
+        for (let y = 0; y < p.height; y += 4) {
+          p.line(0, y, p.width, y);
+        }
+      };
+    };
+
+    p5Instance.current = new p5(sketch, canvasRef.current);
+    return () => p5Instance.current.remove();
+  }, [chaosLevel, enabled, reducedMotion]);
+
+  return (
+    <div
+      ref={canvasRef}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+        zIndex: 9998,
+      }}
+    />
+  );
+};
+
+const ChaosField = () => {
+  const { chaosLevel, enabled } = useChaos();
+  const meshRef = useRef();
+
+  useFrame(() => {
+    if (!meshRef.current || !enabled) return;
+    const intensity = chaosLevel / 100;
+    meshRef.current.rotation.x += 0.005 * intensity;
+    meshRef.current.rotation.y += 0.01 * intensity;
+    meshRef.current.scale.setScalar(1 + intensity * 0.5);
+  });
+
+  if (!enabled) return null;
+
+  return (
+    <>
+      <ambientLight intensity={0.5} />
+      <pointLight position={[10, 10, 10]} />
+      <mesh ref={meshRef}>
+        <torusKnotGeometry args={[2, 0.5, 128, 16]} />
+        <meshStandardMaterial color="#e84393" emissive="#6c5ce7" wireframe />
+      </mesh>
+      <EffectComposer>
+        <Glitch
+          delay={new THREE.Vector2(0.5, 1.5)}
+          duration={new THREE.Vector2(0.1, 0.3)}
+          strength={new THREE.Vector2(0.1, 0.3).multiplyScalar(chaosLevel / 100)}
+        />
+      </EffectComposer>
+    </>
+  );
+};
+
+const PhysicsEngine = ({ children }) => {
+  const { physicsEnabled, enabled } = useChaos();
+  const containerRef = useRef();
+  const engineRef = useRef();
+  const runnerRef = useRef();
+  const bodiesRef = useRef([]);
+
+  useEffect(() => {
+    if (!physicsEnabled || !enabled || !containerRef.current) return;
+
+    const engine = Matter.Engine.create();
+    engineRef.current = engine;
+    const runner = Matter.Runner.create();
+    runnerRef.current = runner;
+    Matter.Runner.run(runner, engine);
+
+    const walls = [
+      Matter.Bodies.rectangle(window.innerWidth / 2, -50, window.innerWidth, 100, { isStatic: true }),
+      Matter.Bodies.rectangle(window.innerWidth / 2, window.innerHeight + 50, window.innerWidth, 100, { isStatic: true }),
+      Matter.Bodies.rectangle(-50, window.innerHeight / 2, 100, window.innerHeight, { isStatic: true }),
+      Matter.Bodies.rectangle(window.innerWidth + 50, window.innerHeight / 2, 100, window.innerHeight, { isStatic: true }),
+    ];
+    Matter.World.add(engine.world, walls);
+
+    const childElements = containerRef.current.children;
+    bodiesRef.current = Array.from(childElements).map((el) => {
+      const rect = el.getBoundingClientRect();
+      const body = Matter.Bodies.rectangle(
+        rect.left + rect.width / 2,
+        rect.top + rect.height / 2,
+        rect.width,
+        rect.height,
+        { restitution: 0.8, friction: 0.1, mass: 1 }
+      );
+      Matter.World.add(engine.world, body);
+      return { body, el };
+    });
+
+    const update = () => {
+      bodiesRef.current.forEach(({ body, el }) => {
+        const { x, y } = body.position;
+        el.style.transform = `translate(${x - el.offsetWidth / 2}px, ${y - el.offsetHeight / 2}px) rotate(${body.angle}rad)`;
+      });
+      requestAnimationFrame(update);
+    };
+    update();
+
+    return () => {
+      Matter.Runner.stop(runner);
+      Matter.Engine.clear(engine);
+    };
+  }, [physicsEnabled, enabled]);
+
+  return <div ref={containerRef} style={{ position: 'relative' }}>{children}</div>;
+};
+
+const BrokenComponentOverlay = () => {
+  const { showOverlay, chaosLevel } = useChaos();
+  // These imports are already available from dynamic imports above, but we need the actual components.
+  // Since we can't import them directly here (they are dynamic), we'll use the same dynamic imports.
+  // But for simplicity, we'll assume the components are already loaded and use the same dynamic components.
+  // However, using dynamic inside a component that runs on client is okay, but we'll just reference the
+  // already imported variables. Since these are dynamic, they are available.
+  const components = useMemo(
+    () => [
+      { name: 'ThreeWorld', Comp: ThreeWorld },
+      { name: 'CodeEditor', Comp: CodeEditor },
+      { name: 'ModManager', Comp: ModManager },
+      { name: 'Community', Comp: Community },
+      { name: 'Profile', Comp: Profile },
+      { name: 'CWAInstaller', Comp: CWAInstaller },
+      { name: 'PWAInstaller', Comp: QuantumPWAInstaller },
+    ],
+    []
+  );
+  const [visible, setVisible] = useState([]);
+
+  useEffect(() => {
+    if (!showOverlay) {
+      setVisible([]);
+      return;
+    }
+    const interval = setInterval(() => {
+      const randomComp = components[Math.floor(Math.random() * components.length)];
+      const id = uuidv4();
+      setVisible((prev) => [...prev.slice(-4), { id, ...randomComp }]);
+      setTimeout(() => {
+        setVisible((prev) => prev.filter((v) => v.id !== id));
+      }, 5000 + Math.random() * 3000);
+    }, 2000 / (chaosLevel / 10 + 1));
+    return () => clearInterval(interval);
+  }, [showOverlay, chaosLevel, components]);
+
+  return (
+    <AnimatePresence>
+      {visible.map(({ id, name, Comp }) => (
+        <motion.div
+          key={id}
+          initial={{ opacity: 0, scale: 0.5, x: Math.random() * 100 - 50, y: Math.random() * 100 - 50 }}
+          animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+          exit={{ opacity: 0, scale: 0.5 }}
+          transition={{ type: 'spring', damping: 20 }}
+          style={{
+            position: 'fixed',
+            top: '20%',
+            left: '20%',
+            width: '400px',
+            height: '300px',
+            background: 'rgba(20,10,30,0.9)',
+            backdropFilter: 'blur(10px)',
+            border: '2px solid #e84393',
+            borderRadius: '16px',
+            overflow: 'hidden',
+            zIndex: 10000,
+            boxShadow: '0 0 50px #e84393',
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{ padding: '10px', background: '#e84393', color: 'white', fontWeight: 'bold' }}>
+            {name} [BROKEN]
+          </div>
+          <div style={{ padding: '10px', height: 'calc(100% - 40px)', overflow: 'auto' }}>
+            <Comp
+              addNotification={console.log}
+              worldName="Chaos Realm"
+              onModDrop={() => {}}
+              quantumEffects={{ chaosLevel }}
+              reducedMotion={false}
+              highContrast={false}
+              performanceMode={{ lowQuality: true }}
+            />
+          </div>
+        </motion.div>
+      ))}
+    </AnimatePresence>
+  );
+};
+
+const ChaosPanel = () => {
+  const {
+    chaosLevel,
+    manualOverride,
+    setManualOverride,
+    manualLevel,
+    setManualLevel,
+    chaosHistory,
+    enabled,
+    setEnabled,
+    glitchIntensity,
+    setGlitchIntensity,
+    spike,
+    reset,
+    togglePhysics,
+    physicsEnabled,
+    showOverlay,
+    toggleOverlay,
+  } = useChaos();
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('chaos');
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+        e.preventDefault();
+        setIsOpen((v) => !v);
+      }
+      if (e.ctrlKey && e.shiftKey && e.key === 'X') {
+        e.preventDefault();
+        spike(30);
+      }
+      if (e.ctrlKey && e.shiftKey && e.key === 'O') {
+        e.preventDefault();
+        toggleOverlay();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [spike, toggleOverlay]);
+
+  return (
+    <TooltipPrimitive.Provider>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ x: 400, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: 400, opacity: 0 }}
+            transition={{ type: 'spring', damping: 25 }}
+            className="fixed top-20 right-5 w-96 bg-gray-900/95 backdrop-blur-xl border-2 border-pink-500 rounded-2xl shadow-2xl text-white p-5 z-[9999] font-mono"
+            role="dialog"
+            aria-label="Chaos Engine Control Panel"
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent flex items-center gap-2">
+                <Skull className="w-6 h-6 text-pink-500" />
+                CHAOS ENGINE
+              </h2>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800"
+                aria-label="Close panel"
+              >
+                <X />
+              </button>
+            </div>
+
+            <div className="flex gap-2 border-b border-gray-700 pb-2 mb-4">
+              {['chaos', 'graphs', 'export'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={classNames(
+                    'px-3 py-1 rounded-lg capitalize transition',
+                    activeTab === tab
+                      ? 'bg-pink-600 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  )}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            {activeTab === 'chaos' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Master Chaos</span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enabled}
+                      onChange={(e) => setEnabled(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-600" />
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Manual Override</span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={manualOverride}
+                      onChange={(e) => setManualOverride(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600" />
+                  </label>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span>Chaos Level</span>
+                    <span className="text-pink-400">{Math.round(chaosLevel)}%</span>
+                    {manualOverride && (
+                      <span className="text-xs text-gray-400">(manual: {Math.round(manualLevel)}%)</span>
+                    )}
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={manualOverride ? manualLevel : chaosLevel}
+                    onChange={(e) => manualOverride && setManualLevel(parseInt(e.target.value))}
+                    disabled={!manualOverride}
+                    className="w-full accent-pink-500"
+                  />
+                  <div className="w-full bg-gray-700 rounded-full h-2.5 mt-1">
+                    <div
+                      className="bg-gradient-to-r from-purple-500 to-pink-500 h-2.5 rounded-full transition-all duration-300"
+                      style={{ width: `${chaosLevel}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm block mb-1">
+                    Glitch Intensity: {glitchIntensity.toFixed(2)}
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="2"
+                    step="0.1"
+                    value={glitchIntensity}
+                    onChange={(e) => setGlitchIntensity(parseFloat(e.target.value))}
+                    className="w-full accent-pink-500"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2 flex-wrap">
+                  <button
+                    onClick={() => spike(20)}
+                    className="flex-1 bg-pink-600 hover:bg-pink-700 py-2 rounded-lg flex items-center justify-center gap-2 transition"
+                  >
+                    <Zap className="w-4 h-4" /> SPIKE
+                  </button>
+                  <button
+                    onClick={reset}
+                    className="flex-1 bg-gray-700 hover:bg-gray-600 py-2 rounded-lg transition"
+                  >
+                    RESET
+                  </button>
+                  <button
+                    onClick={togglePhysics}
+                    className={classNames(
+                      'flex-1 py-2 rounded-lg transition',
+                      physicsEnabled ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-700 hover:bg-gray-600'
+                    )}
+                  >
+                    {physicsEnabled ? 'PHYSICS ON' : 'PHYSICS'}
+                  </button>
+                  <button
+                    onClick={toggleOverlay}
+                    className={classNames(
+                      'flex-1 py-2 rounded-lg transition flex items-center justify-center gap-1',
+                      showOverlay ? 'bg-pink-600 hover:bg-pink-700' : 'bg-gray-700 hover:bg-gray-600'
+                    )}
+                  >
+                    {showOverlay ? <Eye /> : <EyeOff />} OVERLAY
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'graphs' && (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chaosHistory}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                    <XAxis dataKey="time" tick={false} />
+                    <YAxis domain={[0, 100]} stroke="#888" />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #e84393' }}
+                    />
+                    <Line type="monotone" dataKey="level" stroke="#e84393" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {activeTab === 'export' && (
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    const state = {
+                      chaosLevel: manualOverride ? manualLevel : chaosLevel,
+                      glitchIntensity,
+                      physicsEnabled,
+                      showOverlay,
+                    };
+                    const encrypted = CryptoJS.AES.encrypt(
+                      JSON.stringify(state),
+                      'chaos-secret'
+                    ).toString();
+                    const blob = new Blob([encrypted], { type: 'text/plain' });
+                    saveAs(blob, `chaos-${Date.now()}.chaos`);
+                  }}
+                  className="w-full bg-purple-600 hover:bg-purple-700 py-2 rounded-lg flex items-center justify-center gap-2"
+                >
+                  <Download className="w-4 h-4" /> Export Chaos State
+                </button>
+                <input
+                  type="file"
+                  accept=".chaos"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      try {
+                        const decrypted = CryptoJS.AES.decrypt(
+                          ev.target.result,
+                          'chaos-secret'
+                        ).toString(CryptoJS.enc.Utf8);
+                        const state = JSON.parse(decrypted);
+                        setGlitchIntensity(state.glitchIntensity);
+                        if (state.physicsEnabled) togglePhysics();
+                        if (state.showOverlay) toggleOverlay();
+                        toast.success('Chaos state loaded');
+                      } catch {
+                        toast.error('Invalid chaos file');
+                      }
+                    };
+                    reader.readAsText(file);
+                  }}
+                  className="hidden"
+                  id="chaos-upload"
+                />
+                <label
+                  htmlFor="chaos-upload"
+                  className="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Upload className="w-4 h-4" /> Import Chaos State
+                </label>
+              </div>
+            )}
+
+            <div className="mt-4 text-xs text-gray-500 text-center border-t border-gray-800 pt-3">
+              <div>Ctrl+Shift+C: toggle panel</div>
+              <div>Ctrl+Shift+X: chaos spike</div>
+              <div>Ctrl+Shift+O: toggle overlay</div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </TooltipPrimitive.Provider>
+  );
+};
+
+const VersionRandomizer = () => {
+  const { chaosLevel, enabled } = useChaos();
+  const COMPONENT_NAMES = [
+    'ThreeWorld',
+    'CodeEditor',
+    'ModManager',
+    'Community',
+    'Profile',
+    'CWAInstaller',
+    'QuantumPWAInstaller',
+  ];
+  const VERSIONS = ['stable', 'lite', 'broken'];
+
+  useEffect(() => {
+    if (!enabled || chaosLevel < 10) return;
+
+    const randomize = () => {
+      try {
+        const stored = localStorage.getItem('quantum-component-versions');
+        const current = stored ? JSON.parse(stored) : {};
+        const newVersions = { ...current };
+        const flipCount = Math.floor((chaosLevel / 100) * COMPONENT_NAMES.length * 0.3) + 1;
+        for (let i = 0; i < flipCount; i++) {
+          const randomComponent =
+            COMPONENT_NAMES[Math.floor(Math.random() * COMPONENT_NAMES.length)];
+          const randomVersion = VERSIONS[Math.floor(Math.random() * VERSIONS.length)];
+          newVersions[randomComponent] = randomVersion;
+        }
+        localStorage.setItem('quantum-component-versions', JSON.stringify(newVersions));
+        window.dispatchEvent(
+          new StorageEvent('storage', {
+            key: 'quantum-component-versions',
+            newValue: JSON.stringify(newVersions),
+          })
+        );
+      } catch (e) {
+        console.error('Version randomizer error', e);
+      }
+    };
+
+    const interval = setInterval(randomize, 5000 / (chaosLevel / 10 + 1));
+    return () => clearInterval(interval);
+  }, [chaosLevel, enabled, COMPONENT_NAMES, VERSIONS]);
+
+  return null;
+};
+
+// ===== ORIGINAL DYNAMIC IMPORTS (already present) =====
+// ... (all your dynamic imports from the working version remain exactly as they were)
+
+// Dynamically import components with accessibility - ALL TABS NOW FULLSCREEN
+const ThreeWorld = dynamic(() => import('@/Src/ThreeWorlds'), { 
   ssr: false,
   loading: () => (
     <div className="quantum-tab-loading-full">
       <div className="quantum-spinner-giant"></div>
       <p>Manifesting Quantum Reality...</p>
     </div>
-  ),
+  )
 });
 
 const CodeEditor = dynamic(() => import('@/CodeEditor'), { ssr: false });
 const ModManager = dynamic(() => import('@/ModManager'), { ssr: false });
 const Community = dynamic(() => import('@/Community'), { ssr: false });
+
+// ✅ IMPORT THE REAL PROFILE COMPONENT
 const Profile = dynamic(() => import('@/Profile'), { ssr: false });
 
-const CWAInstaller = dynamic(() => import('@/CWAInstaller'), {
+// ✅ NEW TABS - using the components you provided
+const CWAInstaller = dynamic(() => import('@/CWAInstaller'), { 
   ssr: false,
-  loading: () => <div className="quantum-tab-loading">Initializing CWA Protocol...</div>,
+  loading: () => <div className="quantum-tab-loading">Initializing CWA Protocol...</div>
 });
 
-const QuantumPWAInstaller = dynamic(() => import('@/PWAInstaller'), {
+const QuantumPWAInstaller = dynamic(() => import('@/PWAInstaller'), { 
   ssr: false,
-  loading: () => <div className="quantum-tab-loading">Quantum Entangling PWA...</div>,
+  loading: () => <div className="quantum-tab-loading">Quantum Entangling PWA...</div>
 });
 
-// ===== 2. VERSIONED IMPORTS FOR QUANTUM MIXER =====
+// ============================================
+// ===== VERSIONED IMPORTS – QUANTUM MIXER =====
+// ============================================
+// ThreeWorlds versions
 const ThreeWorldStable = dynamic(() => import('@/Src/ThreeWorlds'), {
   ssr: false,
-  loading: () => <div className="quantum-tab-loading-full">🌍 Stable World</div>,
+  loading: () => <div className="quantum-tab-loading-full">🌍 Stable World</div>
 });
 const ThreeWorldLite = dynamic(() => import('@/Shared/ThreeWorlds.lite'), {
   ssr: false,
-  loading: () => <div className="quantum-tab-loading-full">⚡ Lite World</div>,
+  loading: () => <div className="quantum-tab-loading-full">⚡ Lite World</div>
 });
 const ThreeWorldBroken = dynamic(() => import('@/Shared/ThreeWorlds.broken'), {
   ssr: false,
-  loading: () => <div className="quantum-tab-loading-full">⚠️ Broken World</div>,
+  loading: () => <div className="quantum-tab-loading-full">⚠️ Broken World</div>
 });
 
+// CodeEditor versions
 const CodeEditorStable = dynamic(() => import('@/CodeEditor'), { ssr: false });
 const CodeEditorLite = dynamic(() => import('@/Shared/CodeEditor.lite'), { ssr: false });
 const CodeEditorBroken = dynamic(() => import('@/Shared/CodeEditor.broken'), { ssr: false });
 
+// ModManager versions
 const ModManagerStable = dynamic(() => import('@/ModManager'), { ssr: false });
 const ModManagerLite = dynamic(() => import('@/Shared/ModManager.lite'), { ssr: false });
 const ModManagerBroken = dynamic(() => import('@/Shared/ModManager.broken'), { ssr: false });
 
+// Community versions
 const CommunityStable = dynamic(() => import('@/Community'), { ssr: false });
 const CommunityLite = dynamic(() => import('@/Shared/Community.lite'), { ssr: false });
 const CommunityBroken = dynamic(() => import('@/Shared/Community.broken'), { ssr: false });
 
+// Profile versions
 const ProfileStable = dynamic(() => import('@/Profile'), { ssr: false });
 const ProfileLite = dynamic(() => import('@/Shared/Profile.lite'), { ssr: false });
 const ProfileBroken = dynamic(() => import('@/Shared/Profile.broken'), { ssr: false });
 
+// CWAInstaller versions
 const CWAInstallerStable = dynamic(() => import('@/CWAInstaller'), { ssr: false });
 const CWAInstallerLite = dynamic(() => import('@/Shared/CWAInstaller.lite'), { ssr: false });
 const CWAInstallerBroken = dynamic(() => import('@/Shared/CWAInstaller.broken'), { ssr: false });
 
+// QuantumPWAInstaller versions
 const QuantumPWAInstallerStable = dynamic(() => import('@/PWAInstaller'), { ssr: false });
 const QuantumPWAInstallerLite = dynamic(() => import('@/Shared/PWAInstaller.lite'), { ssr: false });
 const QuantumPWAInstallerBroken = dynamic(() => import('@/Shared/PWAInstaller.broken'), { ssr: false });
 
-// ===== 3. COMPONENT VERSION MAP =====
+// ===== COMPONENT VERSION MAP =====
 const VERSION_MAP = {
-  ThreeWorld: { stable: ThreeWorldStable, lite: ThreeWorldLite, broken: ThreeWorldBroken },
-  CodeEditor: { stable: CodeEditorStable, lite: CodeEditorLite, broken: CodeEditorBroken },
-  ModManager: { stable: ModManagerStable, lite: ModManagerLite, broken: ModManagerBroken },
-  Community: { stable: CommunityStable, lite: CommunityLite, broken: CommunityBroken },
-  Profile: { stable: ProfileStable, lite: ProfileLite, broken: ProfileBroken },
+  ThreeWorld:   { stable: ThreeWorldStable,   lite: ThreeWorldLite,   broken: ThreeWorldBroken },
+  CodeEditor:   { stable: CodeEditorStable,   lite: CodeEditorLite,   broken: CodeEditorBroken },
+  ModManager:   { stable: ModManagerStable,   lite: ModManagerLite,   broken: ModManagerBroken },
+  Community:    { stable: CommunityStable,    lite: CommunityLite,    broken: CommunityBroken },
+  Profile:      { stable: ProfileStable,      lite: ProfileLite,      broken: ProfileBroken },
   CWAInstaller: { stable: CWAInstallerStable, lite: CWAInstallerLite, broken: CWAInstallerBroken },
-  QuantumPWAInstaller: { stable: QuantumPWAInstallerStable, lite: QuantumPWAInstallerLite, broken: QuantumPWAInstallerBroken },
+  QuantumPWAInstaller: { stable: QuantumPWAInstallerStable, lite: QuantumPWAInstallerLite, broken: QuantumPWAInstallerBroken }
 };
 
-// ===== 4. ENCRYPTION UTILITIES (no external dependency) =====
+// Quantum Installation System
+import { quantumInstallation, getQuantumStateSummary } from '~/quantum-installation';
+
+// Encryption key
 const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || 'quantum-mods-secret-key-2024';
 
 const encryptData = (data) => {
   try {
-    // Use only Math.random() for entropy – no external module
-    const quantumEntropy = Math.random().toString(36);
+    const quantumEntropy = quantumInstallation.quantumState?.quantumSignature || Math.random().toString(36);
     const enhancedKey = CryptoJS.SHA256(ENCRYPTION_KEY + quantumEntropy).toString();
     const encrypted = CryptoJS.AES.encrypt(JSON.stringify(data), enhancedKey).toString();
     return encodeURIComponent(encrypted);
@@ -124,7 +881,7 @@ const encryptData = (data) => {
 
 const decryptData = (encrypted) => {
   try {
-    const quantumEntropy = Math.random().toString(36);
+    const quantumEntropy = quantumInstallation.quantumState?.quantumSignature || Math.random().toString(36);
     const enhancedKey = CryptoJS.SHA256(ENCRYPTION_KEY + quantumEntropy).toString();
     const decrypted = CryptoJS.AES.decrypt(decodeURIComponent(encrypted), enhancedKey);
     return JSON.parse(decrypted.toString(CryptoJS.enc.Utf8));
@@ -134,14 +891,14 @@ const decryptData = (encrypted) => {
   }
 };
 
-// ===== 5. ACCESSIBILITY UTILITIES =====
+// ===== ACCESSIBILITY UTILITIES =====
 const announceToScreenReader = (message, priority = 'polite') => {
   if (typeof window === 'undefined') return;
   const announcer = document.getElementById('quantum-announcer');
   if (announcer) {
     announcer.setAttribute('aria-live', priority);
     announcer.textContent = message;
-    setTimeout(() => (announcer.textContent = ''), 3000);
+    setTimeout(() => announcer.textContent = '', 3000);
   }
 };
 
@@ -155,12 +912,12 @@ const handleKeyboardNavigation = (event, handler) => {
 function AppContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
-  // ===== STATE =====
+  
+  // ===== FULLSCREEN TAB SYSTEM =====
   const [activeTab, setActiveTab] = useState('world');
   const [showEditor, setShowEditor] = useState(false);
-  const [showProfileOverlay, setShowProfileOverlay] = useState(false);
-
+  const [showProfileOverlay, setShowProfileOverlay] = useState(false); // Profile overlay state
+  
   const [notifications, setNotifications] = useState([]);
   const [worldName, setWorldName] = useState('Quantum Metaverse');
   const [encryptedParams, setEncryptedParams] = useState({});
@@ -169,60 +926,32 @@ function AppContent() {
   const [isDraggingOverWorld, setIsDraggingOverWorld] = useState(false);
   const [webGLError, setWebGLError] = useState(null);
   const [isThreeWorldReady, setIsThreeWorldReady] = useState(false);
-
-  // Quantum state values (now static fallbacks, but can be updated by ChaosEngine events)
-  const [quantumState, setQuantumState] = useState({
-    chaosLevel: 0,
-    realityCoefficient: 1.0,
-    temporalDisplacement: 0,
-    spatialDistortion: 1.0,
-    quantumFieldStrength: 0,
-    quantumSignature: Math.random().toString(36),
-  });
+  const [quantumState, setQuantumState] = useState(null);
   const [chaosLevel, setChaosLevel] = useState(0);
   const [realityCoefficient, setRealityCoefficient] = useState(1.0);
   const [temporalDisplacement, setTemporalDisplacement] = useState(0);
   const [spatialDistortion, setSpatialDistortion] = useState(1.0);
   const [quantumField, setQuantumField] = useState(0);
   const [quantumEffects, setQuantumEffects] = useState([]);
-
   const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [cwaInstaller, setCWAInstaller] = useState(null);
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
   const particleSystemRef = useRef(null);
   const mainRef = useRef(null);
   const [isReducedMotion, setIsReducedMotion] = useState(false);
   const [highContrast, setHighContrast] = useState(false);
+  const [fontSize, setFontSize] = useState('normal');
   const [screenReaderMode, setScreenReaderMode] = useState(false);
 
-  // ===== PERFORMANCE MODE =====
+  // Performance state
   const [fps, setFps] = useState(60);
-  const [fpsHistory, setFpsHistory] = useState([]);
   const [memoryUsage, setMemoryUsage] = useState('--');
   const [gpuInfo, setGpuInfo] = useState('--');
-  const [gpuUtilization, setGpuUtilization] = useState(0);
-  const [cpuCores, setCpuCores] = useState(4);
-  const [cpuLoad, setCpuLoad] = useState(0);
-  const [batteryInfo, setBatteryInfo] = useState(null);
-  const [thermalThrottling, setThermalThrottling] = useState(false);
   const [performanceLevel, setPerformanceLevel] = useState('high');
-  const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false);
+  const [showMemoryWarning, setShowMemoryWarning] = useState(false);
   const [detectedMemory, setDetectedMemory] = useState(8);
-
-  const [performanceSettings, setPerformanceSettings] = useState({
-    shadows: 'medium',
-    particles: 100,
-    postProcessing: true,
-    reflections: false,
-    antiAliasing: 'fxaa',
-    textureQuality: 'high',
-    drawDistance: 1000,
-    physicsQuality: 'high',
-    fpsLimit: 60,
-    dynamicResolution: true,
-    resolutionScale: 1.0,
-  });
-
+  
   const [performanceMode, setPerformanceMode] = useState({
     lowQuality: false,
     disableEffects: false,
@@ -230,171 +959,12 @@ function AppContent() {
     reduceParticles: false,
     disableShadows: false,
     simpleRendering: false,
-    fpsLimit: 60,
+    fpsLimit: 60
   });
 
-  useEffect(() => {
-    const settings = performanceSettings;
-    const newMode = {
-      lowQuality: settings.textureQuality === 'low' || settings.shadows === 'off',
-      disableEffects: !settings.postProcessing,
-      disableAnimations: settings.particles < 50,
-      reduceParticles: settings.particles < 150,
-      disableShadows: settings.shadows === 'off',
-      simpleRendering: settings.antiAliasing === 'off' && !settings.postProcessing,
-      fpsLimit: settings.fpsLimit,
-    };
-    setPerformanceMode(newMode);
-  }, [performanceSettings]);
-
-  const performanceProfiles = {
-    ultra: {
-      shadows: 'high',
-      particles: 500,
-      postProcessing: true,
-      reflections: true,
-      antiAliasing: 'ssaa',
-      textureQuality: 'high',
-      drawDistance: 2000,
-      physicsQuality: 'high',
-      fpsLimit: 144,
-      dynamicResolution: false,
-      resolutionScale: 1.0,
-    },
-    high: {
-      shadows: 'medium',
-      particles: 300,
-      postProcessing: true,
-      reflections: false,
-      antiAliasing: 'fxaa',
-      textureQuality: 'high',
-      drawDistance: 1500,
-      physicsQuality: 'high',
-      fpsLimit: 60,
-      dynamicResolution: false,
-      resolutionScale: 1.0,
-    },
-    medium: {
-      shadows: 'low',
-      particles: 150,
-      postProcessing: false,
-      reflections: false,
-      antiAliasing: 'off',
-      textureQuality: 'medium',
-      drawDistance: 1000,
-      physicsQuality: 'medium',
-      fpsLimit: 60,
-      dynamicResolution: true,
-      resolutionScale: 0.8,
-    },
-    low: {
-      shadows: 'off',
-      particles: 50,
-      postProcessing: false,
-      reflections: false,
-      antiAliasing: 'off',
-      textureQuality: 'low',
-      drawDistance: 500,
-      physicsQuality: 'low',
-      fpsLimit: 30,
-      dynamicResolution: true,
-      resolutionScale: 0.6,
-    },
-    potato: {
-      shadows: 'off',
-      particles: 10,
-      postProcessing: false,
-      reflections: false,
-      antiAliasing: 'off',
-      textureQuality: 'low',
-      drawDistance: 200,
-      physicsQuality: 'low',
-      fpsLimit: 24,
-      dynamicResolution: true,
-      resolutionScale: 0.4,
-    },
-  };
-
-  // Detect device capabilities
-  useEffect(() => {
-    const detectCapabilities = async () => {
-      if (navigator.deviceMemory) setDetectedMemory(navigator.deviceMemory);
-      if (navigator.hardwareConcurrency) setCpuCores(navigator.hardwareConcurrency);
-      try {
-        const canvas = document.createElement('canvas');
-        const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
-        if (gl) {
-          const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-          if (debugInfo) {
-            const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
-            setGpuInfo(renderer);
-          }
-        }
-      } catch (e) {}
-      if ('getBattery' in navigator) {
-        try {
-          const battery = await navigator.getBattery();
-          setBatteryInfo({ level: battery.level * 100, charging: battery.charging });
-          battery.addEventListener('levelchange', () =>
-            setBatteryInfo((prev) => ({ ...prev, level: battery.level * 100 }))
-          );
-          battery.addEventListener('chargingchange', () =>
-            setBatteryInfo((prev) => ({ ...prev, charging: battery.charging }))
-          );
-        } catch (e) {}
-      }
-    };
-    detectCapabilities();
-  }, []);
-
-  // FPS monitoring
-  useEffect(() => {
-    let frameCount = 0;
-    let lastTime = performance.now();
-    let rafId;
-    const measureFPS = () => {
-      frameCount++;
-      const now = performance.now();
-      if (now >= lastTime + 1000) {
-        const currentFps = Math.round((frameCount * 1000) / (now - lastTime));
-        setFps(currentFps);
-        setFpsHistory((prev) => [...prev.slice(-50), { time: Date.now(), fps: currentFps }]);
-        frameCount = 0;
-        lastTime = now;
-      }
-      rafId = requestAnimationFrame(measureFPS);
-    };
-    rafId = requestAnimationFrame(measureFPS);
-    return () => cancelAnimationFrame(rafId);
-  }, []);
-
-  // Auto-adjust performance
-  useEffect(() => {
-    if (fps < 20 && performanceLevel !== 'potato') {
-      setPerformanceLevel('potato');
-      setPerformanceSettings(performanceProfiles.potato);
-    } else if (fps < 30 && performanceLevel === 'high') {
-      setPerformanceLevel('medium');
-      setPerformanceSettings(performanceProfiles.medium);
-    } else if (fps < 40 && performanceLevel === 'ultra') {
-      setPerformanceLevel('high');
-      setPerformanceSettings(performanceProfiles.high);
-    }
-  }, [fps, performanceLevel]);
-
-  // Keyboard shortcut for performance dashboard
-  useEffect(() => {
-    const handleKey = (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'P') {
-        e.preventDefault();
-        setShowPerformanceDashboard((v) => !v);
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, []);
-
-  // ===== VERSION MIXER =====
+  // ========================================
+  // ===== QUANTUM VERSION MIXER =====
+  // ========================================
   const STORAGE_KEY = 'quantum-component-versions';
   const defaultVersions = {
     ThreeWorld: 'stable',
@@ -403,7 +973,7 @@ function AppContent() {
     Community: 'stable',
     Profile: 'stable',
     CWAInstaller: 'stable',
-    QuantumPWAInstaller: 'stable',
+    QuantumPWAInstaller: 'stable'
   };
 
   const [componentVersions, setComponentVersions] = useState(() => {
@@ -418,26 +988,26 @@ function AppContent() {
     return defaultVersions;
   });
 
+  // Persist version choices
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(componentVersions));
     }
   }, [componentVersions]);
 
-  const getComponent = useCallback(
-    (componentName) => {
-      const version = componentVersions[componentName] || 'stable';
-      return VERSION_MAP[componentName]?.[version] || VERSION_MAP[componentName]?.stable;
-    },
-    [componentVersions]
-  );
+  // Helper: get current component based on selected version
+  const getComponent = useCallback((componentName) => {
+    const version = componentVersions[componentName] || 'stable';
+    return VERSION_MAP[componentName]?.[version] || VERSION_MAP[componentName]?.stable;
+  }, [componentVersions]);
 
+  // Update single component version
   const setComponentVersion = useCallback((component, version) => {
-    setComponentVersions((prev) => ({ ...prev, [component]: version }));
+    setComponentVersions(prev => ({ ...prev, [component]: version }));
     addNotification(`⚛️ ${component} set to ${version}`, 'quantum');
   }, []);
 
-  // ===== ACCESSIBILITY DETECTION =====
+  // ========== ACCESSIBILITY DETECTION ==========
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -454,53 +1024,26 @@ function AppContent() {
     };
   }, []);
 
-  // ===== KEYBOARD SHORTCUTS =====
+  // ========== KEYBOARD SHORTCUTS ==========
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      if (e.altKey && e.key === 'w') {
-        e.preventDefault();
-        navigateToTab('world');
-      }
-      if (e.altKey && e.key === 'e') {
-        e.preventDefault();
-        toggleQuantumEditor();
-      }
-      if (e.altKey && e.key === 'c') {
-        e.preventDefault();
-        navigateToTab('community');
-      }
-      if (e.altKey && e.key === 'p') {
-        e.preventDefault();
-        setShowProfileOverlay(true);
-      }
-      if (e.altKey && e.key === 'i') {
-        e.preventDefault();
-        navigateToTab('installer');
-      }
-      if (e.altKey && e.key === 'a') {
-        e.preventDefault();
-        navigateToTab('cwa');
-      }
-      if (e.altKey && e.key === 'm') {
-        e.preventDefault();
-        navigateToTab('mixer');
-      }
-      if (e.altKey && e.key === 'n') {
-        e.preventDefault();
-        handleNewWorld();
-      }
-      if (e.altKey && e.shiftKey && e.key === 'P') {
-        e.preventDefault();
-        togglePerformanceMode();
-      }
+      if (e.altKey && e.key === 'w') { e.preventDefault(); navigateToTab('world'); }
+      if (e.altKey && e.key === 'e') { e.preventDefault(); toggleQuantumEditor(); }
+      if (e.altKey && e.key === 'c') { e.preventDefault(); navigateToTab('community'); }
+      if (e.altKey && e.key === 'p') { e.preventDefault(); setShowProfileOverlay(true); }
+      if (e.altKey && e.key === 'i') { e.preventDefault(); navigateToTab('installer'); }
+      if (e.altKey && e.key === 'a') { e.preventDefault(); navigateToTab('cwa'); }
+      if (e.altKey && e.key === 'm') { e.preventDefault(); navigateToTab('mixer'); } // NEW MIXER TAB
+      if (e.altKey && e.key === 'n') { e.preventDefault(); handleNewWorld(); }
+      if (e.altKey && e.shiftKey && e.key === 'P') { e.preventDefault(); togglePerformanceMode(); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeTab, showEditor]);
 
-  // ===== PERFORMANCE DETECTION (original) =====
+  // ========== PERFORMANCE DETECTION ==========
   useEffect(() => {
     if (typeof window === 'undefined') return;
     let detectedMemoryValue = 8;
@@ -521,363 +1064,224 @@ function AppContent() {
         }
       }
     } catch (e) {}
-    const performanceScore = detectedMemoryValue * 0.4 + cpuCores * 0.3 + webglScore * 0.3;
+    const performanceScore = (detectedMemoryValue * 0.4) + (cpuCores * 0.3) + (webglScore * 0.3);
     let level = 'high';
-    let perfFlags = {
-      lowQuality: false,
-      disableEffects: false,
-      disableAnimations: false,
-      reduceParticles: false,
-      disableShadows: false,
-      simpleRendering: false,
-      fpsLimit: 60,
-    };
-    let settings = { ...performanceProfiles.high };
-
+    let perfFlags = { lowQuality: false, disableEffects: false, disableAnimations: false, reduceParticles: false, disableShadows: false, simpleRendering: false, fpsLimit: 60 };
     if (performanceScore < 3 || isLowEndGPU || detectedMemoryValue < 2) {
       level = 'extreme';
-      perfFlags = {
-        lowQuality: true,
-        disableEffects: true,
-        disableAnimations: true,
-        reduceParticles: true,
-        disableShadows: true,
-        simpleRendering: true,
-        fpsLimit: 30,
-      };
-      settings = performanceProfiles.potato;
+      perfFlags = { lowQuality: true, disableEffects: true, disableAnimations: true, reduceParticles: true, disableShadows: true, simpleRendering: true, fpsLimit: 30 };
     } else if (performanceScore < 6 || detectedMemoryValue < 4) {
       level = 'low';
-      perfFlags = {
-        lowQuality: true,
-        disableEffects: true,
-        disableAnimations: false,
-        reduceParticles: true,
-        disableShadows: true,
-        simpleRendering: false,
-        fpsLimit: 40,
-      };
-      settings = performanceProfiles.low;
+      perfFlags = { lowQuality: true, disableEffects: true, disableAnimations: false, reduceParticles: true, disableShadows: true, simpleRendering: false, fpsLimit: 40 };
     } else if (performanceScore < 9 || detectedMemoryValue < 6) {
       level = 'medium';
-      perfFlags = {
-        lowQuality: false,
-        disableEffects: false,
-        disableAnimations: false,
-        reduceParticles: true,
-        disableShadows: false,
-        simpleRendering: false,
-        fpsLimit: 50,
-      };
-      settings = performanceProfiles.medium;
+      perfFlags = { lowQuality: false, disableEffects: false, disableAnimations: false, reduceParticles: true, disableShadows: false, simpleRendering: false, fpsLimit: 50 };
     }
-
     setPerformanceLevel(level);
     setPerformanceMode(perfFlags);
-    setPerformanceSettings(settings);
+    
+    let frameCount = 0;
+    let lastTime = performance.now();
+    function updateFPS() {
+      frameCount++;
+      const currentTime = performance.now();
+      if (currentTime >= lastTime + 1000) {
+        const fpsValue = Math.round((frameCount * 1000) / (currentTime - lastTime));
+        setFps(fpsValue);
+        frameCount = 0;
+        lastTime = currentTime;
+        if (fpsValue < 25 && level !== 'extreme') {
+          setPerformanceLevel('extreme');
+          setPerformanceMode({ lowQuality: true, disableEffects: true, disableAnimations: true, reduceParticles: true, disableShadows: true, simpleRendering: true, fpsLimit: 30 });
+        }
+      }
+      requestAnimationFrame(updateFPS);
+    }
+    const fpsAnimationId = requestAnimationFrame(updateFPS);
+    return () => cancelAnimationFrame(fpsAnimationId);
   }, []);
 
   const togglePerformanceMode = useCallback(() => {
     const body = document.body;
     const isExtreme = body.classList.contains('extreme-performance-mode');
     const isLow = body.classList.contains('low-performance');
-    let newMode, newPerfFlags, newSettings;
-
+    let newMode, newPerfFlags;
     if (isExtreme) {
-      body.classList.remove('extreme-performance-mode');
-      body.classList.add('low-performance');
+      body.classList.remove('extreme-performance-mode'); body.classList.add('low-performance');
       newMode = 'Low Performance';
-      newPerfFlags = {
-        lowQuality: true,
-        disableEffects: true,
-        disableAnimations: false,
-        reduceParticles: true,
-        disableShadows: true,
-        simpleRendering: false,
-        fpsLimit: 40,
-      };
-      newSettings = performanceProfiles.low;
+      newPerfFlags = { lowQuality: true, disableEffects: true, disableAnimations: false, reduceParticles: true, disableShadows: true, simpleRendering: false, fpsLimit: 40 };
       setPerformanceLevel('low');
     } else if (isLow) {
       body.classList.remove('low-performance');
       newMode = 'Normal';
-      newPerfFlags = {
-        lowQuality: false,
-        disableEffects: false,
-        disableAnimations: false,
-        reduceParticles: false,
-        disableShadows: false,
-        simpleRendering: false,
-        fpsLimit: 60,
-      };
-      newSettings = performanceProfiles.high;
+      newPerfFlags = { lowQuality: false, disableEffects: false, disableAnimations: false, reduceParticles: false, disableShadows: false, simpleRendering: false, fpsLimit: 60 };
       setPerformanceLevel('high');
     } else {
       body.classList.add('extreme-performance-mode');
       newMode = 'Extreme Performance';
-      newPerfFlags = {
-        lowQuality: true,
-        disableEffects: true,
-        disableAnimations: true,
-        reduceParticles: true,
-        disableShadows: true,
-        simpleRendering: true,
-        fpsLimit: 30,
-      };
-      newSettings = performanceProfiles.potato;
+      newPerfFlags = { lowQuality: true, disableEffects: true, disableAnimations: true, reduceParticles: true, disableShadows: true, simpleRendering: true, fpsLimit: 30 };
       setPerformanceLevel('extreme');
     }
-
     setPerformanceMode(newPerfFlags);
-    setPerformanceSettings(newSettings);
     addNotification(`Performance mode: ${newMode}`, 'info');
   }, []);
 
-  // ===== QUANTUM SYSTEM (now uses local state, no external module) =====
+  // ========== QUANTUM SYSTEM ==========
   const initializeQuantumSystem = useCallback(() => {
     if (typeof window !== 'undefined') {
       try {
-        // Use fallback values
-        const fallbackState = {
-          chaosLevel: 0,
-          realityCoefficient: 1.0,
-          temporalDisplacement: 0,
-          spatialDistortion: 1.0,
-          quantumFieldStrength: 0,
-          quantumSignature: Math.random().toString(36),
-        };
-        setQuantumState(fallbackState);
-        setChaosLevel(fallbackState.chaosLevel);
-        setRealityCoefficient(fallbackState.realityCoefficient);
-        setTemporalDisplacement(fallbackState.temporalDisplacement);
-        setSpatialDistortion(fallbackState.spatialDistortion);
-        setQuantumField(fallbackState.quantumFieldStrength);
+        const state = getQuantumStateSummary();
+        setQuantumState(state);
+        setChaosLevel(state.chaosLevel);
+        setRealityCoefficient(state.realityCoefficient);
+        setTemporalDisplacement(state.temporalDisplacement);
+        setSpatialDistortion(state.spatialDistortion);
+        setQuantumField(state.quantumFieldStrength);
         if (!isReducedMotion && !performanceMode.disableAnimations) {
           startQuantumVisualization();
         }
-      } catch (error) {
-        console.error('Quantum initialization failed:', error);
-      }
+      } catch (error) { console.error('Quantum initialization failed:', error); }
     }
   }, [isReducedMotion, performanceMode.disableAnimations]);
 
   const handleQuantumEvent = useCallback((event) => {
     const { detail } = event;
-    // If we receive events from ChaosEngine, update state accordingly
     switch (event.type) {
-      case 'quantum-state-change':
-        setQuantumState(detail.quantumState);
-        setChaosLevel(detail.quantumState.chaosLevel);
-        setRealityCoefficient(detail.quantumState.realityCoefficient);
-        setTemporalDisplacement(detail.quantumState.temporalDisplacement);
-        setSpatialDistortion(detail.quantumState.spatialDistortion);
-        setQuantumField(detail.quantumState.quantumFieldStrength);
-        break;
-      case 'quantum-chaos-trigger':
-        handleQuantumChaosTrigger(detail);
-        break;
-      case 'quantum-field-strength-change':
-        setQuantumField(detail.quantumFieldStrength);
-        break;
-      case 'quantum-temporal-displacement':
-        setTemporalDisplacement(detail.temporalDisplacement);
-        break;
-      case 'quantum-spatial-distortion':
-        setSpatialDistortion(detail.spatialDistortion);
-        break;
-      case 'quantum-reality-coefficient-change':
-        setRealityCoefficient(detail.realityCoefficient);
-        break;
-      default:
-        // ignore
-        break;
+      case 'quantum-state-change': setQuantumState(detail.quantumState); break;
+      case 'quantum-chaos-trigger': handleQuantumChaosTrigger(detail); break;
+      case 'quantum-field-strength-change': setQuantumField(detail.quantumFieldStrength); break;
+      case 'quantum-temporal-displacement': setTemporalDisplacement(detail.temporalDisplacement); break;
+      case 'quantum-spatial-distortion': setSpatialDistortion(detail.spatialDistortion); break;
+      case 'quantum-reality-coefficient-change': setRealityCoefficient(detail.realityCoefficient); break;
+      default: const state = getQuantumStateSummary(); setQuantumState(state); setChaosLevel(state.chaosLevel); setQuantumField(state.quantumFieldStrength);
     }
   }, []);
 
   const handleQuantumChaosTrigger = useCallback((detail) => {
     const { type, intensity = 50 } = detail;
     const effectId = Date.now();
-    setQuantumEffects((prev) => [...prev, { id: effectId, type, intensity, timestamp: Date.now() }]);
-    setTimeout(
-      () => setQuantumEffects((prev) => prev.filter((effect) => effect.id !== effectId)),
-      3000
-    );
+    setQuantumEffects(prev => [...prev, { id: effectId, type, intensity, timestamp: Date.now() }]);
+    setTimeout(() => setQuantumEffects(prev => prev.filter(effect => effect.id !== effectId)), 3000);
     addNotification(`Quantum ${type} effect triggered!`, 'info');
-  }, [addNotification]);
+  }, []);
 
-  // ===== FULLSCREEN TAB NAVIGATION =====
-  const navigateToTab = useCallback(
-    (tab) => {
-      console.log(`🌀 Quantum shift to dimension: ${tab}`);
-      setActiveTab(tab);
-      setWebGLError(null);
-      addNotification(`Quantum reality shifted to ${tab} dimension`, 'quantum');
-      announceToScreenReader(`Navigated to ${tab} tab`);
-
-      // Build data with current state (fallback)
-      const data = {
-        tab,
-        world: worldName,
-        timestamp: Date.now(),
-        quantumState: {
-          chaosLevel,
-          realityCoefficient,
-          temporalDisplacement,
-          spatialDistortion,
-          quantumFieldStrength: quantumField,
-          quantumSignature: Math.random().toString(36),
-        },
-      };
-      const encrypted = encryptData(data);
-      if (encrypted && typeof window !== 'undefined') {
-        window.history.replaceState({}, '', `?e=${encrypted}`);
-      }
-    },
-    [worldName, addNotification, chaosLevel, realityCoefficient, temporalDisplacement, spatialDistortion, quantumField]
-  );
+  // ========== FULLSCREEN TAB NAVIGATION ==========
+  const navigateToTab = useCallback((tab) => {
+    console.log(`🌀 Quantum shift to dimension: ${tab}`);
+    setActiveTab(tab);
+    setWebGLError(null);
+    addNotification(`Quantum reality shifted to ${tab} dimension`, 'quantum');
+    announceToScreenReader(`Navigated to ${tab} tab`);
+    
+    // Update URL with encrypted state
+    const data = { tab, world: worldName, timestamp: Date.now(), quantumState: getQuantumStateSummary() };
+    const encrypted = encryptData(data);
+    if (encrypted && typeof window !== 'undefined') {
+      window.history.replaceState({}, '', `?e=${encrypted}`);
+    }
+  }, [worldName]);
 
   const toggleQuantumEditor = useCallback(() => {
     setShowEditor(!showEditor);
     addNotification(!showEditor ? 'Quantum code editor activated' : 'Quantum editor closed', 'info');
-  }, [showEditor, addNotification]);
+  }, [showEditor]);
 
-  // ===== NOTIFICATIONS =====
-  const addNotification = useCallback(
-    (message, type = 'info') => {
-      const id = Date.now();
-      const quantumType = type === 'info' ? 'quantum' : type;
-      setNotifications((prev) => [
-        ...prev,
-        { id, message, type: quantumType, timestamp: Date.now(), chaosLevel },
-      ]);
-      const decayTime = 3000 * (1 + chaosLevel / 100);
-      setTimeout(() => setNotifications((prev) => prev.filter((n) => n.id !== id)), decayTime);
-    },
-    [chaosLevel]
-  );
+  // ========== NOTIFICATIONS ==========
+  const addNotification = useCallback((message, type = 'info') => {
+    const id = Date.now();
+    const quantumType = type === 'info' ? 'quantum' : type;
+    setNotifications(prev => [...prev, { id, message, type: quantumType, timestamp: Date.now(), chaosLevel }]);
+    const decayTime = 3000 * (1 + chaosLevel / 100);
+    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), decayTime);
+  }, [chaosLevel]);
 
-  // ===== THREE WORLD =====
+  // ========== THREE WORLD ==========
   const handleThreeWorldReady = useCallback(() => {
     setIsThreeWorldReady(true);
     addNotification('Quantum Reality Field stabilized. 3D World ready!', 'success');
-  }, [addNotification]);
+  }, []);
 
   const handleWebGLError = useCallback((errorMessage) => {
     setWebGLError(errorMessage);
     addNotification(`Quantum Rendering Error: ${errorMessage}`, 'error');
-  }, [addNotification]);
+  }, []);
 
-  // ===== DRAG AND DROP =====
+  // ========== DRAG AND DROP ==========
   const handleModDragStart = useCallback((mod) => {
     setDraggedMod(mod);
     addNotification(`Quantum entanglement established with ${mod.name}`, 'info');
-  }, [addNotification]);
+  }, []);
 
-  const handleModDropIntoWorld = useCallback(
-    (position) => {
-      if (draggedMod) {
-        window.dispatchEvent(
-          new CustomEvent('add-mod-to-world', { detail: { mod: draggedMod, position } })
-        );
-        addNotification(`Quantum manifestation: ${draggedMod.name} materialized`, 'success');
-        setDraggedMod(null);
-      }
-    },
-    [draggedMod, addNotification]
-  );
+  const handleModDropIntoWorld = useCallback((position) => {
+    if (draggedMod) {
+      window.dispatchEvent(new CustomEvent('add-mod-to-world', { detail: { mod: draggedMod, position } }));
+      addNotification(`Quantum manifestation: ${draggedMod.name} materialized`, 'success');
+      setDraggedMod(null);
+    }
+  }, [draggedMod]);
 
-  // ===== WORLD ACTIONS =====
+  // ========== WORLD ACTIONS ==========
   const handleNewWorld = useCallback(() => {
     const name = prompt('Enter quantum world name:', `Reality-${Date.now().toString(36)}`);
-    if (name) {
-      setWorldName(name);
-      addNotification(`Quantum world "${name}" created.`, 'success');
-    }
-  }, [addNotification]);
+    if (name) { setWorldName(name); addNotification(`Quantum world "${name}" created.`, 'success'); }
+  }, []);
 
   const handleClearWorld = useCallback(() => {
     if (confirm('Collapse quantum superposition? This will clear the entire reality field.')) {
       window.dispatchEvent(new CustomEvent('clear-world'));
       addNotification('Quantum reality field collapsed. World cleared.', 'success');
     }
-  }, [addNotification]);
+  }, []);
 
   const handleImportWorld = useCallback(() => {
     const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.modz3,.zip,.json,.quantum';
+    input.type = 'file'; input.accept = '.modz3,.zip,.json,.quantum';
     input.onchange = (e) => {
       const file = e.target.files?.[0];
-      if (file) {
-        addNotification(`Quantum import initiated: ${file.name}...`, 'info');
-      }
+      if (file) { addNotification(`Quantum import initiated: ${file.name}...`, 'info'); }
     };
     input.click();
-  }, [addNotification]);
+  }, []);
 
   const handleExportWorld = useCallback(() => {
     addNotification('Quantum reality export in progress...', 'info');
     window.dispatchEvent(new CustomEvent('export-world'));
-  }, [addNotification]);
+  }, []);
 
   const generateQuantumShareLink = useCallback(() => {
-    const data = {
-      tab: activeTab,
-      world: worldName,
-      timestamp: Date.now(),
-      source: 'quantum_shared',
-      quantumState: {
-        chaosLevel,
-        realityCoefficient,
-        temporalDisplacement,
-        spatialDistortion,
-        quantumFieldStrength: quantumField,
-        quantumSignature: Math.random().toString(36),
-      },
-    };
+    const data = { tab: activeTab, world: worldName, timestamp: Date.now(), source: 'quantum_shared', quantumState: getQuantumStateSummary() };
     const encrypted = encryptData(data);
     return encrypted ? `${window.location.origin}${window.location.pathname}?e=${encrypted}` : null;
-  }, [activeTab, worldName, chaosLevel, realityCoefficient, temporalDisplacement, spatialDistortion, quantumField]);
+  }, [activeTab, worldName]);
 
   const handleShareWorld = useCallback(() => {
     const shareLink = generateQuantumShareLink();
     if (shareLink && navigator.share) {
-      navigator
-        .share({ title: `Quantum World: ${worldName}`, url: shareLink })
-        .catch(() => {
-          navigator.clipboard.writeText(shareLink);
-          addNotification('Quantum share link copied to clipboard!', 'success');
-        });
+      navigator.share({ title: `Quantum World: ${worldName}`, url: shareLink }).catch(() => {
+        navigator.clipboard.writeText(shareLink);
+        addNotification('Quantum share link copied to clipboard!', 'success');
+      });
     } else if (shareLink) {
       navigator.clipboard.writeText(shareLink);
       addNotification('Quantum share link copied to clipboard!', 'success');
     }
-  }, [worldName, generateQuantumShareLink, addNotification]);
+  }, [worldName, generateQuantumShareLink]);
 
-  // ===== PWA / CWA INSTALLATION =====
+  // ========== PWA / CWA INSTALLATION ==========
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
+    const handleBeforeInstallPrompt = (e) => { e.preventDefault(); setDeferredPrompt(e); };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
 
-  // ===== INITIALIZATION =====
+  // ========== INITIALIZATION ==========
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const announcer = document.createElement('div');
-    announcer.id = 'quantum-announcer';
-    announcer.setAttribute('aria-live', 'polite');
-    announcer.setAttribute('aria-atomic', 'true');
-    announcer.style.position = 'absolute';
-    announcer.style.width = '1px';
-    announcer.style.height = '1px';
-    announcer.style.overflow = 'hidden';
-    announcer.style.clip = 'rect(0, 0, 0, 0)';
-    document.body.appendChild(announcer);
+    announcer.id = 'quantum-announcer'; announcer.setAttribute('aria-live', 'polite'); announcer.setAttribute('aria-atomic', 'true');
+    announcer.style.position = 'absolute'; announcer.style.width = '1px'; announcer.style.height = '1px'; announcer.style.overflow = 'hidden';
+    announcer.style.clip = 'rect(0, 0, 0, 0)'; document.body.appendChild(announcer);
 
     const encrypted = searchParams.get('e');
     if (encrypted) {
@@ -890,100 +1294,57 @@ function AppContent() {
     }
 
     initializeQuantumSystem();
-    setTimeout(
-      () => addNotification('Welcome to Quantum Modz3.0! Reality coefficient stabilized.', 'info'),
-      1500
-    );
-    return () => {
-      if (announcer) announcer.remove();
-    };
-  }, [searchParams, initializeQuantumSystem, addNotification]);
+    setTimeout(() => addNotification('Welcome to Quantum Modz3.0! Reality coefficient stabilized.', 'info'), 1500);
+    return () => { if (announcer) announcer.remove(); };
+  }, [searchParams, initializeQuantumSystem]);
 
-  // Update URL with encrypted state
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const data = {
-      tab: activeTab,
-      world: worldName,
-      timestamp: Date.now(),
-      quantumState: {
-        chaosLevel,
-        realityCoefficient,
-        temporalDisplacement,
-        spatialDistortion,
-        quantumFieldStrength: quantumField,
-        quantumSignature: Math.random().toString(36),
-      },
-    };
+    const data = { tab: activeTab, world: worldName, timestamp: Date.now(), quantumState: getQuantumStateSummary() };
     const encrypted = encryptData(data);
     if (encrypted) window.history.replaceState({}, '', `?e=${encrypted}`);
-  }, [activeTab, worldName, chaosLevel, realityCoefficient, temporalDisplacement, spatialDistortion, quantumField]);
+  }, [activeTab, worldName]);
 
-  // ===== QUANTUM VISUALIZATION =====
+  // ========== QUANTUM VISUALIZATION ==========
   const startQuantumVisualization = useCallback(() => {
     if (!canvasRef.current || isReducedMotion || performanceMode.disableAnimations) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    particleSystemRef.current = {
-      particles: [],
-      attractors: [],
-      time: 0,
-      chaos: chaosLevel / 100,
-      quantumField,
-    };
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    
+    particleSystemRef.current = { particles: [], attractors: [], time: 0, chaos: chaosLevel / 100, quantumField };
     const particleCount = performanceMode.reduceParticles ? 30 : 100;
     for (let i = 0; i < particleCount; i++) {
       particleSystemRef.current.particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 2,
-        vy: (Math.random() - 0.5) * 2,
+        x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2,
         radius: performanceMode.lowQuality ? Math.random() * 2 + 1 : Math.random() * 4 + 2,
         color: `hsla(${Math.random() * 360}, 100%, 70%, ${performanceMode.lowQuality ? 0.3 : 0.5})`,
-        life: Math.random() * 200 + 100,
+        life: Math.random() * 200 + 100
       });
     }
-
+    
     const animate = () => {
       if (!ctx || !canvasRef.current) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       if (!performanceMode.simpleRendering) {
-        const gradient = ctx.createRadialGradient(
-          canvas.width / 2,
-          canvas.height / 2,
-          0,
-          canvas.width / 2,
-          canvas.height / 2,
-          Math.max(canvas.width, canvas.height) / 2
-        );
+        const gradient = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 0, canvas.width/2, canvas.height/2, Math.max(canvas.width, canvas.height)/2);
         gradient.addColorStop(0, `hsla(270, 100%, 60%, ${0.05 * (quantumField * 100) / 100})`);
         gradient.addColorStop(0.3, `hsla(200, 100%, 50%, ${0.03 * (quantumField * 100) / 100})`);
         gradient.addColorStop(0.6, `hsla(150, 100%, 50%, ${0.02 * (quantumField * 100) / 100})`);
         gradient.addColorStop(1, 'transparent');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = gradient; ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
       particleSystemRef.current.time += 0.01;
       animationRef.current = requestAnimationFrame(animate);
     };
     animate();
-    const handleResize = () => {
-      if (canvasRef.current) {
-        canvasRef.current.width = window.innerWidth;
-        canvasRef.current.height = window.innerHeight;
-      }
-    };
+    const handleResize = () => { if (canvasRef.current) { canvasRef.current.width = window.innerWidth; canvasRef.current.height = window.innerHeight; } };
     window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    };
+    return () => { window.removeEventListener('resize', handleResize); if (animationRef.current) cancelAnimationFrame(animationRef.current); };
   }, [chaosLevel, quantumField, isReducedMotion, performanceMode]);
 
-  // ===== RENDER FULLSCREEN TAB =====
+  // ========== RENDER FULLSCREEN TAB (VERSION AWARE) ==========
   const renderFullscreenTab = useCallback(() => {
     if (activeTab === 'loading') {
       return (
@@ -993,7 +1354,7 @@ function AppContent() {
         </div>
       );
     }
-
+    
     switch (activeTab) {
       case 'world': {
         const ThreeWorldComponent = getComponent('ThreeWorld');
@@ -1001,7 +1362,7 @@ function AppContent() {
         const ModManagerComponent = getComponent('ModManager');
         return (
           <div className="quantum-fullscreen-tab world-tab">
-            <ThreeWorldComponent
+            <ThreeWorldComponent 
               addNotification={addNotification}
               worldName={worldName}
               onModDrop={handleModDropIntoWorld}
@@ -1012,83 +1373,80 @@ function AppContent() {
               reducedMotion={isReducedMotion}
               highContrast={highContrast}
               performanceMode={performanceMode}
-              performanceSettings={performanceSettings}
             />
             {showEditor && CodeEditorComponent && (
               <div className="quantum-editor-floating">
-                <CodeEditorComponent
+                <CodeEditorComponent 
                   onClose={() => setShowEditor(false)}
                   addNotification={addNotification}
                   quantumState={quantumState}
                   performanceMode={performanceMode}
-                  performanceSettings={performanceSettings}
                 />
               </div>
             )}
             <aside className="quantum-mod-sidebar">
-              <ModManagerComponent
+              <ModManagerComponent 
                 addNotification={addNotification}
                 onModDragStart={handleModDragStart}
                 isWorldReady={isThreeWorldReady && !webGLError}
                 quantumEffects={{ chaosLevel, realityCoefficient, quantumField }}
                 performanceMode={performanceMode}
-                performanceSettings={performanceSettings}
               />
             </aside>
           </div>
         );
       }
-
+      
       case 'community': {
         const CommunityComponent = getComponent('Community');
         return (
           <div className="quantum-fullscreen-tab community-tab">
-            <CommunityComponent
+            <CommunityComponent 
               addNotification={addNotification}
               encryptedParams={encryptedParams}
               reducedMotion={isReducedMotion}
               highContrast={highContrast}
               screenReaderMode={screenReaderMode}
               performanceMode={performanceMode}
-              performanceSettings={performanceSettings}
             />
           </div>
         );
       }
-
+      
       case 'installer': {
         const QuantumPWAInstallerComponent = getComponent('QuantumPWAInstaller');
         return (
           <div className="quantum-fullscreen-tab installer-tab">
             <div className="installer-grid">
-              <QuantumPWAInstallerComponent addNotification={addNotification} performanceSettings={performanceSettings} />
+              <QuantumPWAInstallerComponent addNotification={addNotification} />
             </div>
           </div>
         );
       }
-
+      
       case 'cwa': {
         const CWAInstallerComponent = getComponent('CWAInstaller');
         return (
           <div className="quantum-fullscreen-tab cwa-tab">
             <div className="installer-grid">
-              <CWAInstallerComponent addNotification={addNotification} performanceSettings={performanceSettings} />
+              <CWAInstallerComponent addNotification={addNotification} />
             </div>
           </div>
         );
       }
 
+      // ===== NEW: VERSION MIXER TAB =====
       case 'mixer':
         return (
           <div className="quantum-fullscreen-tab mixer-tab">
             <div className="mixer-container">
               <h2 className="mixer-title">🌀 Quantum Version Mixer</h2>
               <p className="mixer-subtitle">
-                Choose which reality each component manifests from.<br />
+                Choose which reality each component manifests from.<br/>
                 Mix stable, lite, and broken versions to generate emergent chaos.
               </p>
               <div className="mixer-grid">
-                {Object.keys(VERSION_MAP).map((component) => (
+                {Object.keys(VERSION_MAP).map(component => (
                   <div key={component} className="mixer-card">
                     <span className="mixer-component-name">{component}</span>
                     <select
@@ -1108,18 +1466,21 @@ function AppContent() {
                   </div>
                 ))}
               </div>
-              <button className="mixer-reset-btn" onClick={() => setComponentVersions(defaultVersions)}>
+              <button
+                className="mixer-reset-btn"
+                onClick={() => setComponentVersions(defaultVersions)}
+              >
                 ↺ Reset to Stable Reality
               </button>
             </div>
           </div>
         );
-
+      
       default: {
         const ThreeWorldComponent = getComponent('ThreeWorld');
         return (
           <div className="quantum-fullscreen-tab world-tab">
-            <ThreeWorldComponent
+            <ThreeWorldComponent 
               addNotification={addNotification}
               worldName={worldName}
               onReady={handleThreeWorldReady}
@@ -1128,43 +1489,24 @@ function AppContent() {
               reducedMotion={isReducedMotion}
               highContrast={highContrast}
               performanceMode={performanceMode}
-              performanceSettings={performanceSettings}
             />
           </div>
         );
       }
     }
   }, [
-    activeTab,
-    worldName,
-    handleModDropIntoWorld,
-    isDraggingOverWorld,
-    handleThreeWorldReady,
-    handleWebGLError,
-    chaosLevel,
-    realityCoefficient,
-    temporalDisplacement,
-    spatialDistortion,
-    quantumField,
-    encryptedParams,
-    quantumState,
-    isReducedMotion,
-    highContrast,
-    screenReaderMode,
-    performanceMode,
-    showEditor,
-    isThreeWorldReady,
-    webGLError,
-    getComponent,
-    componentVersions,
-    setComponentVersion,
-    performanceSettings,
-    addNotification,
+    activeTab, worldName, handleModDropIntoWorld, isDraggingOverWorld,
+    handleThreeWorldReady, handleWebGLError, chaosLevel, realityCoefficient,
+    temporalDisplacement, spatialDistortion, quantumField, encryptedParams,
+    quantumState, isReducedMotion, highContrast, screenReaderMode, performanceMode,
+    showEditor, isThreeWorldReady, webGLError, getComponent, componentVersions,
+    setComponentVersion
   ]);
 
-  // ===== RENDER JSX =====
+  // ========== RENDER JSX WITH EMBEDDED CSS ==========
   return (
     <>
+      {/* ===== IMMERSIVE QUANTUM CSS ===== */}
       <style jsx global>{`
         /* ---------- QUANTUM DESIGN SYSTEM 3.0 ---------- */
         :root {
@@ -1196,8 +1538,7 @@ function AppContent() {
           box-sizing: border-box;
         }
 
-        html,
-        body {
+        html, body {
           width: 100%;
           height: 100%;
           overflow: hidden;
@@ -1214,6 +1555,7 @@ function AppContent() {
           background: radial-gradient(circle at 50% 50%, var(--quantum-void) 0%, var(--quantum-deep-space) 100%);
         }
 
+        /* ---------- FULLSCREEN TAB SYSTEM ---------- */
         .quantum-app-container {
           position: fixed;
           top: 0;
@@ -1242,21 +1584,20 @@ function AppContent() {
         }
 
         @keyframes quantumRealityShift {
-          0% {
-            opacity: 0.7;
-            transform: scale(0.98) rotateX(2deg);
-            filter: blur(4px);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1) rotateX(0);
-            filter: blur(0);
-          }
+          0% { opacity: 0.7; transform: scale(0.98) rotateX(2deg); filter: blur(4px); }
+          100% { opacity: 1; transform: scale(1) rotateX(0); filter: blur(0); }
         }
 
-        .world-tab { padding: 0; }
-        .community-tab, .installer-tab, .cwa-tab, .mixer-tab { padding: 2rem; }
+        /* World tab specific - full bleed */
+        .world-tab {
+          padding: 0;
+        }
 
+        .community-tab, .installer-tab, .cwa-tab, .mixer-tab {
+          padding: 2rem;
+        }
+
+        /* ---------- QUANTUM BACKGROUND CANVAS ---------- */
         .quantum-background-canvas {
           position: fixed;
           top: 0;
@@ -1268,6 +1609,7 @@ function AppContent() {
           opacity: 0.7;
         }
 
+        /* ---------- QUANTUM HEADER (COMPACT OVERLAY) ---------- */
         .quantum-header {
           position: fixed;
           top: 20px;
@@ -1288,7 +1630,7 @@ function AppContent() {
         }
 
         @keyframes headerFloat {
-          0%,100% { transform: translateY(0); }
+          0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-2px); }
         }
 
@@ -1297,11 +1639,13 @@ function AppContent() {
           align-items: center;
           gap: 12px;
         }
+
         .logo-quantum-animation {
           position: relative;
           width: 40px;
           height: 40px;
         }
+
         .quantum-logo-singularity {
           position: absolute;
           top: 50%;
@@ -1314,6 +1658,7 @@ function AppContent() {
           box-shadow: 0 0 30px var(--quantum-primary);
           animation: pulse 3s infinite;
         }
+
         .logo-ring {
           position: absolute;
           top: 50%;
@@ -1322,35 +1667,16 @@ function AppContent() {
           border-radius: 50%;
           animation: ringPulse 3s infinite;
         }
-        .logo-ring:nth-child(1) {
-          width: 30px;
-          height: 30px;
-          margin-left: -15px;
-          margin-top: -15px;
-          opacity: 0.5;
-          animation-delay: 0s;
-        }
-        .logo-ring:nth-child(2) {
-          width: 40px;
-          height: 40px;
-          margin-left: -20px;
-          margin-top: -20px;
-          opacity: 0.3;
-          animation-delay: 0.5s;
-        }
-        .logo-ring:nth-child(3) {
-          width: 50px;
-          height: 50px;
-          margin-left: -25px;
-          margin-top: -25px;
-          opacity: 0.2;
-          animation-delay: 1s;
-        }
+        .logo-ring:nth-child(1) { width: 30px; height: 30px; margin-left: -15px; margin-top: -15px; opacity: 0.5; animation-delay: 0s; }
+        .logo-ring:nth-child(2) { width: 40px; height: 40px; margin-left: -20px; margin-top: -20px; opacity: 0.3; animation-delay: 0.5s; }
+        .logo-ring:nth-child(3) { width: 50px; height: 50px; margin-left: -25px; margin-top: -25px; opacity: 0.2; animation-delay: 1s; }
+
         @keyframes ringPulse {
           0% { transform: scale(1); opacity: 0.3; }
           50% { transform: scale(1.2); opacity: 0.1; }
           100% { transform: scale(1); opacity: 0.3; }
         }
+
         .quantum-logo-text {
           font-size: 1.8rem;
           font-weight: 800;
@@ -1358,19 +1684,10 @@ function AppContent() {
           display: flex;
           gap: 4px;
         }
-        .logo-text-modz {
-          background: linear-gradient(135deg, #fff, #e0e0ff);
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-        }
-        .logo-text-quantum {
-          background: linear-gradient(135deg, var(--quantum-primary), var(--quantum-secondary));
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-        }
+        .logo-text-modz { background: linear-gradient(135deg, #fff, #e0e0ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .logo-text-quantum { background: linear-gradient(135deg, var(--quantum-primary), var(--quantum-secondary)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
+        /* ---------- QUANTUM NAVIGATION ---------- */
         .quantum-nav-links {
           display: flex;
           gap: 12px;
@@ -1379,6 +1696,7 @@ function AppContent() {
           border-radius: 40px;
           backdrop-filter: blur(10px);
         }
+
         .quantum-nav-link {
           position: relative;
           padding: 10px 20px;
@@ -1395,34 +1713,41 @@ function AppContent() {
           transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
           overflow: hidden;
         }
+
         .quantum-nav-link i {
           font-size: 1.1rem;
           color: var(--quantum-secondary);
         }
+
         .quantum-nav-link:hover {
           background: rgba(108, 92, 231, 0.15);
           color: white;
           transform: translateY(-2px);
         }
+
         .quantum-nav-link.active {
           background: linear-gradient(135deg, var(--quantum-primary), var(--quantum-accent));
           color: white;
           box-shadow: 0 5px 20px var(--quantum-glow);
         }
-        .quantum-nav-link.active i { color: white; }
 
+        .quantum-nav-link.active i {
+          color: white;
+        }
+
+        /* ---------- QUANTUM USER SECTION / AVATAR ---------- */
         .quantum-user-section {
           display: flex;
           align-items: center;
           gap: 20px;
         }
+
         .quantum-world-actions {
           display: flex;
           gap: 8px;
         }
-        .btn-quantum-primary,
-        .btn-quantum-secondary,
-        .btn-quantum-accent {
+
+        .btn-quantum-primary, .btn-quantum-secondary, .btn-quantum-accent {
           padding: 8px 16px;
           border: none;
           border-radius: 30px;
@@ -1436,15 +1761,13 @@ function AppContent() {
           color: white;
           border: 1px solid var(--quantum-border);
         }
-        .btn-quantum-primary {
-          background: linear-gradient(135deg, var(--quantum-primary), var(--quantum-secondary));
-        }
-        .btn-quantum-accent {
-          background: linear-gradient(135deg, var(--quantum-accent), var(--quantum-chaos));
-        }
+        .btn-quantum-primary { background: linear-gradient(135deg, var(--quantum-primary), var(--quantum-secondary)); }
+        .btn-quantum-accent { background: linear-gradient(135deg, var(--quantum-accent), var(--quantum-chaos)); }
+
         .quantum-avatar-container {
           position: relative;
         }
+
         .quantum-avatar-3d {
           position: relative;
           width: 48px;
@@ -1462,17 +1785,10 @@ function AppContent() {
           box-shadow: 0 0 30px var(--quantum-glow);
           overflow: hidden;
         }
-        .quantum-avatar-3d:hover {
-          transform: scale(1.1);
-          border-color: white;
-        }
-        .avatar-quantum-core {
-          position: absolute;
-          width: 100%;
-          height: 100%;
-          background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.3), transparent);
-        }
+        .quantum-avatar-3d:hover { transform: scale(1.1); border-color: white; }
+        .avatar-quantum-core { position: absolute; width: 100%; height: 100%; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.3), transparent); }
 
+        /* ---------- PROFILE OVERLAY ---------- */
         .profile-overlay-global {
           position: fixed;
           top: 0;
@@ -1497,6 +1813,7 @@ function AppContent() {
           100% { opacity: 1; transform: scale(1) translateY(0); }
         }
 
+        /* ---------- MOD MANAGER SIDEBAR ---------- */
         .quantum-mod-sidebar {
           position: absolute;
           top: 100px;
@@ -1509,7 +1826,7 @@ function AppContent() {
           border: 1px solid var(--quantum-border);
           border-radius: 24px;
           padding: 20px;
-          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+          box-shadow: 0 20px 50px rgba(0,0,0,0.5);
           overflow-y: auto;
           z-index: 5000;
           animation: sidebarGlide 0.5s ease;
@@ -1519,6 +1836,7 @@ function AppContent() {
           to { opacity: 1; transform: translateX(0); }
         }
 
+        /* ---------- INSTALLER GRID ---------- */
         .installer-grid {
           display: flex;
           align-items: center;
@@ -1526,13 +1844,13 @@ function AppContent() {
           width: 100%;
           height: 100%;
         }
-        .installer-tab,
-        .cwa-tab {
+        .installer-tab, .cwa-tab {
           display: flex;
           align-items: center;
           justify-content: center;
         }
 
+        /* ---------- QUANTUM NOTIFICATIONS ---------- */
         .quantum-notification-container {
           position: fixed;
           top: 100px;
@@ -1549,7 +1867,7 @@ function AppContent() {
           border-left: 6px solid var(--quantum-primary);
           border-radius: 16px;
           padding: 16px;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+          box-shadow: 0 10px 30px rgba(0,0,0,0.5);
           animation: notificationSlide 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
         @keyframes notificationSlide {
@@ -1557,6 +1875,7 @@ function AppContent() {
           to { opacity: 1; transform: translateX(0); }
         }
 
+        /* ---------- QUANTUM STATUS BAR ---------- */
         .quantum-status-bar {
           position: fixed;
           bottom: 20px;
@@ -1581,11 +1900,9 @@ function AppContent() {
           align-items: center;
           gap: 10px;
         }
-        .status-icon {
-          color: var(--quantum-secondary);
-          font-size: 1rem;
-        }
+        .status-icon { color: var(--quantum-secondary); font-size: 1rem; }
 
+        /* ---------- NEW: VERSION MIXER STYLES ---------- */
         .mixer-tab {
           padding: 2rem;
           display: flex;
@@ -1601,7 +1918,7 @@ function AppContent() {
           border: 1px solid var(--quantum-border);
           border-radius: 32px;
           padding: 40px;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+          box-shadow: 0 20px 60px rgba(0,0,0,0.6);
           animation: mixerAppear 0.5s ease;
         }
         @keyframes mixerAppear {
@@ -1619,7 +1936,7 @@ function AppContent() {
           text-align: center;
         }
         .mixer-subtitle {
-          color: rgba(255, 255, 255, 0.7);
+          color: rgba(255,255,255,0.7);
           text-align: center;
           margin-bottom: 40px;
           font-size: 1.1rem;
@@ -1639,7 +1956,7 @@ function AppContent() {
         }
         .mixer-card:hover {
           border-color: var(--quantum-primary);
-          box-shadow: 0 0 30px rgba(108, 92, 231, 0.2);
+          box-shadow: 0 0 30px rgba(108,92,231,0.2);
           transform: translateY(-2px);
         }
         .mixer-component-name {
@@ -1648,7 +1965,7 @@ function AppContent() {
           font-weight: 700;
           margin-bottom: 16px;
           color: white;
-          text-shadow: 0 0 10px rgba(108, 92, 231, 0.3);
+          text-shadow: 0 0 10px rgba(108,92,231,0.3);
         }
         .mixer-select {
           width: 100%;
@@ -1672,7 +1989,7 @@ function AppContent() {
           color: var(--quantum-secondary);
           opacity: 0.9;
           padding-top: 8px;
-          border-top: 1px dashed rgba(162, 155, 254, 0.3);
+          border-top: 1px dashed rgba(162,155,254,0.3);
         }
         .mixer-reset-btn {
           background: linear-gradient(135deg, #fd79a8, #e84393);
@@ -1686,116 +2003,29 @@ function AppContent() {
           display: block;
           margin: 0 auto;
           transition: all 0.3s;
-          box-shadow: 0 0 30px rgba(253, 121, 168, 0.3);
+          box-shadow: 0 0 30px rgba(253,121,168,0.3);
         }
         .mixer-reset-btn:hover {
           transform: scale(1.05);
-          box-shadow: 0 0 50px rgba(253, 121, 168, 0.6);
+          box-shadow: 0 0 50px rgba(253,121,168,0.6);
         }
 
-        .performance-dashboard {
-          position: fixed;
-          bottom: 100px;
-          left: 20px;
-          width: 420px;
-          background: rgba(10, 10, 20, 0.95);
-          backdrop-filter: blur(12px);
-          border: 2px solid #6c5ce7;
-          border-radius: 24px;
-          padding: 24px;
-          color: white;
-          z-index: 20000;
-          font-family: var(--font-mono);
-          box-shadow: 0 0 40px #6c5ce7, 0 10px 30px rgba(0, 0, 0, 0.8);
-          animation: dashboardGlow 3s infinite alternate;
-        }
-        @keyframes dashboardGlow {
-          from { box-shadow: 0 0 30px #6c5ce7, 0 10px 30px black; }
-          to { box-shadow: 0 0 60px #e84393, 0 10px 30px black; }
-        }
-        .dashboard-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 16px;
-          border-bottom: 1px solid #6c5ce7;
-          padding-bottom: 8px;
-        }
-        .dashboard-title {
-          font-size: 1.5rem;
-          font-weight: 700;
-          background: linear-gradient(135deg, #a29bfe, #fd79a8);
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-        }
-        .perf-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 16px;
-          margin: 16px 0;
-        }
-        .perf-item {
-          background: rgba(255, 255, 255, 0.08);
-          border-radius: 16px;
-          padding: 12px;
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          border: 1px solid rgba(108, 92, 231, 0.3);
-        }
-        .perf-label {
-          font-size: 0.8rem;
-          color: #a29bfe;
-          text-transform: uppercase;
-          letter-spacing: 1px;
-        }
-        .perf-value {
-          font-size: 1.3rem;
-          font-weight: 700;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        .profile-badge {
-          background: #6c5ce7;
-          padding: 4px 12px;
-          border-radius: 30px;
-          font-size: 0.8rem;
-          font-weight: 600;
-          display: inline-block;
-          margin: 8px 0;
-        }
-        .setting-slider {
-          width: 100%;
-          margin: 8px 0;
-          accent-color: #e84393;
-        }
-        .chart-container {
-          height: 100px;
-          margin: 12px 0;
-        }
-        .close-btn {
-          background: none;
-          border: none;
-          color: #e84393;
-          cursor: pointer;
-          font-size: 1.2rem;
-          transition: transform 0.2s;
-        }
-        .close-btn:hover {
-          transform: scale(1.2);
+        /* ---------- RESPONSIVE ---------- */
+        @media (max-width: 1200px) {
+          .quantum-header { flex-direction: column; align-items: stretch; height: auto; border-radius: 20px; }
+          .quantum-nav-links { flex-wrap: wrap; }
         }
       `}</style>
 
       <div className="quantum-app-container" ref={mainRef}>
-        <a href="#main-content" className="skip-to-content">
-          Skip to main content
-        </a>
+        {/* Skip to content */}
+        <a href="#main-content" className="skip-to-content">Skip to main content</a>
         <div id="quantum-announcer" className="sr-only" aria-live="polite" aria-atomic="true"></div>
 
+        {/* Quantum Background Canvas */}
         <canvas ref={canvasRef} className="quantum-background-canvas" aria-hidden="true" />
 
+        {/* Quantum Header - FLOATING OVERLAY */}
         <header className="quantum-header" role="banner">
           <div className="quantum-logo">
             <div className="logo-quantum-animation" aria-hidden={isReducedMotion}>
@@ -1811,62 +2041,40 @@ function AppContent() {
               <span className="logo-text-quantum">Quantum</span>
             </h1>
           </div>
-
+          
+          {/* NAVIGATION - FULLSCREEN TAB CONTROLS */}
           <nav className="quantum-nav-links" aria-label="Quantum dimensions">
-            <button
-              className={`quantum-nav-link ${activeTab === 'world' ? 'active' : ''}`}
-              onClick={() => navigateToTab('world')}
-            >
+            <button className={`quantum-nav-link ${activeTab === 'world' ? 'active' : ''}`} onClick={() => navigateToTab('world')}>
               <i className="fas fa-globe-americas" /> World
             </button>
-            <button
-              className={`quantum-nav-link ${activeTab === 'community' ? 'active' : ''}`}
-              onClick={() => navigateToTab('community')}
-            >
+            <button className={`quantum-nav-link ${activeTab === 'community' ? 'active' : ''}`} onClick={() => navigateToTab('community')}>
               <i className="fas fa-share-alt" /> Community
             </button>
-            <button
-              className={`quantum-nav-link ${activeTab === 'installer' ? 'active' : ''}`}
-              onClick={() => navigateToTab('installer')}
-            >
+            <button className={`quantum-nav-link ${activeTab === 'installer' ? 'active' : ''}`} onClick={() => navigateToTab('installer')}>
               <i className="fas fa-download" /> Installer
             </button>
-            <button
-              className={`quantum-nav-link ${activeTab === 'cwa' ? 'active' : ''}`}
-              onClick={() => navigateToTab('cwa')}
-            >
+            <button className={`quantum-nav-link ${activeTab === 'cwa' ? 'active' : ''}`} onClick={() => navigateToTab('cwa')}>
               <i className="fas fa-bolt" /> CWA
             </button>
-            <button
-              className={`quantum-nav-link ${activeTab === 'mixer' ? 'active' : ''}`}
-              onClick={() => navigateToTab('mixer')}
-            >
+            {/* NEW MIXER TAB */}
+            <button className={`quantum-nav-link ${activeTab === 'mixer' ? 'active' : ''}`} onClick={() => navigateToTab('mixer')}>
               <i className="fas fa-sliders-h" /> Mixer
             </button>
             <button className="quantum-nav-link" onClick={toggleQuantumEditor} aria-pressed={showEditor}>
               <i className="fas fa-atom" /> Editor
             </button>
           </nav>
-
+          
           <div className="quantum-user-section">
             <div className="quantum-world-actions">
-              <button className="btn-quantum-secondary" onClick={handleImportWorld}>
-                <i className="fas fa-folder-open" /> Import
-              </button>
-              <button className="btn-quantum-primary" onClick={handleExportWorld}>
-                <i className="fas fa-download" /> Export
-              </button>
-              <button className="btn-quantum-accent" onClick={handleShareWorld}>
-                <i className="fas fa-share" /> Share
-              </button>
+              <button className="btn-quantum-secondary" onClick={handleImportWorld}><i className="fas fa-folder-open" /> Import</button>
+              <button className="btn-quantum-primary" onClick={handleExportWorld}><i className="fas fa-download" /> Export</button>
+              <button className="btn-quantum-accent" onClick={handleShareWorld}><i className="fas fa-share" /> Share</button>
             </div>
-
+            
+            {/* AVATAR - CLICK TO SHOW PROFILE OVERLAY */}
             <div className="quantum-avatar-container">
-              <button
-                className="quantum-avatar-3d"
-                onClick={() => setShowProfileOverlay(true)}
-                aria-label="Open quantum profile"
-              >
+              <button className="quantum-avatar-3d" onClick={() => setShowProfileOverlay(true)} aria-label="Open quantum profile">
                 <div className="avatar-quantum-core"></div>
                 <i className="fas fa-robot"></i>
               </button>
@@ -1874,20 +2082,18 @@ function AppContent() {
           </div>
         </header>
 
-        <main
-          id="main-content"
-          className="quantum-main-content"
-          style={{ position: 'relative', flex: 1, overflow: 'hidden' }}
-        >
+        {/* MAIN CONTENT - FULLSCREEN TABS */}
+        <main id="main-content" className="quantum-main-content" style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
           {renderFullscreenTab()}
         </main>
 
+        {/* PROFILE OVERLAY - VERSIONED PROFILE COMPONENT */}
         {showProfileOverlay && (
           <div className="profile-overlay-global">
             {(() => {
               const ProfileComponent = getComponent('Profile');
               return (
-                <ProfileComponent
+                <ProfileComponent 
                   addNotification={addNotification}
                   quantumState={quantumState}
                   reducedMotion={isReducedMotion}
@@ -1900,36 +2106,29 @@ function AppContent() {
           </div>
         )}
 
+        {/* QUANTUM STATUS BAR */}
         <div className="quantum-status-bar">
           <div className="status-items">
-            <div className="status-item">
-              <i className="fas fa-atom status-icon" /> Quantum Field: {Math.round(quantumField * 100)}%
-            </div>
-            <div className="status-item">
-              <i className="fas fa-fire status-icon" /> Chaos: {Math.round(chaosLevel)}%
-            </div>
-            <div className="status-item">
-              <i className="fas fa-tachometer-alt status-icon" /> {performanceLevel}
-            </div>
-            <div className="status-item">
-              <i className="fas fa-clock status-icon" /> {fps} FPS
-            </div>
+            <div className="status-item"><i className="fas fa-atom status-icon" /> Quantum Field: {Math.round(quantumField * 100)}%</div>
+            <div className="status-item"><i className="fas fa-fire status-icon" /> Chaos: {Math.round(chaosLevel)}%</div>
+            <div className="status-item"><i className="fas fa-tachometer-alt status-icon" /> {performanceLevel}</div>
+            <div className="status-item"><i className="fas fa-clock status-icon" /> {fps} FPS</div>
           </div>
           <div className="status-actions">
-            <button className="btn-quantum-small" onClick={() => setShowQuantumInstaller(true)}>
-              <i className="fas fa-download" />
-            </button>
+            <button className="btn-quantum-small" onClick={() => setShowQuantumInstaller(true)}><i className="fas fa-download" /></button>
           </div>
         </div>
 
+        {/* NOTIFICATIONS */}
         <div className="quantum-notification-container">
-          {notifications.map((n) => (
+          {notifications.map(n => (
             <div key={n.id} className={`quantum-notification ${n.type}`}>
               <div className="notification-message">{n.message}</div>
             </div>
           ))}
         </div>
 
+        {/* QUANTUM INSTALLERS (versioned) */}
         {showQuantumInstaller && (
           <>
             {(() => {
@@ -1944,188 +2143,52 @@ function AppContent() {
             })()}
           </>
         )}
-
-        <AnimatePresence>
-          {showPerformanceDashboard && (
-            <motion.div
-              initial={{ x: -400, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: -400, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25 }}
-              className="performance-dashboard"
-            >
-              <div className="dashboard-header">
-                <span className="dashboard-title">
-                  <Gauge className="inline mr-2" size={20} /> Performance Dashboard
-                </span>
-                <button className="close-btn" onClick={() => setShowPerformanceDashboard(false)}>
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="perf-grid">
-                <div className="perf-item">
-                  <span className="perf-label">FPS</span>
-                  <span className="perf-value">
-                    <Activity className="text-green-400" size={18} /> {fps}
-                  </span>
-                </div>
-                <div className="perf-item">
-                  <span className="perf-label">Memory</span>
-                  <span className="perf-value">
-                    <HardDrive className="text-blue-400" size={18} /> {detectedMemory}GB
-                  </span>
-                </div>
-                <div className="perf-item">
-                  <span className="perf-label">CPU Cores</span>
-                  <span className="perf-value">
-                    <Cpu className="text-yellow-400" size={18} /> {cpuCores}
-                  </span>
-                </div>
-                <div className="perf-item">
-                  <span className="perf-label">Battery</span>
-                  <span className="perf-value">
-                    <Battery
-                      className={
-                        batteryInfo?.charging
-                          ? 'text-green-400'
-                          : batteryInfo?.level < 20
-                          ? 'text-red-400'
-                          : 'text-white'
-                      }
-                      size={18}
-                    />{' '}
-                    {batteryInfo ? `${Math.round(batteryInfo.level)}%` : 'N/A'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="chart-container">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={fpsHistory}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis dataKey="time" tick={false} />
-                    <YAxis domain={[0, 144]} stroke="#888" />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #6c5ce7' }}
-                    />
-                    <Line type="monotone" dataKey="fps" stroke="#e84393" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="profile-badge">Current Profile: {performanceLevel.toUpperCase()}</div>
-
-              <div>
-                <label className="text-sm">Particle Count</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="500"
-                  value={performanceSettings.particles}
-                  onChange={(e) =>
-                    setPerformanceSettings({ ...performanceSettings, particles: parseInt(e.target.value) })
-                  }
-                  className="setting-slider"
-                />
-                <div className="flex justify-between text-xs">
-                  <span>0</span>
-                  <span>{performanceSettings.particles}</span>
-                  <span>500</span>
-                </div>
-              </div>
-
-              <div className="flex gap-2 mt-4">
-                <button
-                  onClick={() => setPerformanceSettings(performanceProfiles.ultra)}
-                  className="px-3 py-1 bg-purple-700 rounded-lg text-xs"
-                >
-                  Ultra
-                </button>
-                <button
-                  onClick={() => setPerformanceSettings(performanceProfiles.high)}
-                  className="px-3 py-1 bg-blue-700 rounded-lg text-xs"
-                >
-                  High
-                </button>
-                <button
-                  onClick={() => setPerformanceSettings(performanceProfiles.medium)}
-                  className="px-3 py-1 bg-yellow-700 rounded-lg text-xs"
-                >
-                  Medium
-                </button>
-                <button
-                  onClick={() => setPerformanceSettings(performanceProfiles.low)}
-                  className="px-3 py-1 bg-orange-700 rounded-lg text-xs"
-                >
-                  Low
-                </button>
-                <button
-                  onClick={() => setPerformanceSettings(performanceProfiles.potato)}
-                  className="px-3 py-1 bg-red-700 rounded-lg text-xs"
-                >
-                  Potato
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
-      <ChaosEngine />
+      {/* Chaos Engine Components */}
+      <CorruptionInjector />
+      <P5Glitch />
+      <VersionRandomizer />
+      <BrokenComponentOverlay />
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          zIndex: -1,
+          pointerEvents: 'none',
+        }}
+      >
+        <Canvas>
+          <ChaosField />
+        </Canvas>
+      </div>
+      <ChaosPanel />
+      <Toaster position="bottom-right" toastOptions={{ duration: 2000 }} />
     </>
   );
 }
 
+// Main export with Suspense – wrapped in ChaosProvider
 export default function Home() {
   return (
-    <Suspense
-      fallback={
-        <div
-          className="quantum-loading-screen"
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            background: 'radial-gradient(circle at center, #0a0c15 0%, #03050a 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexDirection: 'column',
-            color: 'white',
-            zIndex: 999999,
-          }}
-        >
-          <div
-            className="quantum-spinner-cosmic"
-            style={{
-              width: '80px',
-              height: '80px',
-              border: '4px solid rgba(108,92,231,0.2)',
-              borderTopColor: '#6c5ce7',
-              borderRadius: '50%',
-              animation: 'spin 1s infinite',
-            }}
-          ></div>
-          <p
-            style={{
-              marginTop: '20px',
-              fontSize: '1.5rem',
-              background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)',
-              WebkitBackgroundClip: 'text',
-              backgroundClip: 'text',
-              color: 'transparent',
-            }}
-          >
-            Initializing Quantum Reality...
-          </p>
+    <ChaosProvider>
+      <Suspense fallback={
+        <div className="quantum-loading-screen" style={{ 
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+          background: 'radial-gradient(circle at center, #0a0c15 0%, #03050a 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column',
+          color: 'white', zIndex: 999999
+        }}>
+          <div className="quantum-spinner-cosmic" style={{ width: '80px', height: '80px', border: '4px solid rgba(108,92,231,0.2)', borderTopColor: '#6c5ce7', borderRadius: '50%', animation: 'spin 1s infinite' }}></div>
+          <p style={{ marginTop: '20px', fontSize: '1.5rem', background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>Initializing Quantum Reality...</p>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
-      }
-    >
-      <AppContent />
-    </Suspense>
+      }>
+        <AppContent />
+      </Suspense>
+    </ChaosProvider>
   );
 }
