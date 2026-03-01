@@ -36,7 +36,7 @@ import {
   Grid, List, RefreshCw, Server, Wifi, Power, ChevronLeft, Tag
 } from 'lucide-react';
 
-// Encryption key
+// ============= ENCRYPTION =============
 const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || 'quantum-mods-secret-key-2024';
 
 const encryptData = (data) => {
@@ -72,7 +72,129 @@ const decryptData = (encrypted) => {
   }
 };
 
-// ============= QUANTUM CODE EDITOR =============
+// ============= PERFORMANCE MODE HOOK =============
+const usePerformanceMode = (initialMode = {}) => {
+  const [performanceLevel, setPerformanceLevel] = useState('auto'); // 'low', 'medium', 'high', 'auto'
+  const [settings, setSettings] = useState({
+    showMinimap: true,
+    showLineNumbers: true,
+    fontSize: 14,
+    animationScale: 1,
+    debounceDelay: 500,
+    realtimeThrottle: 100,
+    ...initialMode
+  });
+
+  useEffect(() => {
+    if (performanceLevel !== 'auto') return;
+
+    const detectPerformance = () => {
+      const cpuCores = navigator.hardwareConcurrency || 4;
+      const memory = navigator.deviceMemory || 4; // GB, may be undefined
+      const connection = navigator.connection?.downlink || 10; // Mbps
+
+      let level = 'high';
+      if (cpuCores <= 2 || memory <= 2 || connection < 1) level = 'low';
+      else if (cpuCores <= 4 || memory <= 4 || connection < 5) level = 'medium';
+      
+      setPerformanceLevel(level);
+
+      setSettings(prev => ({
+        ...prev,
+        showMinimap: level !== 'low',
+        showLineNumbers: true,
+        fontSize: level === 'low' ? 12 : 14,
+        animationScale: level === 'low' ? 0 : (level === 'medium' ? 0.5 : 1),
+        debounceDelay: level === 'low' ? 1000 : 500,
+        realtimeThrottle: level === 'low' ? 500 : 100,
+      }));
+    };
+
+    detectPerformance();
+    const connection = navigator.connection;
+    if (connection) {
+      connection.addEventListener('change', detectPerformance);
+      return () => connection.removeEventListener('change', detectPerformance);
+    }
+  }, [performanceLevel]);
+
+  const setMode = (mode) => setPerformanceLevel(mode);
+
+  return { settings, performanceLevel, setMode };
+};
+
+// ============= REALTIME CHANNEL MANAGER =============
+const useRealtimeChannels = (supabase, handlers) => {
+  const channelsRef = useRef({});
+  const reconnectTimeoutsRef = useRef({});
+
+  const setupChannel = useCallback((name, config, handler) => {
+    // Cleanup existing channel with same name
+    if (channelsRef.current[name]) {
+      channelsRef.current[name].unsubscribe();
+      delete channelsRef.current[name];
+    }
+    if (reconnectTimeoutsRef.current[name]) {
+      clearTimeout(reconnectTimeoutsRef.current[name]);
+      delete reconnectTimeoutsRef.current[name];
+    }
+
+    const channel = supabase.channel(name, {
+      config: { broadcast: { self: true } }
+    });
+
+    if (config.event === 'postgres_changes') {
+      channel.on(
+        'postgres_changes',
+        config.filter,
+        (payload) => {
+          if (handlers[name]) {
+            handlers[name](payload);
+          } else {
+            console.warn(`No handler for channel ${name}`);
+          }
+        }
+      );
+    }
+
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log(`Realtime connected: ${name}`);
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.error(`Realtime error on ${name}, reconnecting...`);
+        reconnectTimeoutsRef.current[name] = setTimeout(() => {
+          setupChannel(name, config, handler);
+        }, 5000);
+      }
+    });
+
+    channelsRef.current[name] = channel;
+    return channel;
+  }, [supabase, handlers]);
+
+  const removeChannel = useCallback((name) => {
+    if (channelsRef.current[name]) {
+      channelsRef.current[name].unsubscribe();
+      delete channelsRef.current[name];
+    }
+    if (reconnectTimeoutsRef.current[name]) {
+      clearTimeout(reconnectTimeoutsRef.current[name]);
+      delete reconnectTimeoutsRef.current[name];
+    }
+  }, []);
+
+  const removeAll = useCallback(() => {
+    Object.keys(channelsRef.current).forEach(removeChannel);
+  }, [removeChannel]);
+
+  useEffect(() => {
+    return removeAll;
+  }, [removeAll]);
+
+  return { setupChannel, removeChannel, removeAll };
+};
+
+// ============= QUANTUM CODE EDITOR (FIXED) =============
 const QuantumCodeEditor = ({ 
   file, 
   onSave, 
@@ -111,11 +233,12 @@ const QuantumCodeEditor = ({
   const [lastSaved, setLastSaved] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
   
- const editorRef = useRef(null);
-const linesRef = useRef([]);
-const containerRef = useRef(null);
-const autoSaveTimer = useRef(null);
-const channelRef = useRef(null);
+  const editorRef = useRef(null);
+  const linesRef = useRef([]);
+  const containerRef = useRef(null);
+  const autoSaveTimer = useRef(null);
+  const channelRef = useRef(null);
+
   // Language detection
   useEffect(() => {
     if (file?.name) {
@@ -149,7 +272,14 @@ const channelRef = useRef(null);
       
       if (['javascript', 'typescript', 'jsx', 'tsx'].includes(language)) {
         try {
-          const ast = acorn.parse(code, { ecmaVersion: 2022, sourceType: 'module' });
+          // Try strict parsing first, fall back to loose if needed
+          let ast;
+          try {
+            ast = acorn.parse(code, { ecmaVersion: 2022, sourceType: 'module' });
+          } catch (parseError) {
+            // Fall back to loose parsing for better error recovery
+            ast = acornLoose.parse(code, { ecmaVersion: 2022, sourceType: 'module' });
+          }
           setAst(ast);
           
           codeLines.forEach((line, i) => {
@@ -260,6 +390,7 @@ const channelRef = useRef(null);
     setConsoleOutput([]);
     
     try {
+      // Safer execution using Function constructor with limited context
       const sandbox = {
         console: {
           log: (...args) => setConsoleOutput(prev => [...prev, { type: 'log', args }]),
@@ -275,14 +406,28 @@ const channelRef = useRef(null);
         Object,
         String,
         Number,
-        Boolean
+        Boolean,
+        JSON,
+        parseInt,
+        parseFloat,
+        isNaN,
+        isFinite,
+        encodeURI,
+        decodeURI,
+        encodeURIComponent,
+        decodeURIComponent
       };
       
-      const fn = new Function(...Object.keys(sandbox), code);
-      const result = fn(...Object.values(sandbox));
-      
-      if (result !== undefined) {
-        setConsoleOutput(prev => [...prev, { type: 'result', args: [result] }]);
+      // Wrap in try-catch to handle syntax errors
+      try {
+        const fn = new Function(...Object.keys(sandbox), code);
+        const result = fn(...Object.values(sandbox));
+        
+        if (result !== undefined) {
+          setConsoleOutput(prev => [...prev, { type: 'result', args: [result] }]);
+        }
+      } catch (execError) {
+        setConsoleOutput(prev => [...prev, { type: 'error', args: [execError.message] }]);
       }
     } catch (error) {
       setConsoleOutput(prev => [...prev, { type: 'error', args: [error.message] }]);
@@ -516,7 +661,7 @@ const channelRef = useRef(null);
         </div>
       )}
 
-      {/* Main Editor - Using textarea for actual editing */}
+      {/* Main Editor */}
       <div 
         className="editor-container"
         style={{ fontSize: `${fontSize}px` }}
@@ -1006,21 +1151,172 @@ export default function Community({
     lines: 0
   });
 
-  // ============= REALTIME SUBSCRIPTIONS STATE =============
-  const [subscriptions, setSubscriptions] = useState({
-    repositories: null,
-    repoStars: null,
-    repoIssues: null,
-    pullRequests: null,
-    commits: null,
-    branches: null,
-    releases: null,
-    profiles: null,
-    repoWatchers: null,
-    repoComments: null
-  });
-
   const router = useRouter();
+
+  // Performance mode
+  const { settings: perfSettings, performanceLevel, setMode } = usePerformanceMode(performanceMode);
+
+  // Realtime channel manager
+  const handlersRef = useRef({});
+  const { setupChannel, removeChannel, removeAll } = useRealtimeChannels(supabase, handlersRef.current);
+
+  // Update handlers ref when handleRealtimeUpdate changes
+  const handleRealtimeUpdate = useCallback((type, payload) => {
+    const { eventType, new: newRecord, old: oldRecord } = payload;
+    
+    switch (type) {
+      case 'repositories':
+        handleRepositoryRealtime(eventType, newRecord, oldRecord);
+        break;
+      case 'repo_stars':
+        handleStarRealtime(eventType, newRecord, oldRecord);
+        break;
+      case 'repo_watchers':
+        handleWatcherRealtime(eventType, newRecord, oldRecord);
+        break;
+      case 'repo_issues':
+        handleIssuesRealtime(eventType, newRecord, oldRecord);
+        break;
+      case 'pull_requests':
+        handlePullRequestsRealtime(eventType, newRecord, oldRecord);
+        break;
+      case 'commits':
+        handleCommitsRealtime(eventType, newRecord, oldRecord);
+        break;
+      case 'branches':
+        handleBranchesRealtime(eventType, newRecord, oldRecord);
+        break;
+      case 'releases':
+        handleReleasesRealtime(eventType, newRecord, oldRecord);
+        break;
+      case 'repo_comments':
+        handleCommentsRealtime(eventType, newRecord, oldRecord);
+        break;
+      case 'profiles':
+        handleProfileRealtime(eventType, newRecord, oldRecord);
+        break;
+      default:
+        break;
+    }
+  }, [user]);
+
+  // Store handlers in ref so they can be accessed by the channel manager without re-subscribing
+  useEffect(() => {
+    handlersRef.current = {
+      repositories: (payload) => handleRealtimeUpdate('repositories', payload),
+      repo_stars: (payload) => handleRealtimeUpdate('repo_stars', payload),
+      repo_watchers: (payload) => handleRealtimeUpdate('repo_watchers', payload),
+      repo_issues: (payload) => handleRealtimeUpdate('repo_issues', payload),
+      pull_requests: (payload) => handleRealtimeUpdate('pull_requests', payload),
+      commits: (payload) => handleRealtimeUpdate('commits', payload),
+      branches: (payload) => handleRealtimeUpdate('branches', payload),
+      releases: (payload) => handleRealtimeUpdate('releases', payload),
+      repo_comments: (payload) => handleRealtimeUpdate('repo_comments', payload),
+      profiles: (payload) => handleRealtimeUpdate('profiles', payload),
+    };
+  }, [handleRealtimeUpdate]);
+
+  // Setup global subscriptions
+  useEffect(() => {
+    if (!supabase) return;
+
+    setupChannel('repositories', {
+      event: '*',
+      schema: 'public',
+      table: 'repositories'
+    }, handlersRef.current.repositories);
+
+    setupChannel('repo_stars', {
+      event: '*',
+      schema: 'public',
+      table: 'repo_stars'
+    }, handlersRef.current.repo_stars);
+
+    setupChannel('repo_watchers', {
+      event: '*',
+      schema: 'public',
+      table: 'repo_watchers'
+    }, handlersRef.current.repo_watchers);
+
+    return () => {
+      removeChannel('repositories');
+      removeChannel('repo_stars');
+      removeChannel('repo_watchers');
+    };
+  }, [setupChannel, removeChannel]);
+
+  // Setup profile subscription when user changes
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channelName = `profile-${user.id}`;
+    setupChannel(channelName, {
+      event: '*',
+      schema: 'public',
+      table: 'profiles',
+      filter: `user_id=eq.${user.id}`
+    }, handlersRef.current.profiles);
+
+    return () => removeChannel(channelName);
+  }, [user?.id, setupChannel, removeChannel]);
+
+  // Setup repo-specific subscriptions when selected repo changes
+  useEffect(() => {
+    if (!selectedRepo?.id) return;
+
+    const repoId = selectedRepo.id;
+
+    setupChannel(`repo-issues-${repoId}`, {
+      event: '*',
+      schema: 'public',
+      table: 'repo_issues',
+      filter: `repo_id=eq.${repoId}`
+    }, handlersRef.current.repo_issues);
+
+    setupChannel(`pull-requests-${repoId}`, {
+      event: '*',
+      schema: 'public',
+      table: 'pull_requests',
+      filter: `repo_id=eq.${repoId}`
+    }, handlersRef.current.pull_requests);
+
+    setupChannel(`commits-${repoId}`, {
+      event: '*',
+      schema: 'public',
+      table: 'commits',
+      filter: `repo_id=eq.${repoId}`
+    }, handlersRef.current.commits);
+
+    setupChannel(`branches-${repoId}`, {
+      event: '*',
+      schema: 'public',
+      table: 'branches',
+      filter: `repo_id=eq.${repoId}`
+    }, handlersRef.current.branches);
+
+    setupChannel(`releases-${repoId}`, {
+      event: '*',
+      schema: 'public',
+      table: 'releases',
+      filter: `repo_id=eq.${repoId}`
+    }, handlersRef.current.releases);
+
+    setupChannel(`repo-comments-${repoId}`, {
+      event: '*',
+      schema: 'public',
+      table: 'repo_comments',
+      filter: `repo_id=eq.${repoId}`
+    }, handlersRef.current.repo_comments);
+
+    return () => {
+      removeChannel(`repo-issues-${repoId}`);
+      removeChannel(`pull-requests-${repoId}`);
+      removeChannel(`commits-${repoId}`);
+      removeChannel(`branches-${repoId}`);
+      removeChannel(`releases-${repoId}`);
+      removeChannel(`repo-comments-${repoId}`);
+    };
+  }, [selectedRepo?.id, setupChannel, removeChannel]);
 
   // ============= GOOGLE AUTH =============
   useEffect(() => {
@@ -1143,10 +1439,7 @@ export default function Community({
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
-      // Clean up all subscriptions
-      Object.values(subscriptions).forEach(sub => {
-        if (sub) sub.unsubscribe();
-      });
+      removeAll(); // Clean up all subscriptions
       
       setUser(null);
       setProfile(null);
@@ -1159,561 +1452,7 @@ export default function Community({
     }
   };
 
-  // ============= REALTIME SUBSCRIPTIONS SETUP =============
-  
-  // Setup global repositories subscription
-  const setupRepositoriesSubscription = useCallback(() => {
-    if (subscriptions.repositories) {
-      subscriptions.repositories.unsubscribe();
-    }
-
-    const channel = supabase
-      .channel('repositories-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'repositories'
-        },
-        (payload) => {
-          handleRealtimeUpdate('repositories', payload);
-        }
-      )
-      .subscribe();
-
-    setSubscriptions(prev => ({ ...prev, repositories: channel }));
-    return channel;
-  }, []);
-
-  // Setup stars subscription
-  const setupStarsSubscription = useCallback(() => {
-    if (subscriptions.repoStars) {
-      subscriptions.repoStars.unsubscribe();
-    }
-
-    const channel = supabase
-      .channel('repo-stars-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'repo_stars'
-        },
-        (payload) => {
-          handleRealtimeUpdate('repo_stars', payload);
-        }
-      )
-      .subscribe();
-
-    setSubscriptions(prev => ({ ...prev, repoStars: channel }));
-    return channel;
-  }, []);
-
-  // Setup watchers subscription
-  const setupWatchersSubscription = useCallback(() => {
-    if (subscriptions.repoWatchers) {
-      subscriptions.repoWatchers.unsubscribe();
-    }
-
-    const channel = supabase
-      .channel('repo-watchers-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'repo_watchers'
-        },
-        (payload) => {
-          handleRealtimeUpdate('repo_watchers', payload);
-        }
-      )
-      .subscribe();
-
-    setSubscriptions(prev => ({ ...prev, repoWatchers: channel }));
-    return channel;
-  }, []);
-
-  // Setup profile subscription
-  const setupProfileSubscription = useCallback(() => {
-    if (!user?.id) return;
-    
-    if (subscriptions.profiles) {
-      subscriptions.profiles.unsubscribe();
-    }
-
-    const channel = supabase
-      .channel(`profile-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'profiles',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          handleRealtimeUpdate('profiles', payload);
-        }
-      )
-      .subscribe();
-
-    setSubscriptions(prev => ({ ...prev, profiles: channel }));
-    return channel;
-  }, [user?.id]);
-
-  // Setup repository-specific subscriptions
-  const setupRepoSpecificSubscriptions = useCallback((repoId) => {
-    if (!repoId) return;
-
-    // Clean up existing repo-specific subscriptions
-    if (subscriptions.repoIssues) subscriptions.repoIssues.unsubscribe();
-    if (subscriptions.pullRequests) subscriptions.pullRequests.unsubscribe();
-    if (subscriptions.commits) subscriptions.commits.unsubscribe();
-    if (subscriptions.branches) subscriptions.branches.unsubscribe();
-    if (subscriptions.releases) subscriptions.releases.unsubscribe();
-    if (subscriptions.repoComments) subscriptions.repoComments.unsubscribe();
-
-    // Issues subscription
-    const issuesChannel = supabase
-      .channel(`repo-issues-${repoId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'repo_issues',
-          filter: `repo_id=eq.${repoId}`
-        },
-        (payload) => {
-          handleRealtimeUpdate('repo_issues', payload);
-        }
-      )
-      .subscribe();
-
-    // Pull requests subscription
-    const prChannel = supabase
-      .channel(`repo-pr-${repoId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'pull_requests',
-          filter: `repo_id=eq.${repoId}`
-        },
-        (payload) => {
-          handleRealtimeUpdate('pull_requests', payload);
-        }
-      )
-      .subscribe();
-
-    // Commits subscription
-    const commitsChannel = supabase
-      .channel(`repo-commits-${repoId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'commits',
-          filter: `repo_id=eq.${repoId}`
-        },
-        (payload) => {
-          handleRealtimeUpdate('commits', payload);
-        }
-      )
-      .subscribe();
-
-    // Branches subscription
-    const branchesChannel = supabase
-      .channel(`repo-branches-${repoId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'branches',
-          filter: `repo_id=eq.${repoId}`
-        },
-        (payload) => {
-          handleRealtimeUpdate('branches', payload);
-        }
-      )
-      .subscribe();
-
-    // Releases subscription
-    const releasesChannel = supabase
-      .channel(`repo-releases-${repoId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'releases',
-          filter: `repo_id=eq.${repoId}`
-        },
-        (payload) => {
-          handleRealtimeUpdate('releases', payload);
-        }
-      )
-      .subscribe();
-
-    // Comments subscription
-    const commentsChannel = supabase
-      .channel(`repo-comments-${repoId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'repo_comments',
-          filter: `repo_id=eq.${repoId}`
-        },
-        (payload) => {
-          handleRealtimeUpdate('repo_comments', payload);
-        }
-      )
-      .subscribe();
-
-    setSubscriptions(prev => ({
-      ...prev,
-      repoIssues: issuesChannel,
-      pullRequests: prChannel,
-      commits: commitsChannel,
-      branches: branchesChannel,
-      releases: releasesChannel,
-      repoComments: commentsChannel
-    }));
-  }, []);
-
-  // Initialize all global subscriptions
-  useEffect(() => {
-    if (!supabase) return;
-
-    setupRepositoriesSubscription();
-    setupStarsSubscription();
-    setupWatchersSubscription();
-
-    return () => {
-      Object.values(subscriptions).forEach(sub => {
-        if (sub) sub.unsubscribe();
-      });
-    };
-  }, []);
-
-  // Setup profile subscription when user changes
-  useEffect(() => {
-    if (user?.id) {
-      setupProfileSubscription();
-    }
-    
-    return () => {
-      if (subscriptions.profiles) {
-        subscriptions.profiles.unsubscribe();
-      }
-    };
-  }, [user?.id]);
-
-  // Setup repo-specific subscriptions when selected repo changes
-  useEffect(() => {
-    if (selectedRepo?.id) {
-      setupRepoSpecificSubscriptions(selectedRepo.id);
-    }
-    
-    return () => {
-      // Clean up repo-specific subscriptions
-      ['repoIssues', 'pullRequests', 'commits', 'branches', 'releases', 'repoComments'].forEach(key => {
-        if (subscriptions[key]) {
-          subscriptions[key].unsubscribe();
-          setSubscriptions(prev => ({ ...prev, [key]: null }));
-        }
-      });
-    };
-  }, [selectedRepo?.id]);
-
-  // ============= REALTIME UPDATE HANDLERS =============
-
-  const handleRealtimeUpdate = useCallback((type, payload) => {
-    const { eventType, new: newRecord, old: oldRecord } = payload;
-    
-    switch (type) {
-      case 'repositories':
-        handleRepositoryRealtime(eventType, newRecord, oldRecord);
-        break;
-      
-      case 'repo_stars':
-        handleStarRealtime(eventType, newRecord, oldRecord);
-        break;
-      
-      case 'repo_watchers':
-        handleWatcherRealtime(eventType, newRecord, oldRecord);
-        break;
-      
-      case 'repo_issues':
-        handleIssuesRealtime(eventType, newRecord, oldRecord);
-        break;
-      
-      case 'pull_requests':
-        handlePullRequestsRealtime(eventType, newRecord, oldRecord);
-        break;
-      
-      case 'commits':
-        handleCommitsRealtime(eventType, newRecord, oldRecord);
-        break;
-      
-      case 'branches':
-        handleBranchesRealtime(eventType, newRecord, oldRecord);
-        break;
-      
-      case 'releases':
-        handleReleasesRealtime(eventType, newRecord, oldRecord);
-        break;
-      
-      case 'repo_comments':
-        handleCommentsRealtime(eventType, newRecord, oldRecord);
-        break;
-      
-      case 'profiles':
-        handleProfileRealtime(eventType, newRecord, oldRecord);
-        break;
-      
-      default:
-        break;
-    }
-  }, [user]);
-
-  const handleRepositoryRealtime = (eventType, newRecord, oldRecord) => {
-    if (!selectedRepo) {
-      setRepositories(prev => {
-        switch (eventType) {
-          case 'INSERT':
-            if (newRecord.is_public || newRecord.user_id === user?.id) {
-              if (addNotification) addNotification(`New repository created: ${newRecord.name}`, 'info');
-              return [newRecord, ...prev];
-            }
-            return prev;
-          
-          case 'UPDATE':
-            return prev.map(repo => 
-              repo.id === newRecord.id ? { ...repo, ...newRecord } : repo
-            );
-          
-          case 'DELETE':
-            if (addNotification) addNotification(`Repository removed: ${oldRecord?.name}`, 'info');
-            return prev.filter(repo => repo.id !== oldRecord?.id);
-          
-          default:
-            return prev;
-        }
-      });
-    }
-  };
-
-  const handleStarRealtime = (eventType, newRecord, oldRecord) => {
-    setRepositories(prev => prev.map(repo => {
-      if (repo.id === (newRecord?.repo_id || oldRecord?.repo_id)) {
-        const delta = eventType === 'INSERT' ? 1 : eventType === 'DELETE' ? -1 : 0;
-        return {
-          ...repo,
-          star_count: Math.max(0, (repo.star_count || 0) + delta),
-          is_starred: eventType === 'INSERT' && user?.id === newRecord?.user_id
-            ? true 
-            : eventType === 'DELETE' && user?.id === oldRecord?.user_id
-            ? false 
-            : repo.is_starred
-        };
-      }
-      return repo;
-    }));
-
-    if (user && (newRecord?.user_id === user.id || oldRecord?.user_id === user.id)) {
-      toast.success(eventType === 'INSERT' ? 'Repository starred!' : 'Repository unstarred');
-    }
-  };
-
-  const handleWatcherRealtime = (eventType, newRecord, oldRecord) => {
-    setRepositories(prev => prev.map(repo => {
-      if (repo.id === (newRecord?.repo_id || oldRecord?.repo_id)) {
-        const delta = eventType === 'INSERT' ? 1 : eventType === 'DELETE' ? -1 : 0;
-        return {
-          ...repo,
-          watcher_count: Math.max(0, (repo.watcher_count || 0) + delta),
-          is_watching: eventType === 'INSERT' && user?.id === newRecord?.user_id
-            ? true
-            : eventType === 'DELETE' && user?.id === oldRecord?.user_id
-            ? false
-            : repo.is_watching
-        };
-      }
-      return repo;
-    }));
-  };
-
-  const handleIssuesRealtime = (eventType, newRecord, oldRecord) => {
-    if (selectedRepo && newRecord?.repo_id === selectedRepo.id) {
-      setIssues(prev => {
-        switch (eventType) {
-          case 'INSERT':
-            if (addNotification) addNotification(`New issue created: ${newRecord.title}`, 'info');
-            return [newRecord, ...prev];
-          case 'UPDATE':
-            return prev.map(issue => 
-              issue.id === newRecord.id ? { ...issue, ...newRecord } : issue
-            );
-          case 'DELETE':
-            return prev.filter(issue => issue.id !== oldRecord?.id);
-          default:
-            return prev;
-        }
-      });
-
-      setRepositories(prev => prev.map(repo => {
-        if (repo.id === selectedRepo.id) {
-          const delta = eventType === 'INSERT' ? 1 : eventType === 'DELETE' ? -1 : 0;
-          return {
-            ...repo,
-            issue_count: Math.max(0, (repo.issue_count || 0) + delta)
-          };
-        }
-        return repo;
-      }));
-    }
-  };
-
-  const handlePullRequestsRealtime = (eventType, newRecord, oldRecord) => {
-    if (selectedRepo && newRecord?.repo_id === selectedRepo.id) {
-      setPullRequests(prev => {
-        switch (eventType) {
-          case 'INSERT':
-            if (addNotification) addNotification(`New pull request: ${newRecord.title}`, 'info');
-            return [newRecord, ...prev];
-          case 'UPDATE':
-            if (newRecord.status === 'merged') {
-              toast.success(`Pull request merged: ${newRecord.title}`);
-            }
-            return prev.map(pr => 
-              pr.id === newRecord.id ? { ...pr, ...newRecord } : pr
-            );
-          case 'DELETE':
-            return prev.filter(pr => pr.id !== oldRecord?.id);
-          default:
-            return prev;
-        }
-      });
-
-      setRepositories(prev => prev.map(repo => {
-        if (repo.id === selectedRepo.id) {
-          const delta = eventType === 'INSERT' ? 1 : eventType === 'DELETE' ? -1 : 0;
-          return {
-            ...repo,
-            pr_count: Math.max(0, (repo.pr_count || 0) + delta)
-          };
-        }
-        return repo;
-      }));
-    }
-  };
-
-  const handleCommitsRealtime = (eventType, newRecord) => {
-    if (selectedRepo && newRecord?.repo_id === selectedRepo.id && eventType === 'INSERT') {
-      setCommitHistory(prev => [newRecord, ...prev].slice(0, 50));
-      setRepoStats(prev => ({ ...prev, commits: prev.commits + 1 }));
-      
-      const today = new Date().toISOString().split('T')[0];
-      setActivity(prev => {
-        const existing = prev.find(d => d.date === today);
-        if (existing) {
-          return prev.map(d => 
-            d.date === today ? { ...d, count: d.count + 1 } : d
-          );
-        } else {
-          return [...prev, { date: today, count: 1 }].sort((a, b) => 
-            a.date.localeCompare(b.date)
-          ).slice(-30);
-        }
-      });
-
-      if (addNotification && newRecord.message?.length > 0) {
-        addNotification(`New commit: ${newRecord.message.substring(0, 50)}${newRecord.message.length > 50 ? '...' : ''}`, 'info');
-      }
-    }
-  };
-
-  const handleBranchesRealtime = (eventType, newRecord, oldRecord) => {
-    if (selectedRepo && newRecord?.repo_id === selectedRepo.id) {
-      setBranches(prev => {
-        switch (eventType) {
-          case 'INSERT':
-            toast.success(`New branch created: ${newRecord.name}`);
-            return [...prev, newRecord];
-          case 'UPDATE':
-            return prev.map(branch => 
-              branch.id === newRecord.id ? { ...branch, ...newRecord } : branch
-            );
-          case 'DELETE':
-            toast.info(`Branch deleted: ${oldRecord?.name}`);
-            return prev.filter(branch => branch.id !== oldRecord?.id);
-          default:
-            return prev;
-        }
-      });
-
-      if (eventType === 'INSERT' || eventType === 'DELETE') {
-        setRepoStats(prev => ({ 
-          ...prev, 
-          branches: Math.max(0, prev.branches + (eventType === 'INSERT' ? 1 : -1)) 
-        }));
-      }
-    }
-  };
-
-  const handleReleasesRealtime = (eventType, newRecord, oldRecord) => {
-    if (selectedRepo && newRecord?.repo_id === selectedRepo.id) {
-      setReleases(prev => {
-        switch (eventType) {
-          case 'INSERT':
-            toast.success(`New release: ${newRecord.tag_name} - ${newRecord.title}`);
-            return [newRecord, ...prev];
-          case 'UPDATE':
-            return prev.map(release => 
-              release.id === newRecord.id ? { ...release, ...newRecord } : release
-            );
-          case 'DELETE':
-            return prev.filter(release => release.id !== oldRecord?.id);
-          default:
-            return prev;
-        }
-      });
-
-      if (eventType === 'INSERT' || eventType === 'DELETE') {
-        setRepoStats(prev => ({ 
-          ...prev, 
-          releases: Math.max(0, prev.releases + (eventType === 'INSERT' ? 1 : -1)) 
-        }));
-      }
-    }
-  };
-
-  const handleCommentsRealtime = (eventType, newRecord, oldRecord) => {
-    if (selectedRepo && newRecord?.repo_id === selectedRepo.id) {
-      if (eventType === 'INSERT') {
-        if (addNotification) addNotification(`New comment on repository`, 'info');
-      }
-    }
-  };
-
-  const handleProfileRealtime = (eventType, newRecord) => {
-    if (eventType === 'UPDATE' && newRecord?.user_id === user?.id) {
-      setProfile(newRecord);
-      if (addNotification) addNotification('Profile updated', 'info');
-    }
-  };
-
   // ============= REPOSITORY MANAGEMENT =============
-
   const fetchRepositories = async () => {
     if (selectedRepo) return;
     
